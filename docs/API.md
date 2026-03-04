@@ -1,53 +1,326 @@
-# 使用 API 操控 & 扩展 Router 
-> 欢迎提交 PR 在此放上你的拓展项目。
+# Router API（统一文档）
 
-例如，虽然 Router 本身没有直接支持支付，但是你可以通过系统扩展的 API 来实现支付功能。
+本文件整合原 `docs/API.md` 与 `docs/API.v1.md`，作为当前唯一 API 文档入口。
 
-又或者你想自定义渠道管理策略，也可以通过 API 来实现渠道的禁用与启用。
+> Swagger/OpenAPI  
+> 本文档对应的 OpenAPI 文件为 `docs/openapi.json`，由 swag 注释生成：`scripts/gen-openapi.sh`。
 
-## 鉴权
-Router 支持两种鉴权方式：Cookie 和 Token，对于 Token，参照下图获取：
+## 认证方式（JWT）
+### 请求头
+```
+Authorization: Bearer <JWT>
+```
 
-![image](https://github.com/songquanpeng/songquanpeng.github.io/assets/39998050/c15281a7-83ed-47cb-a1f6-913cb6bf4a7c)
+### JWT 来源（推荐）
+- **钱包登录（public/auth 或 public/common/auth）** 会返回 JWT
+- `/api/v1/public/profile` 支持 **钱包 JWT 或 UCAN**
 
-之后，将 Token 作为请求头的 Authorization 字段的值即可，例如下面使用 Token 调用测试渠道的 API：
-![image](https://github.com/songquanpeng/songquanpeng.github.io/assets/39998050/1273b7ae-cb60-4c0d-93a6-b1cbc039c4f8)
+> 说明
+> - 普通用户 JWT 可访问 public 用户侧接口。
+> - 管理员/Root JWT 才能访问 admin 接口。
+> - `/api/v1/public/user/login` 是密码登录（Session/Cookie），不属于 JWT 主路径；如只用 JWT 可忽略。
 
-## 请求格式与响应格式
-Router 使用 JSON 格式进行请求和响应。
-
-对于响应体，一般格式如下：
+## 响应格式说明
+- 业务接口（public/admin）一般返回：
 ```json
 {
-  "message": "请求信息",
   "success": true,
+  "message": "",
   "data": {}
 }
 ```
+- OpenAI 兼容接口（`/api/v1/public` 下的模型调用）返回 OpenAI 风格响应。
 
-## API 列表
-> 当前 API 列表不全，请自行通过浏览器抓取前端请求
+---
 
-如果现有的 API 没有办法满足你的需求，欢迎提交 issue 讨论。
+## Public（公开/用户侧）
 
-### 获取当前登录用户信息
-**GET** `/api/user/self`
+### 1) 钱包认证（JWT）
+#### proto 风格
+- `POST /api/v1/public/common/auth/challenge`
+- `POST /api/v1/public/common/auth/verify`
+- `POST /api/v1/public/common/auth/refreshToken`
 
-### 为给定用户充值额度
-**POST** `/api/topup`
+#### web3 风格
+- `POST /api/v1/public/auth/challenge`
+- `POST /api/v1/public/auth/verify`
+- `POST /api/v1/public/auth/refresh`
+- `POST /api/v1/public/auth/logout`
+
+> 说明
+> - `verify` 支持可选的 `message` 字段（SIWE 标准消息），后端会从消息里解析 `Nonce:` 并校验。
+> - 若不传 `message`，仍使用 challenge 返回的 `challenge` 进行签名验证（兼容旧流程）。
+
+#### 个人 profile（JWT 或 UCAN）
+- `GET /api/v1/public/profile`
+
+### 2) 公共信息与找回密码
+- `GET /api/v1/public/status`
+- `GET /api/v1/public/notice`
+- `GET /api/v1/public/about`
+- `GET /api/v1/public/home_page_content`
+- `GET /api/v1/public/reset_password`
+- `POST /api/v1/public/user/reset`
+
+### 3) 钱包 OAuth（JWT 认证链路）
+- `GET /api/v1/public/oauth/wallet/nonce`
+- `POST /api/v1/public/oauth/wallet/login`
+- `POST /api/v1/public/oauth/wallet/bind`（需 JWT / UserAuth）
+
+### 4) 第三方 OAuth（Session/Cookie）
+- `GET /api/v1/public/oauth/state`
+- `GET /api/v1/public/oauth/github`
+- `GET /api/v1/public/oauth/lark`
+
+### 5) 用户自助（JWT）
+> 说明：`/api/v1/public/user/login` 是密码登录（Session/Cookie），非 JWT；如只用 JWT 可忽略。
+
+- `POST /api/v1/public/user/register`（无需 JWT）
+- `POST /api/v1/public/user/login`（Session/Cookie）
+- `GET  /api/v1/public/user/logout`（Session/Cookie）
+- `GET  /api/v1/public/user/self`（JWT）
+- `PUT  /api/v1/public/user/self`（JWT）
+- `DELETE /api/v1/public/user/self`（JWT）
+- `GET  /api/v1/public/user/dashboard`（JWT）
+- `GET  /api/v1/public/user/spend/overview`（JWT）
+- `GET  /api/v1/public/user/available_models`（JWT）
+- `GET  /api/v1/public/user/token`（JWT）
+- `GET  /api/v1/public/user/aff`（JWT）
+- `POST /api/v1/public/user/topup`（JWT，兑换码充值）
+
+#### GET /api/v1/public/user/dashboard
+用户侧用量统计（兼容旧 `/api/user/dashboard`）。
+
+**Query 参数（可选）**
+- `start_timestamp`：起始时间（Unix 秒）
+- `end_timestamp`：结束时间（Unix 秒）
+- `granularity`：`hour | day | week | month | year`
+- `models`：逗号分隔的模型列表（仅统计所选模型）
+- `include_meta=1`：返回 `meta.providers`、`meta.granularity`、`meta.start`、`meta.end`
+
+**默认行为**
+- 不传参数：保持旧逻辑（近 7 天 + day 粒度）
+
+#### GET /api/v1/public/user/spend/overview
+用户花费总览（消费/充值汇总）。
+
+**Query 参数（可选）**
+- `period`：`last_week | last_month | this_year | last_year | last_12_months | all_time`，默认 `last_month`
+
+**返回字段**
+- `yesterday_cost` / `yesterday_revenue`：昨日消费/充值（quota）
+- `period_cost` / `period_revenue`：周期消费/充值（quota）
+- `period_start` / `period_end`：周期开始/结束（Unix 秒）
+- `yesterday_start` / `yesterday_end`：昨日开始/结束（Unix 秒）
+
+**说明**
+- `last_week`/`last_month` 为上个自然周/月，`this_year` 为本年截至今日，`last_year` 为去年自然年，`last_12_months` 为近 12 个月，`all_time` 为使用以来。
+
+### 6) 个人 Token 管理（JWT）
+- `GET    /api/v1/public/token`
+- `GET    /api/v1/public/token/search`
+- `GET    /api/v1/public/token/:id`
+- `POST   /api/v1/public/token`
+- `PUT    /api/v1/public/token`
+- `DELETE /api/v1/public/token/:id`
+
+### 7) 个人日志（JWT）
+- `GET /api/v1/public/log/self`
+- `GET /api/v1/public/log/self/stat`
+- `GET /api/v1/public/log/self/search`
+
+### 8) 用户侧模型/渠道（JWT）
+- `GET /api/v1/public/channel/models`（前端展示供应商/模型，支持 `provider` 与 `model_provider` 过滤；`model_provider` 可用 `gpt/gemini/claude/deepseek/qwen/千问` 等别名）
+- `GET /api/v1/public/models-all`（全量模型列表，非 OpenAI 兼容）
+
+### 9) OpenAI 兼容的模型调用（JWT）
+> 与 OpenAI API 语义一致，只是路径前缀改为 `/api/v1/public`。
+
+#### 模型列表
+- `GET /api/v1/public/models`
+- `GET /api/v1/public/models/:model`
+
+#### 文本与多模态
+- `POST /api/v1/public/chat/completions`
+- `POST /api/v1/public/completions`
+- `POST /api/v1/public/embeddings`
+- `POST /api/v1/public/moderations`
+- `POST /api/v1/public/images/generations`
+- `POST /api/v1/public/responses`
+
+#### 音频
+- `POST /api/v1/public/audio/transcriptions`
+- `POST /api/v1/public/audio/translations`
+- `POST /api/v1/public/audio/speech`
+
+#### 目前未实现（返回 501）
+- `POST /api/v1/public/edits`
+- `POST /api/v1/public/images/edits`
+- `POST /api/v1/public/images/variations`
+- `GET/POST/DELETE /api/v1/public/files*`
+- `POST/GET /api/v1/public/fine_tuning/*`
+- `POST/GET /api/v1/public/assistants/*`
+- `POST/GET /api/v1/public/threads/*`
+
+---
+
+## Admin（运营/管理）
+> 需 Admin/Root JWT
+
+### 1) 用户管理
+- `GET    /api/v1/admin/user`
+- `GET    /api/v1/admin/user/search`
+- 用户搜索支持：用户名/邮箱/显示名/ID，以及钱包地址前缀搜索（`keyword%`）
+- `GET    /api/v1/admin/user/:id`
+- `POST   /api/v1/admin/user`
+- `POST   /api/v1/admin/user/manage`
+- `PUT    /api/v1/admin/user`
+- `DELETE /api/v1/admin/user/:id`
+
+### 2) 渠道管理
+- `GET    /api/v1/admin/channel`
+- `GET    /api/v1/admin/channel/search`
+- `GET    /api/v1/admin/channel/types`（读取“接口类型”下拉目录，来源 `channel_types` 表）
+- `GET    /api/v1/admin/channel/:id`
+- `GET    /api/v1/admin/channel/test`
+- `GET    /api/v1/admin/channel/test/:id`
+- `GET    /api/v1/admin/channel/update_balance`
+- `GET    /api/v1/admin/channel/update_balance/:id`
+- `POST   /api/v1/admin/channel/preview/models`（OpenAI 兼容渠道模型预览）
+- `POST   /api/v1/admin/channel`
+- `PUT    /api/v1/admin/channel`
+- `PUT    /api/v1/admin/channel/test_model`
+- `DELETE /api/v1/admin/channel/disabled`
+- `DELETE /api/v1/admin/channel/:id`
+
+说明：服务启动时 migration 会自动初始化 `channel_types` 表（接口类型目录），前端新增/编辑渠道页面统一从该表读取接口类型，而非内置静态枚举。
+
+#### /api/v1/admin/channel/preview/models
+用于创建/编辑渠道时预览模型列表（仅 OpenAI 兼容类）。
+
+请求体示例：
 ```json
 {
-  "user_id": 1,
-  "quota": 100000,
-  "remark": "充值 100000 额度"
+  "type": 50,
+  "key": "sk-***",
+  "base_url": "https://api.openai.com",
+  "model_provider": "openai",
+  "config": {}
 }
 ```
 
-## 其他
-### 充值链接上的附加参数
-Router 会在用户点击充值按钮的时候，将用户的信息和充值信息附加在链接上，例如：
+- `model_provider` 可选，支持以下主流供应商别名：`openai/gpt`、`google/gemini`、`anthropic/claude`、`xai/grok`、`mistral`、`cohere`、`qwen/千问`、`deepseek`、`zhipu/glm`、`hunyuan/腾讯/混元`、`volcengine/doubao/ark`、`minimax/abab`；设置后服务端会按供应商过滤返回模型。
+
+响应体示例：
+```json
+{
+  "success": true,
+  "message": "",
+  "data": ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]
+}
+```
+
+### 2.1) 模型供应商管理
+- `GET  /api/v1/admin/model-provider`（读取数据库中的模型供应商目录）
+- `PUT  /api/v1/admin/model-provider`（保存模型供应商目录）
+- `GET  /api/v1/admin/model-provider/defaults`（读取系统预置的 12 家主流供应商默认目录）
+- `POST /api/v1/admin/model-provider/fetch`（通过供应商 OpenAI 兼容 API 拉取模型并按供应商过滤）
+
+说明：服务启动时 migration 会自动确保 `model_providers` 表已初始化，并补齐预置的 12 家主流供应商。
+
+#### /api/v1/admin/model-provider
+用于读取/保存供应商模型目录（可手动编辑）。
+数据存储：`model_providers` 表（不再使用 `options` 的 `ModelProviderCatalog` 键）。
+
+`PUT` 请求体示例：
+```json
+{
+  "providers": [
+    {
+      "provider": "openai",
+      "name": "OpenAI",
+      "base_url": "https://api.openai.com",
+      "api_key": "sk-***",
+      "models": ["gpt-4o-mini", "gpt-4o"],
+      "source": "manual"
+    }
+  ]
+}
+```
+
+#### /api/v1/admin/model-provider/fetch
+通过供应商 API 获取模型：
+```json
+{
+  "provider": "openai",
+  "base_url": "https://api.openai.com",
+  "key": "sk-***"
+}
+```
+
+- `provider` 必填，支持以下主流供应商别名：`openai/gpt`、`google/gemini`、`anthropic/claude`、`xai/grok`、`mistral`、`cohere`、`qwen/千问`、`deepseek`、`zhipu/glm`、`hunyuan/腾讯/混元`、`volcengine/doubao/ark`、`minimax/abab`。
+- `base_url` 可选，若不传则按优先级使用：已保存供应商 Base URL -> 官方默认地址。
+- `key` 可选，若不传则使用已保存供应商 `api_key`。
+
+### 3) 兑换码管理
+- `GET    /api/v1/admin/redemption`
+- `GET    /api/v1/admin/redemption/search`
+- `GET    /api/v1/admin/redemption/:id`
+- `POST   /api/v1/admin/redemption`
+- `PUT    /api/v1/admin/redemption`
+- `DELETE /api/v1/admin/redemption/:id`
+
+### 4) 日志管理
+- `GET    /api/v1/admin/log`
+- `DELETE /api/v1/admin/log`
+- `GET    /api/v1/admin/log/stat`
+- `GET    /api/v1/admin/log/search`
+
+### 5) 分组管理
+- `GET    /api/v1/admin/group`（返回启用分组名称列表，兼容旧下拉）
+- `GET    /api/v1/admin/group/catalog`（返回分组目录完整信息）
+- `POST   /api/v1/admin/group`（新增分组）
+- `PUT    /api/v1/admin/group`（更新分组，包括启用状态）
+- `DELETE /api/v1/admin/group/:name`（删除分组）
+
+### 6) 系统配置（Root）
+- `GET /api/v1/admin/option`
+- `PUT /api/v1/admin/option`
+
+---
+
+## Internal（内部接口）
+当前预留，暂无可用接口：
+- `/api/v1/internal/*`
+
+---
+
+## 示例（JWT 调用）
+```bash
+BASE="https://router.yeying.pub"
+JWT="<YOUR_JWT>"
+
+# 模型列表
+curl -s -H "Authorization: Bearer $JWT" \
+  "$BASE/api/v1/public/models"
+
+# Chat Completions
+curl -s -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" \
+  -d '{"model":"deepseek-chat","messages":[{"role":"user","content":"ping"}],"max_tokens":16,"temperature":0}' \
+  "$BASE/api/v1/public/chat/completions"
+```
+
+---
+
+## 附录：扩展与自动化
+Router 支持基于 API 的系统扩展和自动化集成（例如支付、渠道启停策略、外部运维平台）。
+
+### 鉴权补充
+Router 支持 Cookie 与 Token/JWT。若使用 Token/JWT，请通过 `Authorization` 请求头传递。
+
+### 充值链接附加参数
+当用户点击充值按钮时，Router 会在充值链接附带用户与交易上下文参数，例如：
+
 `https://example.com?username=root&user_id=1&transaction_id=4b3eed80-55d5-443f-bd44-fb18c648c837`
 
-你可以通过解析链接上的参数来获取用户信息和充值信息，然后调用 API 来为用户充值。
-
-注意，不是所有主题都支持该功能，欢迎 PR 补齐。
+可在外部系统解析这些参数完成业务联动。
