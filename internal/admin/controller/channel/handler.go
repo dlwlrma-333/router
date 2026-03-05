@@ -10,39 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/common/helper"
-	commonutils "github.com/yeying-community/router/common/utils"
 	"github.com/yeying-community/router/internal/admin/model"
 	channelsvc "github.com/yeying-community/router/internal/admin/service/channel"
 )
-
-func shouldRequireModelProviderOnUpdate(fields map[string]json.RawMessage) bool {
-	if len(fields) == 0 {
-		return false
-	}
-	if _, ok := fields["model_provider"]; ok {
-		return true
-	}
-	coreFields := []string{
-		"name",
-		"type",
-		"key",
-		"base_url",
-		"other",
-		"models",
-		"group",
-		"model_mapping",
-		"config",
-		"system_prompt",
-		"model_ratio",
-		"completion_ratio",
-	}
-	for _, field := range coreFields {
-		if _, ok := fields[field]; ok {
-			return true
-		}
-	}
-	return false
-}
 
 type updateChannelTestModelRequest struct {
 	ID        string `json:"id"`
@@ -175,14 +145,6 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 	channel.CreatedTime = helper.GetTimestamp()
-	channel.ModelProvider = commonutils.NormalizeModelProvider(channel.ModelProvider)
-	if channel.ModelProvider == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "模型供应商不能为空",
-		})
-		return
-	}
 	if strings.TrimSpace(channel.Group) == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -304,14 +266,6 @@ func UpdateChannel(c *gin.Context) {
 	}
 	fields := make(map[string]json.RawMessage)
 	_ = json.Unmarshal(rawBody, &fields)
-	channel.ModelProvider = commonutils.NormalizeModelProvider(channel.ModelProvider)
-	if shouldRequireModelProviderOnUpdate(fields) && channel.ModelProvider == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "模型供应商不能为空",
-		})
-		return
-	}
 	if _, ok := fields["group"]; ok && strings.TrimSpace(channel.Group) == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

@@ -69,6 +69,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return runModelProviderModelsTableRenameMigrationWithDB(tx)
 			},
 		},
+		{
+			Version:     "202603050500_drop_channel_model_provider_column",
+			Description: "drop deprecated channels.model_provider column",
+			Up: func(tx *gorm.DB) error {
+				return runDropChannelModelProviderColumnMigrationWithDB(tx)
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }

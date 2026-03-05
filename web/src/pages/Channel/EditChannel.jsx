@@ -1,8 +1,8 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import {Button, Card, Form, Input, Message} from 'semantic-ui-react';
+import {Button, Card, Checkbox, Form, Message} from 'semantic-ui-react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
-import {API, copy, getChannelModels, showError, showInfo, showSuccess, verifyJSON,} from '../../helpers';
+import {API, showError, showInfo, showSuccess, verifyJSON,} from '../../helpers';
 import {getChannelOptions, loadChannelOptions} from '../../helpers/helper';
 
 const MODEL_MAPPING_EXAMPLE = {
@@ -67,154 +67,6 @@ const OPENAI_COMPATIBLE_TYPES = new Set([50, 51]);
 
 const isOpenAICompatibleType = (type) => OPENAI_COMPATIBLE_TYPES.has(type);
 
-const normalizeModelProviderSelection = (provider) => {
-  if (typeof provider !== 'string') return '';
-  const trimmed = provider.trim();
-  if (!trimmed) return '';
-  const lower = trimmed.toLowerCase();
-  switch (lower) {
-    case 'gpt':
-    case 'openai':
-      return 'openai';
-    case 'gemini':
-    case 'google':
-      return 'google';
-    case 'claude':
-    case 'anthropic':
-      return 'anthropic';
-    case 'xai':
-    case 'grok':
-      return 'xai';
-    case 'mistral':
-      return 'mistral';
-    case 'cohere':
-    case 'command-r':
-    case 'commandr':
-      return 'cohere';
-    case 'deepseek':
-      return 'deepseek';
-    case 'qwen':
-    case 'qwq':
-    case 'qvq':
-      return 'qwen';
-    case 'zhipu':
-    case 'glm':
-    case 'bigmodel':
-      return 'zhipu';
-    case 'hunyuan':
-    case 'tencent':
-      return 'hunyuan';
-    case 'volc':
-    case 'volcengine':
-    case 'doubao':
-    case 'ark':
-      return 'volcengine';
-    case 'minimax':
-    case 'abab':
-      return 'minimax';
-    default:
-      if (trimmed === '千问') return 'qwen';
-      if (trimmed === '智谱') return 'zhipu';
-      if (trimmed === '腾讯' || trimmed === '混元') return 'hunyuan';
-      if (trimmed === '火山' || trimmed === '豆包' || trimmed === '字节')
-        return 'volcengine';
-      return lower;
-  }
-};
-
-const buildFallbackModelProviderOptions = (t) => [
-  {
-    key: 'openai',
-    text: t('channel.edit.model_provider_options.gpt'),
-    value: 'openai',
-  },
-  {
-    key: 'google',
-    text: t('channel.edit.model_provider_options.gemini'),
-    value: 'google',
-  },
-  {
-    key: 'anthropic',
-    text: t('channel.edit.model_provider_options.claude'),
-    value: 'anthropic',
-  },
-  {
-    key: 'deepseek',
-    text: t('channel.edit.model_provider_options.deepseek'),
-    value: 'deepseek',
-  },
-  {
-    key: 'qwen',
-    text: t('channel.edit.model_provider_options.qwen'),
-    value: 'qwen',
-  },
-  {
-    key: 'xai',
-    text: t('channel.edit.model_provider_options.xai'),
-    value: 'xai',
-  },
-  {
-    key: 'mistral',
-    text: t('channel.edit.model_provider_options.mistral'),
-    value: 'mistral',
-  },
-  {
-    key: 'cohere',
-    text: t('channel.edit.model_provider_options.cohere'),
-    value: 'cohere',
-  },
-  {
-    key: 'zhipu',
-    text: t('channel.edit.model_provider_options.zhipu'),
-    value: 'zhipu',
-  },
-  {
-    key: 'hunyuan',
-    text: t('channel.edit.model_provider_options.hunyuan'),
-    value: 'hunyuan',
-  },
-  {
-    key: 'volcengine',
-    text: t('channel.edit.model_provider_options.volcengine'),
-    value: 'volcengine',
-  },
-  {
-    key: 'minimax',
-    text: t('channel.edit.model_provider_options.minimax'),
-    value: 'minimax',
-  },
-];
-
-const buildModelProviderOptionsFromCatalog = (items) => {
-  if (!Array.isArray(items)) return [];
-  const indexByProvider = new Map();
-  const options = [];
-  items.forEach((item) => {
-    const provider = normalizeModelProviderSelection(
-      item?.provider || item?.name || ''
-    );
-    if (!provider) return;
-    const name = typeof item?.name === 'string' ? item.name.trim() : '';
-    const text =
-      name && name.toLowerCase() !== provider
-        ? `${name} (${provider})`
-        : name || provider;
-    const option = {
-      key: provider,
-      text,
-      value: provider,
-    };
-    if (indexByProvider.has(provider)) {
-      const index = indexByProvider.get(provider);
-      options[index] = option;
-      return;
-    }
-    indexByProvider.set(provider, options.length);
-    options.push(option);
-  });
-  return options.sort((a, b) => a.value.localeCompare(b.value));
-};
-
 function type2secretPrompt(type, t) {
   switch (type) {
     case 15:
@@ -258,7 +110,6 @@ const EditChannel = () => {
     model_ratio: '',
     completion_ratio: '',
     system_prompt: '',
-    model_provider: '',
     models: [],
     groups: [],
   };
@@ -269,11 +120,9 @@ const EditChannel = () => {
   const [channelTypeOptions, setChannelTypeOptions] = useState(() =>
     getChannelOptions()
   );
-  const [basicModels, setBasicModels] = useState([]);
-  const [fullModels, setFullModels] = useState([]);
-  const [catalogModelProviderOptions, setCatalogModelProviderOptions] = useState([]);
-  const [customModel, setCustomModel] = useState('');
   const [fetchModelsLoading, setFetchModelsLoading] = useState(false);
+  const [modelsSyncError, setModelsSyncError] = useState('');
+  const [modelsLastSyncedAt, setModelsLastSyncedAt] = useState(0);
   const [config, setConfig] = useState({
     region: '',
     sk: '',
@@ -283,34 +132,9 @@ const EditChannel = () => {
     vertex_ai_adc: '',
     user_agent: '',
   });
-  const fallbackModelProviderOptions = useMemo(
-    () => buildFallbackModelProviderOptions(t),
-    [t]
-  );
-  const modelProviderOptions = useMemo(() => {
-    const baseOptions =
-      catalogModelProviderOptions.length > 0
-        ? catalogModelProviderOptions
-        : fallbackModelProviderOptions;
-    const selectedProvider = normalizeModelProviderSelection(
-      inputs.model_provider
-    );
-    if (!selectedProvider) {
-      return baseOptions;
-    }
-    if (baseOptions.some((option) => option.value === selectedProvider)) {
-      return baseOptions;
-    }
-    return [
-      ...baseOptions,
-      { key: selectedProvider, text: selectedProvider, value: selectedProvider },
-    ];
-  }, [catalogModelProviderOptions, fallbackModelProviderOptions, inputs.model_provider]);
+  const fetchingModelsRef = useRef(false);
   const handleInputChange = (e, { name, value }) => {
     setInputs((inputs) => ({ ...inputs, [name]: value }));
-    if (name === 'type') {
-      setBasicModels(getChannelModels(value));
-    }
   };
 
   const handleConfigChange = (e, { name, value }) => {
@@ -331,7 +155,6 @@ const EditChannel = () => {
       } else {
         data.groups = data.group.split(',');
       }
-      data.model_provider = normalizeModelProviderSelection(data.model_provider);
       if (data.model_mapping !== '') {
         data.model_mapping = JSON.stringify(
           JSON.parse(data.model_mapping),
@@ -364,7 +187,6 @@ const EditChannel = () => {
           model_ratio: data.model_ratio || '',
           completion_ratio: data.completion_ratio || '',
           system_prompt: data.system_prompt || '',
-          model_provider: data.model_provider || '',
           models: data.models || [],
           groups: data.groups && data.groups.length > 0 ? data.groups : [],
         });
@@ -376,80 +198,117 @@ const EditChannel = () => {
         delete parsedConfig.use_responses;
         setConfig((prev) => ({ ...prev, ...parsedConfig }));
       }
-      setBasicModels(getChannelModels(data.type));
     } else {
       showError(message);
     }
     setLoading(false);
   }, []);
 
-  const fetchModels = useCallback(async () => {
-    try {
-      let res = await API.get(`/api/v1/public/channel/models`);
-      const payload = res?.data?.data;
-      const meta = res?.data?.meta;
-      const flattenedModels = flattenModels(payload, meta);
-      const { options, ids } = buildModelOptions(flattenedModels);
-      setOriginModelOptions(options);
-      setFullModels(ids);
-    } catch (error) {
-      showError(error?.message || error);
-    }
+  const applyModelCandidates = useCallback((models, selectAll = false) => {
+    const { options, ids } = buildModelOptions(models);
+    setOriginModelOptions(options);
+    setInputs((prev) => {
+      const selected = selectAll
+        ? ids
+        : prev.models.filter((model) => ids.includes(model));
+      return { ...prev, models: selected };
+    });
+    return ids;
   }, []);
 
-  const handleFetchModels = async () => {
-    const selectedProvider = normalizeModelProviderSelection(
-      inputs.model_provider
-    );
-    setFetchModelsLoading(true);
-    try {
-      let models = [];
-      if (
-        isOpenAICompatibleType(inputs.type) &&
-        inputs.key &&
-        inputs.key.trim() !== ''
-      ) {
-        const res = await API.post(`/api/v1/admin/channel/preview/models`, {
-          type: inputs.type,
-          key: inputs.key,
-          base_url: inputs.base_url,
-          config,
-          model_provider: selectedProvider,
-        });
-        const { success, message, data } = res.data || {};
-        if (!success) {
-          showError(message || '获取模型失败');
-          return;
-        }
-        models = Array.isArray(data) ? data.filter((model) => model) : [];
-      } else {
-        const params = selectedProvider
-          ? { model_provider: selectedProvider }
-          : undefined;
-        const res = await API.get(`/api/v1/public/channel/models`, { params });
+  const fetchModels = useCallback(
+    async (silent = false) => {
+      try {
+        const res = await API.get(`/api/v1/public/channel/models`);
         const payload = res?.data?.data;
         const meta = res?.data?.meta;
-        models = flattenModels(payload, meta);
+        const flattenedModels = flattenModels(payload, meta);
+        applyModelCandidates(flattenedModels, false);
+      } catch (error) {
+        if (!silent) {
+          showError(error?.message || error);
+        }
       }
+    },
+    [applyModelCandidates]
+  );
 
-      const { ids } = buildModelOptions(models);
-      if (ids.length === 0) {
-        showInfo(
-          selectedProvider
-            ? '未找到符合所选供应商的模型'
-            : '未返回可用模型'
-        );
-        return;
+  const handleFetchModels = useCallback(
+    async ({ silent = false, selectAll = true } = {}) => {
+      if (fetchingModelsRef.current) {
+        return false;
       }
+      fetchingModelsRef.current = true;
+      setFetchModelsLoading(true);
+      try {
+        let models = [];
+        if (
+          isOpenAICompatibleType(inputs.type) &&
+          inputs.key &&
+          inputs.key.trim() !== '' &&
+          inputs.base_url &&
+          inputs.base_url.trim() !== ''
+        ) {
+          const res = await API.post(`/api/v1/admin/channel/preview/models`, {
+            type: inputs.type,
+            key: inputs.key,
+            base_url: inputs.base_url,
+            config,
+          });
+          const { success, message, data } = res.data || {};
+          if (!success) {
+            const errorMessage = message || t('channel.edit.messages.fetch_models_failed');
+            setModelsSyncError(errorMessage);
+            if (!silent) {
+              showError(errorMessage);
+            }
+            return false;
+          }
+          models = Array.isArray(data) ? data.filter((model) => model) : [];
+        } else {
+          const res = await API.get(`/api/v1/public/channel/models`);
+          const payload = res?.data?.data;
+          const meta = res?.data?.meta;
+          models = flattenModels(payload, meta);
+        }
 
-      setInputs((prev) => ({ ...prev, models: ids }));
-      showSuccess(t('channel.messages.operation_success'));
-    } catch (error) {
-      showError(error?.message || error);
-    } finally {
-      setFetchModelsLoading(false);
-    }
-  };
+        const ids = applyModelCandidates(models, selectAll);
+        if (ids.length === 0) {
+          const message = t('channel.edit.messages.models_empty');
+          setModelsSyncError(message);
+          if (!silent) {
+            showInfo(message);
+          }
+          return false;
+        }
+
+        setModelsSyncError('');
+        setModelsLastSyncedAt(Date.now());
+        if (!silent) {
+          showSuccess(t('channel.messages.operation_success'));
+        }
+        return true;
+      } catch (error) {
+        const errorMessage = error?.message || t('channel.edit.messages.fetch_models_failed');
+        setModelsSyncError(errorMessage);
+        if (!silent) {
+          showError(errorMessage);
+        }
+        return false;
+      } finally {
+        fetchingModelsRef.current = false;
+        setFetchModelsLoading(false);
+      }
+    },
+    [
+      applyModelCandidates,
+      config,
+      inputs.base_url,
+      inputs.key,
+      inputs.type,
+      t,
+    ]
+  );
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -465,23 +324,6 @@ const EditChannel = () => {
       showError(error.message);
     }
   }, []);
-
-  const fetchModelProviders = useCallback(async () => {
-    try {
-      const res = await API.get(`/api/v1/admin/model-provider`);
-      const { success, message, data } = res.data || {};
-      if (!success) {
-        showError(message || t('channel.providers.messages.load_failed'));
-        return;
-      }
-      const options = buildModelProviderOptionsFromCatalog(data);
-      if (options.length > 0) {
-        setCatalogModelProviderOptions(options);
-      }
-    } catch (error) {
-      showError(error?.message || error);
-    }
-  }, [t]);
 
   const fetchChannelTypes = useCallback(async () => {
     const options = await loadChannelOptions();
@@ -504,6 +346,27 @@ const EditChannel = () => {
     setModelOptions(localModelOptions);
   }, [originModelOptions, inputs.models]);
 
+  const toggleModelSelection = useCallback((modelId, checked) => {
+    setInputs((prev) => {
+      const set = new Set(prev.models || []);
+      if (checked) {
+        set.add(modelId);
+      } else {
+        set.delete(modelId);
+      }
+      return { ...prev, models: Array.from(set) };
+    });
+  }, []);
+
+  const selectAllModels = useCallback(() => {
+    const allModelIds = modelOptions.map((option) => option.value);
+    setInputs((prev) => ({ ...prev, models: allModelIds }));
+  }, [modelOptions]);
+
+  const clearSelectedModels = useCallback(() => {
+    setInputs((prev) => ({ ...prev, models: [] }));
+  }, []);
+
   useEffect(() => {
     if (isEdit) {
       setLoading(true);
@@ -519,18 +382,44 @@ const EditChannel = () => {
   }, [channelId, copyFromId, isEdit, loadChannelById]);
 
   useEffect(() => {
-    if (!isEdit && copyFromId <= 0) {
-      let localModels = getChannelModels(inputs.type);
-      setBasicModels(localModels);
+    if (loading) {
+      return;
     }
-  }, [copyFromId, inputs.type, isEdit]);
+    if (isEdit) {
+      return;
+    }
+    if (inputs.type === 43) {
+      return;
+    }
+    if (
+      isOpenAICompatibleType(inputs.type) &&
+      (inputs.key || '').trim() !== '' &&
+      (inputs.base_url || '').trim() !== ''
+    ) {
+      const timer = setTimeout(() => {
+        handleFetchModels({ silent: true, selectAll: true }).then();
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+    const timer = setTimeout(() => {
+      fetchModels(true).then();
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [
+    fetchModels,
+    handleFetchModels,
+    inputs.base_url,
+    inputs.key,
+    inputs.type,
+    isEdit,
+    loading,
+  ]);
 
   useEffect(() => {
-    fetchModels().then();
+    fetchModels(true).then();
     fetchGroups().then();
-    fetchModelProviders().then();
     fetchChannelTypes().then();
-  }, [fetchModels, fetchGroups, fetchModelProviders, fetchChannelTypes]);
+  }, [fetchModels, fetchGroups, fetchChannelTypes]);
 
   const submit = async () => {
     let effectiveKey = inputs.key || '';
@@ -547,10 +436,6 @@ const EditChannel = () => {
     }
     if (!isEdit && (inputs.name.trim() === '' || effectiveKey.trim() === '')) {
       showInfo(t('channel.edit.messages.name_required'));
-      return;
-    }
-    if (normalizeModelProviderSelection(inputs.model_provider) === '') {
-      showInfo(t('channel.edit.messages.model_provider_required'));
       return;
     }
     if (inputs.groups.length === 0) {
@@ -586,9 +471,6 @@ const EditChannel = () => {
     if (localInputs.type === 3 && localInputs.other === '') {
       localInputs.other = '2024-03-01-preview';
     }
-    localInputs.model_provider = normalizeModelProviderSelection(
-      localInputs.model_provider
-    );
     let res;
     localInputs.models = localInputs.models.join(',');
     localInputs.group = localInputs.groups.join(',');
@@ -617,23 +499,10 @@ const EditChannel = () => {
     }
   };
 
-  const addCustomModel = () => {
-    if (customModel.trim() === '') return;
-    if (inputs.models.includes(customModel)) return;
-    let localModels = [...inputs.models];
-    localModels.push(customModel);
-    let localModelOptions = [];
-    localModelOptions.push({
-      key: customModel,
-      text: customModel,
-      value: customModel,
-    });
-    setModelOptions((modelOptions) => {
-      return [...modelOptions, ...localModelOptions];
-    });
-    setCustomModel('');
-    handleInputChange(null, { name: 'models', value: localModels });
-  };
+  const isRealtimeModelFetchAvailable =
+    isOpenAICompatibleType(inputs.type) &&
+    (inputs.key || '').trim() !== '' &&
+    (inputs.base_url || '').trim() !== '';
 
   return (
     <div className='dashboard-container'>
@@ -653,18 +522,6 @@ const EditChannel = () => {
                 onChange={handleInputChange}
                 value={inputs.name}
                 required
-              />
-            </Form.Field>
-            <Form.Field>
-              <Form.Select
-                label={t('channel.edit.model_provider')}
-                name='model_provider'
-                required
-                options={modelProviderOptions}
-                value={inputs.model_provider}
-                onChange={(e, { name, value }) =>
-                  handleInputChange(e, { name, value: value || '' })
-                }
               />
             </Form.Field>
             <Form.Field>
@@ -883,89 +740,103 @@ const EditChannel = () => {
             )}
             {inputs.type !== 43 && (
               <Form.Field>
-                <Form.Dropdown
-                  label={t('channel.edit.models')}
-                  placeholder={t('channel.edit.models_placeholder')}
-                  name='models'
-                  required
-                  fluid
-                  multiple
-                  search
-                  onLabelClick={(e, { value }) => {
-                    copy(value).then();
-                  }}
-                  selection
-                  onChange={handleInputChange}
-                  value={inputs.models}
-                  autoComplete='new-password'
-                  options={modelOptions}
-                />
-              </Form.Field>
-            )}
-            {inputs.type !== 43 && (
-              <Form.Field>
-                <Button
-                  type='button'
-                  color='green'
-                  loading={fetchModelsLoading}
-                  disabled={fetchModelsLoading}
-                  onClick={handleFetchModels}
-                >
-                  获取模型
-                </Button>
-              </Form.Field>
-            )}
-            {inputs.type !== 43 && (
-              <div style={{ lineHeight: '40px', marginBottom: '12px' }}>
-                <Button
-                  type={'button'}
-                  onClick={() => {
-                    handleInputChange(null, {
-                      name: 'models',
-                      value: basicModels,
-                    });
+                <label>{t('channel.edit.models')}</label>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    marginBottom: '10px',
                   }}
                 >
-                  {t('channel.edit.buttons.fill_models')}
-                </Button>
-                <Button
-                  type={'button'}
-                  onClick={() => {
-                    handleInputChange(null, {
-                      name: 'models',
-                      value: fullModels,
-                    });
-                  }}
-                >
-                  {t('channel.edit.buttons.fill_all')}
-                </Button>
-                <Button
-                  type={'button'}
-                  onClick={() => {
-                    handleInputChange(null, { name: 'models', value: [] });
-                  }}
-                >
-                  {t('channel.edit.buttons.clear')}
-                </Button>
-                <Input
-                  action={
-                    <Button type={'button'} onClick={addCustomModel}>
-                      {t('channel.edit.buttons.add_custom')}
+                  <span style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                    {t('channel.edit.model_selector.summary', {
+                      selected: inputs.models.length,
+                      total: modelOptions.length,
+                    })}
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <Button
+                      type='button'
+                      size='tiny'
+                      onClick={selectAllModels}
+                      disabled={modelOptions.length === 0}
+                    >
+                      {t('channel.edit.buttons.select_all')}
                     </Button>
-                  }
-                  placeholder={t('channel.edit.buttons.custom_placeholder')}
-                  value={customModel}
-                  onChange={(e, { value }) => {
-                    setCustomModel(value);
+                    <Button
+                      type='button'
+                      size='tiny'
+                      onClick={clearSelectedModels}
+                      disabled={inputs.models.length === 0}
+                    >
+                      {t('channel.edit.buttons.clear')}
+                    </Button>
+                    <Button
+                      type='button'
+                      size='tiny'
+                      color='green'
+                      loading={fetchModelsLoading}
+                      disabled={fetchModelsLoading}
+                      onClick={() =>
+                        handleFetchModels({ silent: false, selectAll: true })
+                      }
+                    >
+                      {t('channel.edit.buttons.fetch_models')}
+                    </Button>
+                  </div>
+                </div>
+                {isOpenAICompatibleType(inputs.type) && (
+                  <div style={{ color: 'rgba(0, 0, 0, 0.6)', marginBottom: '8px' }}>
+                    {isRealtimeModelFetchAvailable
+                      ? t('channel.edit.model_selector.realtime_enabled')
+                      : t('channel.edit.model_selector.realtime_hint')}
+                  </div>
+                )}
+                <div
+                  style={{
+                    border: '1px solid rgba(34, 36, 38, 0.15)',
+                    borderRadius: '6px',
+                    padding: '10px 12px',
+                    maxHeight: '320px',
+                    overflowY: 'auto',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                    gap: '8px 16px',
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      addCustomModel();
-                      e.preventDefault();
-                    }
-                  }}
-                />
-              </div>
+                >
+                  {modelOptions.length === 0 ? (
+                    <div style={{ color: 'rgba(0, 0, 0, 0.55)' }}>
+                      {t('channel.edit.model_selector.empty')}
+                    </div>
+                  ) : (
+                    modelOptions.map((option) => (
+                      <Checkbox
+                        key={option.key}
+                        label={option.text}
+                        checked={inputs.models.includes(option.value)}
+                        onChange={(e, { checked }) =>
+                          toggleModelSelection(option.value, checked)
+                        }
+                      />
+                    ))
+                  )}
+                </div>
+                {modelsSyncError && (
+                  <div style={{ color: '#d9534f', marginTop: '8px' }}>
+                    {modelsSyncError}
+                  </div>
+                )}
+                {modelsLastSyncedAt > 0 && (
+                  <div style={{ color: 'rgba(0, 0, 0, 0.55)', marginTop: '8px' }}>
+                    {t('channel.edit.model_selector.last_synced', {
+                      time: new Date(modelsLastSyncedAt).toLocaleString(),
+                    })}
+                  </div>
+                )}
+              </Form.Field>
             )}
             {inputs.type !== 43 && (
               <>

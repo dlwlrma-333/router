@@ -15,11 +15,10 @@ import (
 )
 
 type previewModelsRequest struct {
-	Type          int             `json:"type"`
-	Key           string          `json:"key"`
-	BaseURL       string          `json:"base_url"`
-	Config        json.RawMessage `json:"config"`
-	ModelProvider string          `json:"model_provider"`
+	Type    int             `json:"type"`
+	Key     string          `json:"key"`
+	BaseURL string          `json:"base_url"`
+	Config  json.RawMessage `json:"config"`
 }
 
 type openAIModelsResponse struct {
@@ -95,7 +94,7 @@ func fetchOpenAICompatibleModelIDsByBaseURL(key, baseURL, modelProvider string) 
 		if id == "" {
 			continue
 		}
-		if !commonutils.MatchModelProvider(id, item.OwnedBy, provider) {
+		if provider != "" && !commonutils.MatchModelProvider(id, item.OwnedBy, provider) {
 			continue
 		}
 		if _, ok := seen[id]; ok {
@@ -105,16 +104,15 @@ func fetchOpenAICompatibleModelIDsByBaseURL(key, baseURL, modelProvider string) 
 		modelIDs = append(modelIDs, id)
 	}
 	if len(modelIDs) == 0 {
-		msg := "未返回可用模型"
 		if provider != "" {
-			msg = "未找到符合所选模型供应商的模型"
+			return nil, fmt.Errorf("未找到符合所选模型供应商的模型")
 		}
-		return nil, fmt.Errorf("%s", msg)
+		return nil, fmt.Errorf("未返回可用模型")
 	}
 	return modelIDs, nil
 }
 
-func fetchOpenAICompatibleModelIDs(channelType int, key, baseURL, modelProvider string) ([]string, error) {
+func fetchOpenAICompatibleModelIDs(channelType int, key, baseURL string) ([]string, error) {
 	if !isOpenAICompatibleType(channelType) {
 		return nil, fmt.Errorf("当前渠道类型暂不支持自动获取模型")
 	}
@@ -125,7 +123,7 @@ func fetchOpenAICompatibleModelIDs(channelType int, key, baseURL, modelProvider 
 			resolvedBaseURL = channeltype.ChannelBaseURLs[channeltype.OpenAICompatible]
 		}
 	}
-	return fetchOpenAICompatibleModelIDsByBaseURL(key, resolvedBaseURL, modelProvider)
+	return fetchOpenAICompatibleModelIDsByBaseURL(key, resolvedBaseURL, "")
 }
 
 // PreviewChannelModels godoc
@@ -147,7 +145,7 @@ func PreviewChannelModels(c *gin.Context) {
 		})
 		return
 	}
-	modelIDs, err := fetchOpenAICompatibleModelIDs(req.Type, req.Key, req.BaseURL, req.ModelProvider)
+	modelIDs, err := fetchOpenAICompatibleModelIDs(req.Type, req.Key, req.BaseURL)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

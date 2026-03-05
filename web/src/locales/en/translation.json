@@ -188,21 +188,6 @@
       "title_edit": "Update Channel Information",
       "title_create": "Create New Channel",
       "type": "Protocol Type",
-      "model_provider": "Model Provider",
-      "model_provider_options": {
-        "gpt": "GPT",
-        "gemini": "Gemini",
-        "claude": "Claude",
-        "deepseek": "DeepSeek",
-        "qwen": "Qwen",
-        "xai": "xAI Grok",
-        "mistral": "Mistral",
-        "cohere": "Cohere",
-        "zhipu": "Zhipu GLM",
-        "hunyuan": "Tencent Hunyuan",
-        "volcengine": "Volcengine Doubao",
-        "minimax": "MiniMax"
-      },
       "name": "Name",
       "name_placeholder": "Please enter name",
       "group": "Group",
@@ -225,24 +210,34 @@
         "placeholder": "e.g. codex-cli",
         "help": "Fill this only if upstream enforces a client allowlist; empty means no User-Agent override"
       },
-      "buttons": {
-        "cancel": "Cancel",
-        "submit": "Submit",
-        "fill_models": "Fill Related Models",
-        "fill_all": "Fill All Models",
-        "clear": "Clear All Models",
-        "add_custom": "Add",
-        "custom_placeholder": "Enter custom model name"
-      },
-      "messages": {
-        "name_required": "Please enter channel name and key!",
-        "model_provider_required": "Please choose a model provider first!",
-        "groups_required": "Please select at least one group!",
-        "models_required": "Please select at least one model!",
-        "model_mapping_invalid": "Model mapping must be valid JSON format!",
-        "update_success": "Channel updated successfully!",
-        "create_success": "Channel created successfully!"
-      },
+    "buttons": {
+      "cancel": "Cancel",
+      "submit": "Submit",
+      "fetch_models": "Fetch Models",
+      "select_all": "Select All",
+      "fill_models": "Fill Related Models",
+      "fill_all": "Fill All Models",
+      "clear": "Clear All Models",
+      "add_custom": "Add",
+      "custom_placeholder": "Enter custom model name"
+    },
+    "model_selector": {
+      "summary": "Selected {{selected}} / {{total}}",
+      "realtime_enabled": "Realtime model sync is enabled: changing Base URL or key refreshes models and selects all by default.",
+      "realtime_hint": "After Base URL and key are filled, supported models will be fetched automatically.",
+      "empty": "No models available yet. Click \"Fetch Models\" or check your configuration.",
+      "last_synced": "Last synced at: {{time}}"
+    },
+    "messages": {
+      "name_required": "Please enter channel name and key!",
+      "groups_required": "Please select at least one group!",
+      "models_required": "Please select at least one model!",
+      "fetch_models_failed": "Failed to fetch models",
+      "models_empty": "No available models were returned",
+      "model_mapping_invalid": "Model mapping must be valid JSON format!",
+      "update_success": "Channel updated successfully!",
+      "create_success": "Channel created successfully!"
+    },
       "spark_version": "Model Version",
       "spark_version_placeholder": "Please enter Spark model version from API URL, e.g.: v2.1",
       "knowledge_id": "Knowledge Base ID",

@@ -314,7 +314,6 @@ type ChannelCreateRequest struct {
 	BaseURL         string `json:"base_url,omitempty" example:"https://api.openai.com"`
 	Models          string `json:"models,omitempty" example:"gpt-4o-mini,gpt-4o"`
 	Group           string `json:"group,omitempty" example:"default"`
-	ModelProvider   string `json:"model_provider,omitempty" example:"openai"`
 	ModelMapping    string `json:"model_mapping,omitempty" example:"{}"`
 	Priority        int64  `json:"priority,omitempty" example:"0"`
 	Config          string `json:"config,omitempty" example:"{}"`
@@ -333,7 +332,6 @@ type ChannelUpdateRequest struct {
 	BaseURL         string `json:"base_url,omitempty" example:"https://api.openai.com"`
 	Models          string `json:"models,omitempty" example:"gpt-4o-mini,gpt-4o"`
 	Group           string `json:"group,omitempty" example:"default"`
-	ModelProvider   string `json:"model_provider,omitempty" example:"openai"`
 	ModelMapping    string `json:"model_mapping,omitempty" example:"{}"`
 	Priority        int64  `json:"priority,omitempty" example:"0"`
 	Config          string `json:"config,omitempty" example:"{}"`
@@ -343,11 +341,10 @@ type ChannelUpdateRequest struct {
 }
 
 type ChannelPreviewModelsRequest struct {
-	Type          int    `json:"type" example:"50"`
-	Key           string `json:"key" example:"sk-***"`
-	BaseURL       string `json:"base_url,omitempty" example:"https://api.openai.com"`
-	ModelProvider string `json:"model_provider,omitempty" example:"openai"`
-	Config        any    `json:"config,omitempty"`
+	Type    int    `json:"type" example:"50"`
+	Key     string `json:"key" example:"sk-***"`
+	BaseURL string `json:"base_url,omitempty" example:"https://api.openai.com"`
+	Config  any    `json:"config,omitempty"`
 }
 
 type ModelProviderCatalogItem struct {

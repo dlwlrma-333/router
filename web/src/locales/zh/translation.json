@@ -188,21 +188,6 @@
       "title_edit": "更新渠道信息",
       "title_create": "创建新的渠道",
       "type": "协议类型",
-      "model_provider": "模型供应商",
-      "model_provider_options": {
-        "gpt": "GPT",
-        "gemini": "Gemini",
-        "claude": "Claude",
-        "deepseek": "DeepSeek",
-        "qwen": "千问",
-        "xai": "xAI Grok",
-        "mistral": "Mistral",
-        "cohere": "Cohere",
-        "zhipu": "智谱 GLM",
-        "hunyuan": "腾讯混元",
-        "volcengine": "火山方舟 / 豆包",
-        "minimax": "MiniMax"
-      },
       "name": "名称",
       "name_placeholder": "请输入名称",
       "group": "分组",
@@ -225,24 +210,34 @@
         "placeholder": "例如：codex-cli",
         "help": "上游开启客户端白名单时填写；为空则不加 User-Agent"
       },
-      "buttons": {
-        "cancel": "取消",
-        "submit": "提交",
-        "fill_models": "填入相关模型",
-        "fill_all": "填入所有模型",
-        "clear": "清除所有模型",
-        "add_custom": "填入",
-        "custom_placeholder": "输入自定义模型名称"
-      },
-      "messages": {
-        "name_required": "请填写渠道名称和渠道密钥！",
-        "model_provider_required": "请先选择模型供应商！",
-        "groups_required": "请至少选择一个分组！",
-        "models_required": "请至少选择一个模型！",
-        "model_mapping_invalid": "模型映射必须是合法的 JSON 格式！",
-        "update_success": "渠道更新成功！",
-        "create_success": "渠道创建成功！"
-      },
+    "buttons": {
+      "cancel": "取消",
+      "submit": "提交",
+      "fetch_models": "获取模型",
+      "select_all": "全选",
+      "fill_models": "填入相关模型",
+      "fill_all": "填入所有模型",
+      "clear": "清除所有模型",
+      "add_custom": "填入",
+      "custom_placeholder": "输入自定义模型名称"
+    },
+    "model_selector": {
+      "summary": "已选择 {{selected}} / {{total}}",
+      "realtime_enabled": "已启用实时模型同步：修改 Base URL 或密钥后会自动刷新并默认全选。",
+      "realtime_hint": "填写 Base URL 和密钥后会自动获取该渠道支持的模型。",
+      "empty": "暂无可选模型，请先点击“获取模型”或检查配置。",
+      "last_synced": "最近同步时间：{{time}}"
+    },
+    "messages": {
+      "name_required": "请填写渠道名称和渠道密钥！",
+      "groups_required": "请至少选择一个分组！",
+      "models_required": "请至少选择一个模型！",
+      "fetch_models_failed": "获取模型失败",
+      "models_empty": "未返回可用模型",
+      "model_mapping_invalid": "模型映射必须是合法的 JSON 格式！",
+      "update_success": "渠道更新成功！",
+      "create_success": "渠道创建成功！"
+    },
       "spark_version": "模型版本",
       "spark_version_placeholder": "请输入星火大模型版本，注意是接口地址中的版本号，例如：v2.1",
       "knowledge_id": "知识库 ID",
