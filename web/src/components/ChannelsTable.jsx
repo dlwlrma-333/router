@@ -740,6 +740,9 @@ const ChannelsTable = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           {selectionMode === selectionModeNone ? (
             <>
+              <Button size='tiny' as={Link} to='/channel/add' disabled={actionBusy}>
+                {t('channel.buttons.add')}
+              </Button>
               <Button
                 size='tiny'
                 disabled={actionBusy}
