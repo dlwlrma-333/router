@@ -510,7 +510,7 @@ const ChannelsTable = () => {
     pagedChannelIds.length > 0 &&
     pagedChannelIds.every((id) => selectedChannelIds.includes(id));
   const inBatchSelectMode = selectionMode !== selectionModeNone;
-  const footerColSpan = (showDetail ? 10 : 8) + (inBatchSelectMode ? 1 : 0);
+  const footerColSpan = (showDetail ? 9 : 7) + (inBatchSelectMode ? 1 : 0);
   const actionBusy = batchTesting || batchDeleting || batchDisabling;
 
   const toggleChannelSelection = (channelId, checked) => {
@@ -842,14 +842,6 @@ const ChannelsTable = () => {
             <Table.HeaderCell
               style={{ cursor: 'pointer' }}
               onClick={() => {
-                sortChannel('id');
-              }}
-            >
-              {t('channel.table.id')}
-            </Table.HeaderCell>
-            <Table.HeaderCell
-              style={{ cursor: 'pointer' }}
-              onClick={() => {
                 sortChannel('name');
               }}
             >
@@ -927,7 +919,6 @@ const ChannelsTable = () => {
                       />
                     </Table.Cell>
                   )}
-                  <Table.Cell>{channel.id}</Table.Cell>
                   <Table.Cell>
                     {channel.name ? channel.name : t('channel.table.no_name')}
                   </Table.Cell>
