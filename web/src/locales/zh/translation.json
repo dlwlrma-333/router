@@ -305,11 +305,14 @@
       "display_name_placeholder": "例如：企业版",
       "description": "描述",
       "description_placeholder": "可选，用于说明该分组用途",
-      "sort_order": "排序值"
+      "sort_order": "排序值",
+      "channels": "绑定渠道",
+      "channels_placeholder": "选择该分组可用的渠道"
     },
     "buttons": {
       "add": "新增分组",
       "edit": "编辑",
+      "bind_channels": "配置渠道",
       "enable": "启用",
       "disable": "禁用",
       "delete": "删除",
@@ -320,17 +323,21 @@
       "create_title": "新增分组",
       "edit_title": "编辑分组",
       "delete_title": "确认删除分组",
-      "delete_confirm": "确定删除分组 {{name}} 吗？"
+      "delete_confirm": "确定删除分组 {{name}} 吗？",
+      "bind_channels_title": "配置分组 {{name}} 的渠道"
     },
     "messages": {
       "loading": "加载中...",
       "empty": "暂无分组",
       "name_required": "分组名称不能为空",
       "load_failed": "加载分组失败",
+      "bind_load_failed": "加载分组渠道失败",
       "create_success": "分组创建成功",
       "create_failed": "分组创建失败",
       "update_success": "分组更新成功",
       "update_failed": "分组更新失败",
+      "bind_update_success": "分组渠道配置已保存",
+      "bind_update_failed": "分组渠道配置保存失败",
       "delete_success": "分组删除成功",
       "delete_failed": "分组删除失败"
     }

@@ -287,6 +287,8 @@ func SetApiRouter(engine *gin.Engine) {
 			groupRoute.POST("/", group.CreateGroup)
 			groupRoute.PUT("/", group.UpdateGroup)
 			groupRoute.DELETE("/:name", group.DeleteGroup)
+			groupRoute.GET("/:name/channels", group.GetGroupChannels)
+			groupRoute.PUT("/:name/channels", group.UpdateGroupChannels)
 		}
 
 		// Models list for authenticated users
@@ -363,6 +365,8 @@ func SetApiRouter(engine *gin.Engine) {
 			adminGroupRoute.POST("/", group.CreateGroup)
 			adminGroupRoute.PUT("/", group.UpdateGroup)
 			adminGroupRoute.DELETE("/:name", group.DeleteGroup)
+			adminGroupRoute.GET("/:name/channels", group.GetGroupChannels)
+			adminGroupRoute.PUT("/:name/channels", group.UpdateGroupChannels)
 		}
 
 		adminModelProviderRoute := adminRouter.Group("/model-provider")

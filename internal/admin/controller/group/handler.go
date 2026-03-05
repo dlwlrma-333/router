@@ -17,6 +17,10 @@ type upsertGroupRequest struct {
 	SortOrder   int    `json:"sort_order"`
 }
 
+type updateGroupChannelsRequest struct {
+	ChannelIDs []string `json:"channel_ids"`
+}
+
 // GetGroups godoc
 // @Summary List groups (admin)
 // @Tags admin
@@ -168,6 +172,80 @@ func DeleteGroup(c *gin.Context) {
 		return
 	}
 	if err := groupsvc.Delete(name); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
+// GetGroupChannels godoc
+// @Summary List group channel bindings (admin)
+// @Tags admin
+// @Security BearerAuth
+// @Produce json
+// @Param name path string true "Group name"
+// @Success 200 {object} docs.StandardResponse
+// @Failure 401 {object} docs.ErrorResponse
+// @Router /api/v1/admin/group/{name}/channels [get]
+func GetGroupChannels(c *gin.Context) {
+	name := strings.TrimSpace(c.Param("name"))
+	if name == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "分组名称不能为空",
+		})
+		return
+	}
+	rows, err := groupsvc.ListChannelBindings(name)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    rows,
+	})
+}
+
+// UpdateGroupChannels godoc
+// @Summary Update group channel bindings (admin)
+// @Tags admin
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param name path string true "Group name"
+// @Success 200 {object} docs.StandardResponse
+// @Failure 401 {object} docs.ErrorResponse
+// @Router /api/v1/admin/group/{name}/channels [put]
+func UpdateGroupChannels(c *gin.Context) {
+	name := strings.TrimSpace(c.Param("name"))
+	if name == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "分组名称不能为空",
+		})
+		return
+	}
+
+	req := updateGroupChannelsRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	if err := groupsvc.ReplaceChannelBindings(name, req.ChannelIDs); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),

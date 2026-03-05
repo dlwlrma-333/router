@@ -31,3 +31,11 @@ func Update(item model.GroupCatalog) (model.GroupCatalog, error) {
 func Delete(name string) error {
 	return model.DeleteGroupCatalog(name)
 }
+
+func ListChannelBindings(name string) ([]model.GroupChannelBindingItem, error) {
+	return model.ListGroupChannelBindings(name)
+}
+
+func ReplaceChannelBindings(name string, channelIDs []string) error {
+	return model.ReplaceGroupChannelBindings(name, channelIDs)
+}

@@ -78,7 +78,6 @@ const CHANNEL_ORIGIN_INPUTS = {
   completion_ratio: '',
   system_prompt: '',
   models: [],
-  groups: [],
 };
 
 const CHANNEL_DEFAULT_CONFIG = {
@@ -131,7 +130,6 @@ const EditChannel = () => {
   const [inputs, setInputs] = useState(CHANNEL_ORIGIN_INPUTS);
   const [originModelOptions, setOriginModelOptions] = useState([]);
   const [modelOptions, setModelOptions] = useState([]);
-  const [groupOptions, setGroupOptions] = useState([]);
   const [channelTypeOptions, setChannelTypeOptions] = useState(() =>
     getChannelOptions()
   );
@@ -327,12 +325,8 @@ const EditChannel = () => {
       showInfo(t('channel.edit.messages.name_required'));
       return;
     }
-    if (inputs.groups.length === 0) {
-      showInfo(t('channel.edit.messages.groups_required'));
-      return;
-    }
     goToCreateStep(2);
-  }, [buildEffectiveKey, goToCreateStep, inputs.groups.length, inputs.name, t]);
+  }, [buildEffectiveKey, goToCreateStep, inputs.name, t]);
 
   const moveToStepThree = useCallback(() => {
     if (requiresConnectionVerification) {
@@ -368,11 +362,6 @@ const EditChannel = () => {
         data.models = [];
       } else {
         data.models = data.models.split(',');
-      }
-      if (data.group === '') {
-        data.groups = [];
-      } else {
-        data.groups = data.group.split(',');
       }
       if (data.model_mapping !== '') {
         data.model_mapping = JSON.stringify(
@@ -414,7 +403,6 @@ const EditChannel = () => {
           completion_ratio: data.completion_ratio || '',
           system_prompt: data.system_prompt || '',
           models: data.models || [],
-          groups: data.groups && data.groups.length > 0 ? data.groups : [],
         });
       } else {
         setInputs({ ...data, type: normalizedType });
@@ -539,21 +527,6 @@ const EditChannel = () => {
       t,
     ]
   );
-
-  const fetchGroups = useCallback(async () => {
-    try {
-      let res = await API.get(`/api/v1/admin/group/`);
-      setGroupOptions(
-        res.data.data.map((group) => ({
-          key: group,
-          text: group,
-          value: group,
-        }))
-      );
-    } catch (error) {
-      showError(error.message);
-    }
-  }, []);
 
   const fetchChannelTypes = useCallback(async () => {
     const options = await loadChannelOptions();
@@ -760,18 +733,13 @@ const EditChannel = () => {
     if (isEdit || copyFromId > 0) {
       fetchModels(true).then();
     }
-    fetchGroups().then();
     fetchChannelTypes().then();
-  }, [copyFromId, fetchModels, fetchGroups, fetchChannelTypes, isEdit]);
+  }, [copyFromId, fetchModels, fetchChannelTypes, isEdit]);
 
   const submit = async () => {
     const effectiveKey = buildEffectiveKey();
     if (!isEdit && (inputs.name.trim() === '' || effectiveKey.trim() === '')) {
       showInfo(t('channel.edit.messages.name_required'));
-      return;
-    }
-    if (inputs.groups.length === 0) {
-      showInfo(t('channel.edit.messages.groups_required'));
       return;
     }
     if (requiresConnectionVerification) {
@@ -815,7 +783,6 @@ const EditChannel = () => {
     }
     let res;
     localInputs.models = localInputs.models.join(',');
-    localInputs.group = localInputs.groups.join(',');
     const submitConfig = { ...config };
     delete submitConfig.use_responses;
     delete submitConfig.user_agent;
@@ -1020,24 +987,6 @@ const EditChannel = () => {
                       />
                     </Form.Field>
                   )}
-                <Form.Field>
-                  <Form.Dropdown
-                    label={t('channel.edit.group')}
-                    placeholder={t('channel.edit.group_placeholder')}
-                    name='groups'
-                    required
-                    fluid
-                    multiple
-                    selection
-                    allowAdditions
-                    additionLabel={t('channel.edit.group_addition')}
-                    onChange={handleInputChange}
-                    value={inputs.groups}
-                    autoComplete='new-password'
-                    options={groupOptions}
-                  />
-                </Form.Field>
-
                 {/* Azure OpenAI specific fields */}
                 {inputs.type === 3 && (
                   <>

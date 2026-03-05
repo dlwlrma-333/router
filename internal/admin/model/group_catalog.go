@@ -170,18 +170,6 @@ func isGroupInUseWithDB(db *gorm.DB, name string) (bool, error) {
 		}
 	}
 
-	channels := make([]Channel, 0)
-	if err := db.Select("group").Find(&channels).Error; err != nil {
-		return false, err
-	}
-	for _, channel := range channels {
-		for _, groupName := range parseGroupNamesFromCSV(channel.Group) {
-			if groupName == name {
-				return true, nil
-			}
-		}
-	}
-
 	abilities := make([]Ability, 0)
 	if err := db.Select("group").Find(&abilities).Error; err != nil {
 		return false, err

@@ -44,15 +44,60 @@ func GetRandomSatisfiedChannel(group string, modelName string, ignoreFirstPriori
 }
 
 func AddAbilities(channel *model.Channel) error {
+	// Channel-group bindings are managed centrally in group management.
+	// Channel creation no longer auto-generates abilities.
+	if channel == nil {
+		return nil
+	}
+	return nil
+}
+
+func listBoundGroupsByChannelID(channelID string) ([]string, error) {
+	groupCol := `"group"`
+	groups := make([]string, 0)
+	err := model.DB.Model(&model.Ability{}).
+		Distinct(groupCol).
+		Where("channel_id = ?", channelID).
+		Pluck(groupCol, &groups).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make([]string, 0, len(groups))
+	seen := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		normalized := strings.TrimSpace(group)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result, nil
+}
+
+func buildAbilitiesForChannel(channel *model.Channel, groups []string) []model.Ability {
+	if channel == nil || len(groups) == 0 {
+		return nil
+	}
 	models := strings.Split(channel.Models, ",")
 	models = utils.DeDuplication(models)
-	groups := strings.Split(channel.Group, ",")
 	abilities := make([]model.Ability, 0, len(models)*len(groups))
 	for _, modelName := range models {
+		normalizedModel := strings.TrimSpace(modelName)
+		if normalizedModel == "" {
+			continue
+		}
 		for _, group := range groups {
+			normalizedGroup := strings.TrimSpace(group)
+			if normalizedGroup == "" {
+				continue
+			}
 			ability := model.Ability{
-				Group:     group,
-				Model:     modelName,
+				Group:     normalizedGroup,
+				Model:     normalizedModel,
 				ChannelId: channel.Id,
 				Enabled:   channel.Status == model.ChannelStatusEnabled,
 				Priority:  channel.Priority,
@@ -60,7 +105,7 @@ func AddAbilities(channel *model.Channel) error {
 			abilities = append(abilities, ability)
 		}
 	}
-	return model.DB.Create(&abilities).Error
+	return abilities
 }
 
 func DeleteAbilities(channel *model.Channel) error {
@@ -68,11 +113,22 @@ func DeleteAbilities(channel *model.Channel) error {
 }
 
 func UpdateAbilities(channel *model.Channel) error {
-	err := DeleteAbilities(channel)
+	if channel == nil {
+		return nil
+	}
+	groups, err := listBoundGroupsByChannelID(channel.Id)
 	if err != nil {
 		return err
 	}
-	return AddAbilities(channel)
+	abilities := buildAbilitiesForChannel(channel, groups)
+	err = DeleteAbilities(channel)
+	if err != nil {
+		return err
+	}
+	if len(abilities) == 0 {
+		return nil
+	}
+	return model.DB.Create(&abilities).Error
 }
 
 func UpdateAbilityStatus(channelId string, status bool) error {

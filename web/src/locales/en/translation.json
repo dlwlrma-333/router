@@ -305,11 +305,14 @@
       "display_name_placeholder": "e.g. Enterprise",
       "description": "Description",
       "description_placeholder": "Optional description for this group",
-      "sort_order": "Sort Value"
+      "sort_order": "Sort Value",
+      "channels": "Bound Channels",
+      "channels_placeholder": "Select channels available for this group"
     },
     "buttons": {
       "add": "Add Group",
       "edit": "Edit",
+      "bind_channels": "Configure Channels",
       "enable": "Enable",
       "disable": "Disable",
       "delete": "Delete",
@@ -320,17 +323,21 @@
       "create_title": "Create Group",
       "edit_title": "Edit Group",
       "delete_title": "Confirm Delete Group",
-      "delete_confirm": "Are you sure you want to delete group {{name}}?"
+      "delete_confirm": "Are you sure you want to delete group {{name}}?",
+      "bind_channels_title": "Configure Channels for Group {{name}}"
     },
     "messages": {
       "loading": "Loading...",
       "empty": "No groups",
       "name_required": "Group name is required",
       "load_failed": "Failed to load groups",
+      "bind_load_failed": "Failed to load group channels",
       "create_success": "Group created successfully",
       "create_failed": "Failed to create group",
       "update_success": "Group updated successfully",
       "update_failed": "Failed to update group",
+      "bind_update_success": "Group channel bindings saved",
+      "bind_update_failed": "Failed to save group channel bindings",
       "delete_success": "Group deleted successfully",
       "delete_failed": "Failed to delete group"
     }

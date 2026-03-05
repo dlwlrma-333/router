@@ -172,26 +172,44 @@ func InitChannelCache() {
 	var channels []*Channel
 	DB.Where("status = ?", ChannelStatusEnabled).Find(&channels)
 	var abilities []*Ability
-	DB.Find(&abilities)
+	DB.Where("enabled = ?", true).Find(&abilities)
 	groups := make(map[string]bool)
 	for _, ability := range abilities {
-		groups[ability.Group] = true
+		groupName := strings.TrimSpace(ability.Group)
+		if groupName == "" {
+			continue
+		}
+		groups[groupName] = true
 	}
 	newGroup2model2channels := make(map[string]map[string][]*Channel)
 	for group := range groups {
 		newGroup2model2channels[group] = make(map[string][]*Channel)
 	}
+	channelByID := make(map[string]*Channel, len(channels))
 	for _, channel := range channels {
-		groups := strings.Split(channel.Group, ",")
-		for _, group := range groups {
-			models := strings.Split(channel.Models, ",")
-			for _, model := range models {
-				if _, ok := newGroup2model2channels[group][model]; !ok {
-					newGroup2model2channels[group][model] = make([]*Channel, 0)
-				}
-				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel)
-			}
+		if channel == nil {
+			continue
 		}
+		channelByID[channel.Id] = channel
+	}
+	for _, ability := range abilities {
+		if ability == nil {
+			continue
+		}
+		groupName := strings.TrimSpace(ability.Group)
+		modelName := strings.TrimSpace(ability.Model)
+		channelID := strings.TrimSpace(ability.ChannelId)
+		if groupName == "" || modelName == "" || channelID == "" {
+			continue
+		}
+		channel, ok := channelByID[channelID]
+		if !ok {
+			continue
+		}
+		if _, ok := newGroup2model2channels[groupName][modelName]; !ok {
+			newGroup2model2channels[groupName][modelName] = make([]*Channel, 0)
+		}
+		newGroup2model2channels[groupName][modelName] = append(newGroup2model2channels[groupName][modelName], channel)
 	}
 
 	// sort by priority

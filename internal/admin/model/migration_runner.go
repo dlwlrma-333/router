@@ -83,6 +83,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return runRemoveOpenAICompatibleProtocolMigrationWithDB(tx)
 			},
 		},
+		{
+			Version:     "202603051200_drop_channel_group_column",
+			Description: "migrate channel-group relation to group_model_channels and drop channels.group",
+			Up: func(tx *gorm.DB) error {
+				return runDropChannelGroupColumnMigrationWithDB(tx)
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }

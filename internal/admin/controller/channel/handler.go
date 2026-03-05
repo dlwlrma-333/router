@@ -145,13 +145,6 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 	channel.CreatedTime = helper.GetTimestamp()
-	if strings.TrimSpace(channel.Group) == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "分组不能为空",
-		})
-		return
-	}
 	keys := strings.Split(channel.Key, "\n")
 	channels := make([]model.Channel, 0, len(keys))
 	for _, key := range keys {
@@ -261,15 +254,6 @@ func UpdateChannel(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
-		})
-		return
-	}
-	fields := make(map[string]json.RawMessage)
-	_ = json.Unmarshal(rawBody, &fields)
-	if _, ok := fields["group"]; ok && strings.TrimSpace(channel.Group) == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "分组不能为空",
 		})
 		return
 	}

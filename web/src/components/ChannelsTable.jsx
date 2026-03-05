@@ -13,7 +13,7 @@ import {
 
 import {ITEMS_PER_PAGE} from '../constants';
 import {getChannelOptions, loadChannelOptions} from '../helpers/helper';
-import {renderGroup, renderNumber} from '../helpers/render';
+import {renderNumber} from '../helpers/render';
 
 function renderTimestamp(timestamp) {
   return <>{timestamp2string(timestamp)}</>;
@@ -510,7 +510,7 @@ const ChannelsTable = () => {
     pagedChannelIds.length > 0 &&
     pagedChannelIds.every((id) => selectedChannelIds.includes(id));
   const inBatchSelectMode = selectionMode !== selectionModeNone;
-  const footerColSpan = (showDetail ? 9 : 7) + (inBatchSelectMode ? 1 : 0);
+  const footerColSpan = (showDetail ? 8 : 6) + (inBatchSelectMode ? 1 : 0);
   const actionBusy = batchTesting || batchDeleting || batchDisabling;
 
   const toggleChannelSelection = (channelId, checked) => {
@@ -853,14 +853,6 @@ const ChannelsTable = () => {
             <Table.HeaderCell
               style={{ cursor: 'pointer' }}
               onClick={() => {
-                sortChannel('group');
-              }}
-            >
-              {t('channel.table.group')}
-            </Table.HeaderCell>
-            <Table.HeaderCell
-              style={{ cursor: 'pointer' }}
-              onClick={() => {
                 sortChannel('type');
               }}
             >
@@ -925,7 +917,6 @@ const ChannelsTable = () => {
                   <Table.Cell>
                     {channel.name ? channel.name : t('channel.table.no_name')}
                   </Table.Cell>
-                  <Table.Cell>{renderGroup(channel.group)}</Table.Cell>
                   <Table.Cell>{renderType(channel.type, typeMap)}</Table.Cell>
                   <Table.Cell>{renderStatus(channel.status, t)}</Table.Cell>
                   <Table.Cell>

@@ -30,6 +30,11 @@ const GroupsManager = forwardRef((_, ref) => {
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [bindingOpen, setBindingOpen] = useState(false);
+  const [bindingTarget, setBindingTarget] = useState(null);
+  const [bindingOptions, setBindingOptions] = useState([]);
+  const [bindingChannelIDs, setBindingChannelIDs] = useState([]);
+  const [bindingLoading, setBindingLoading] = useState(false);
 
   const loadCatalog = useCallback(async () => {
     setLoading(true);
@@ -95,6 +100,46 @@ const GroupsManager = forwardRef((_, ref) => {
     if (submitting) return;
     setDeleteOpen(false);
     setDeleteTarget(null);
+  };
+
+  const openBindingModal = async (row) => {
+    if (!row || submitting) return;
+    setBindingTarget(row);
+    setBindingOpen(true);
+    setBindingLoading(true);
+    try {
+      const encodedName = encodeURIComponent(row.name || '');
+      const res = await API.get(`/api/v1/admin/group/${encodedName}/channels`);
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        showError(message || t('group_manage.messages.bind_load_failed'));
+        return;
+      }
+      const rows = Array.isArray(data) ? data : [];
+      setBindingOptions(
+        rows.map((item) => ({
+          key: item.id,
+          text: `${item.name || item.id} (${item.id})`,
+          value: item.id,
+        }))
+      );
+      setBindingChannelIDs(
+        rows.filter((item) => !!item.bound).map((item) => item.id)
+      );
+    } catch (error) {
+      showError(error);
+    } finally {
+      setBindingLoading(false);
+    }
+  };
+
+  const closeBindingModal = () => {
+    if (submitting) return;
+    setBindingOpen(false);
+    setBindingTarget(null);
+    setBindingOptions([]);
+    setBindingChannelIDs([]);
+    setBindingLoading(false);
   };
 
   const submitCreate = async () => {
@@ -223,6 +268,28 @@ const GroupsManager = forwardRef((_, ref) => {
     }
   };
 
+  const submitBinding = async () => {
+    if (!bindingTarget || submitting) return;
+    setSubmitting(true);
+    try {
+      const encodedName = encodeURIComponent(bindingTarget.name || '');
+      const res = await API.put(`/api/v1/admin/group/${encodedName}/channels`, {
+        channel_ids: bindingChannelIDs,
+      });
+      const { success, message } = res.data || {};
+      if (!success) {
+        showError(message || t('group_manage.messages.bind_update_failed'));
+        return;
+      }
+      showSuccess(t('group_manage.messages.bind_update_success'));
+      closeBindingModal();
+    } catch (error) {
+      showError(error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <>
       <Table basic='very' compact size='small'>
@@ -273,6 +340,15 @@ const GroupsManager = forwardRef((_, ref) => {
                     onClick={() => openEditModal(row)}
                   >
                     {t('group_manage.buttons.edit')}
+                  </Button>
+                  <Button
+                    size='tiny'
+                    disabled={submitting || loading}
+                    onClick={() => {
+                      openBindingModal(row).then();
+                    }}
+                  >
+                    {t('group_manage.buttons.bind_channels')}
                   </Button>
                   <Button
                     size='tiny'
@@ -421,6 +497,41 @@ const GroupsManager = forwardRef((_, ref) => {
             {t('group_manage.buttons.cancel')}
           </Button>
           <Button negative onClick={submitDelete} loading={submitting}>
+            {t('group_manage.buttons.confirm')}
+          </Button>
+        </Modal.Actions>
+      </Modal>
+
+      <Modal open={bindingOpen} onClose={closeBindingModal} size='small'>
+        <Modal.Header>
+          {t('group_manage.modal.bind_channels_title', {
+            name: bindingTarget?.name || '',
+          })}
+        </Modal.Header>
+        <Modal.Content>
+          <Form>
+            <Form.Dropdown
+              fluid
+              multiple
+              search
+              selection
+              loading={bindingLoading}
+              disabled={bindingLoading || submitting}
+              label={t('group_manage.form.channels')}
+              placeholder={t('group_manage.form.channels_placeholder')}
+              options={bindingOptions}
+              value={bindingChannelIDs}
+              onChange={(e, { value }) =>
+                setBindingChannelIDs(Array.isArray(value) ? value : [])
+              }
+            />
+          </Form>
+        </Modal.Content>
+        <Modal.Actions>
+          <Button onClick={closeBindingModal} disabled={submitting || bindingLoading}>
+            {t('group_manage.buttons.cancel')}
+          </Button>
+          <Button primary onClick={submitBinding} loading={submitting}>
             {t('group_manage.buttons.confirm')}
           </Button>
         </Modal.Actions>
