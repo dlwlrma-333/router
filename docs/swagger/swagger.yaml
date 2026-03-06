@@ -141,18 +141,46 @@ definitions:
         example: true
         type: boolean
     type: object
+  docs.ChannelPreviewCapabilitiesRequest:
+    properties:
+      base_url:
+        example: https://api.openai.com
+        type: string
+      config: {}
+      draft_id:
+        example: cad8bd65524a4d0c8f345a8c86ea9685
+        type: string
+      key:
+        example: sk-***
+        type: string
+      models:
+        example:
+        - gpt-4o-mini
+        items:
+          type: string
+        type: array
+      protocol:
+        example: openai
+        type: string
+      test_model:
+        example: gpt-4o-mini
+        type: string
+    type: object
   docs.ChannelPreviewModelsRequest:
     properties:
       base_url:
         example: https://api.openai.com
         type: string
       config: {}
+      draft_id:
+        example: cad8bd65524a4d0c8f345a8c86ea9685
+        type: string
       key:
         example: sk-***
         type: string
-      type:
-        example: 50
-        type: integer
+      protocol:
+        example: openai
+        type: string
     type: object
   docs.ChannelUpdateRequest:
     properties:
@@ -1857,6 +1885,33 @@ paths:
       security:
       - BearerAuth: []
       summary: Create channel draft (admin)
+      tags:
+      - admin
+  /api/v1/admin/channel/preview/capabilities:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Preview payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/docs.ChannelPreviewCapabilitiesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.StandardResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Preview channel capabilities (admin)
       tags:
       - admin
   /api/v1/admin/channel/preview/models:

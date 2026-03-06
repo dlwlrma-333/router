@@ -200,6 +200,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/admin/channel/preview/capabilities": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Preview channel capabilities (admin)",
+                "parameters": [
+                    {
+                        "description": "Preview payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/docs.ChannelPreviewCapabilitiesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/docs.StandardResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/docs.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/admin/channel/preview/models": {
             "post": {
                 "security": [
@@ -5089,6 +5133,41 @@ const docTemplate = `{
                 }
             }
         },
+        "docs.ChannelPreviewCapabilitiesRequest": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string",
+                    "example": "https://api.openai.com"
+                },
+                "config": {},
+                "draft_id": {
+                    "type": "string",
+                    "example": "cad8bd65524a4d0c8f345a8c86ea9685"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "sk-***"
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "gpt-4o-mini"
+                    ]
+                },
+                "protocol": {
+                    "type": "string",
+                    "example": "openai"
+                },
+                "test_model": {
+                    "type": "string",
+                    "example": "gpt-4o-mini"
+                }
+            }
+        },
         "docs.ChannelPreviewModelsRequest": {
             "type": "object",
             "properties": {
@@ -5097,13 +5176,17 @@ const docTemplate = `{
                     "example": "https://api.openai.com"
                 },
                 "config": {},
+                "draft_id": {
+                    "type": "string",
+                    "example": "cad8bd65524a4d0c8f345a8c86ea9685"
+                },
                 "key": {
                     "type": "string",
                     "example": "sk-***"
                 },
-                "type": {
-                    "type": "integer",
-                    "example": 50
+                "protocol": {
+                    "type": "string",
+                    "example": "openai"
                 }
             }
         },

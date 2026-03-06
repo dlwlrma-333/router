@@ -536,6 +536,10 @@ func normalizeModelType(raw string, modelName string) string {
 	}
 }
 
+func InferModelType(modelName string) string {
+	return normalizeModelType("", modelName)
+}
+
 func defaultPriceUnitByType(modelType string, modelName string) string {
 	t := normalizeModelType(modelType, modelName)
 	switch t {

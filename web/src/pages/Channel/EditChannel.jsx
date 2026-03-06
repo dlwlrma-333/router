@@ -1,8 +1,28 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {useTranslation} from 'react-i18next';
-import {Button, Card, Checkbox, Form, Message} from 'semantic-ui-react';
-import {useLocation, useNavigate, useParams} from 'react-router-dom';
-import {API, showError, showInfo, showSuccess, verifyJSON,} from '../../helpers';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  Button,
+  Card,
+  Checkbox,
+  Form,
+  Label,
+  Message,
+  Table,
+} from 'semantic-ui-react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import {
+  API,
+  showError,
+  showInfo,
+  showSuccess,
+  verifyJSON,
+} from '../../helpers';
 import {
   getChannelProtocolOptions,
   loadChannelProtocolOptions,
@@ -61,11 +81,52 @@ const normalizeModelIDs = (models) => {
 const normalizeBaseURL = (baseURL) =>
   (baseURL || '').trim().replace(/\/+$/, '');
 
-const buildChannelConnectionSignature = ({ protocol, key, baseURL, draftID }) => {
+const buildChannelConnectionSignature = ({
+  protocol,
+  key,
+  baseURL,
+  draftID,
+}) => {
   const normalizedKey = (key || '').trim();
   const normalizedDraftID = (draftID || '').trim();
-  const keyPart = normalizedKey !== '' ? normalizedKey : `@draft:${normalizedDraftID}`;
+  const keyPart =
+    normalizedKey !== '' ? normalizedKey : `@draft:${normalizedDraftID}`;
   return `${protocol}|${normalizeBaseURL(baseURL)}|${keyPart}`;
+};
+
+const buildChannelCapabilitySignature = ({
+  protocol,
+  key,
+  baseURL,
+  draftID,
+  models,
+}) =>
+  `${buildChannelConnectionSignature({
+    protocol,
+    key,
+    baseURL,
+    draftID,
+  })}|${normalizeModelIDs(models).join(',')}`;
+
+const normalizeCapabilityResults = (results) => {
+  if (!Array.isArray(results)) {
+    return [];
+  }
+  return results
+    .filter(
+      (item) =>
+        item && typeof item === 'object' && typeof item.capability === 'string'
+    )
+    .map((item) => ({
+      capability: item.capability,
+      label: item.label || item.capability,
+      endpoint: item.endpoint || '',
+      model: item.model || '',
+      status: item.status || 'unsupported',
+      supported: !!item.supported,
+      message: item.message || '',
+      latency_ms: Number(item.latency_ms || 0),
+    }));
 };
 
 const sanitizeDraftInputsForLocalStorage = (inputs) => {
@@ -92,7 +153,7 @@ const sanitizeDraftConfigForLocalStorage = (config) => {
 
 const CHANNEL_CREATE_DRAFT_KEY = 'router.channel.create.draft.v1';
 const CREATE_CHANNEL_STEP_MIN = 1;
-const CREATE_CHANNEL_STEP_MAX = 3;
+const CREATE_CHANNEL_STEP_MAX = 4;
 
 const parseCreateStep = (rawStep) => {
   const step = Number(rawStep);
@@ -192,6 +253,12 @@ const EditChannel = () => {
   const [modelsSyncError, setModelsSyncError] = useState('');
   const [modelsLastSyncedAt, setModelsLastSyncedAt] = useState(0);
   const [verifiedModelSignature, setVerifiedModelSignature] = useState('');
+  const [capabilityResults, setCapabilityResults] = useState([]);
+  const [capabilityTesting, setCapabilityTesting] = useState(false);
+  const [capabilityTestError, setCapabilityTestError] = useState('');
+  const [capabilityTestedAt, setCapabilityTestedAt] = useState(0);
+  const [capabilityTestedSignature, setCapabilityTestedSignature] =
+    useState('');
   const [config, setConfig] = useState(CHANNEL_DEFAULT_CONFIG);
   const fetchingModelsRef = useRef(false);
   const draftChannelIdRef = useRef(draftIdFromQuery);
@@ -210,7 +277,14 @@ const EditChannel = () => {
       }
     }
     return effectiveKey;
-  }, [config.ak, config.region, config.sk, config.vertex_ai_adc, config.vertex_ai_project_id, inputs.key]);
+  }, [
+    config.ak,
+    config.region,
+    config.sk,
+    config.vertex_ai_adc,
+    config.vertex_ai_project_id,
+    inputs.key,
+  ]);
 
   const effectivePreviewKey = useMemo(
     () => buildEffectiveKey().trim(),
@@ -235,10 +309,28 @@ const EditChannel = () => {
       }),
     [effectivePreviewKey, inputs.base_url, inputs.protocol, previewChannelID]
   );
+  const currentCapabilitySignature = useMemo(
+    () =>
+      buildChannelCapabilitySignature({
+        protocol: inputs.protocol,
+        key: effectivePreviewKey,
+        baseURL: inputs.base_url,
+        draftID: previewChannelID,
+        models: inputs.models,
+      }),
+    [
+      effectivePreviewKey,
+      inputs.base_url,
+      inputs.models,
+      inputs.protocol,
+      previewChannelID,
+    ]
+  );
   const requiresConnectionVerification = !isEdit && inputs.protocol !== 'proxy';
   const showStepOne = isEdit || createStep === 1;
   const showStepTwo = isEdit || createStep === 2;
-  const showStepThree = isEdit || createStep === 3;
+  const showStepThree = isCreateMode && createStep === 3;
+  const showStepFour = isEdit || createStep === 4;
   const isCurrentSignatureVerified =
     requiresConnectionVerification &&
     verifiedModelSignature !== '' &&
@@ -309,6 +401,20 @@ const EditChannel = () => {
       }
       if (typeof draft.verifiedModelSignature === 'string') {
         setVerifiedModelSignature(draft.verifiedModelSignature);
+      }
+      if (Array.isArray(draft.capabilityResults)) {
+        setCapabilityResults(
+          normalizeCapabilityResults(draft.capabilityResults)
+        );
+      }
+      if (typeof draft.capabilityTestError === 'string') {
+        setCapabilityTestError(draft.capabilityTestError);
+      }
+      if (Number.isFinite(draft.capabilityTestedAt)) {
+        setCapabilityTestedAt(draft.capabilityTestedAt);
+      }
+      if (typeof draft.capabilityTestedSignature === 'string') {
+        setCapabilityTestedSignature(draft.capabilityTestedSignature);
       }
       if (typeof draft.draft_channel_id === 'string') {
         const restoredDraftID = draft.draft_channel_id.trim();
@@ -392,7 +498,11 @@ const EditChannel = () => {
   }, [buildChannelPayload, t]);
 
   const saveDraftChannel = useCallback(async () => {
-    let targetDraftID = (draftChannelIdRef.current || draftChannelId || '').trim();
+    let targetDraftID = (
+      draftChannelIdRef.current ||
+      draftChannelId ||
+      ''
+    ).trim();
     if (targetDraftID === '') {
       if (!isCreateMode) {
         return true;
@@ -418,39 +528,54 @@ const EditChannel = () => {
       setChannelKeySet(true);
     }
     return true;
-  }, [buildChannelPayload, createDraftChannel, draftChannelId, isCreateMode, t]);
+  }, [
+    buildChannelPayload,
+    createDraftChannel,
+    draftChannelId,
+    isCreateMode,
+    t,
+  ]);
 
-  const verifyDraftModelsPersisted = useCallback(async (expectedModels) => {
-    const targetDraftID = (draftChannelIdRef.current || draftChannelId || '').trim();
-    if (targetDraftID === '') {
-      return false;
-    }
-    try {
-      const checkRes = await API.get(`/api/v1/admin/channel/${targetDraftID}?select_all=1`);
-      const { success, data } = checkRes.data || {};
-      if (!success || !data) {
+  const verifyDraftModelsPersisted = useCallback(
+    async (expectedModels) => {
+      const targetDraftID = (
+        draftChannelIdRef.current ||
+        draftChannelId ||
+        ''
+      ).trim();
+      if (targetDraftID === '') {
         return false;
       }
-      const remoteModels = normalizeModelIDs(
-        (data.models || '')
-          .split(',')
-          .map((item) => item.trim())
-          .filter((item) => item !== '')
-      );
-      const localModels = normalizeModelIDs(expectedModels);
-      if (remoteModels.length !== localModels.length) {
-        return false;
-      }
-      for (let i = 0; i < localModels.length; i += 1) {
-        if (localModels[i] !== remoteModels[i]) {
+      try {
+        const checkRes = await API.get(
+          `/api/v1/admin/channel/${targetDraftID}?select_all=1`
+        );
+        const { success, data } = checkRes.data || {};
+        if (!success || !data) {
           return false;
         }
+        const remoteModels = normalizeModelIDs(
+          (data.models || '')
+            .split(',')
+            .map((item) => item.trim())
+            .filter((item) => item !== '')
+        );
+        const localModels = normalizeModelIDs(expectedModels);
+        if (remoteModels.length !== localModels.length) {
+          return false;
+        }
+        for (let i = 0; i < localModels.length; i += 1) {
+          if (localModels[i] !== remoteModels[i]) {
+            return false;
+          }
+        }
+        return true;
+      } catch {
+        return false;
       }
-      return true;
-    } catch {
-      return false;
-    }
-  }, [draftChannelId]);
+    },
+    [draftChannelId]
+  );
 
   const ensureDraftChannel = useCallback(async () => {
     if (!isCreateMode) {
@@ -489,31 +614,35 @@ const EditChannel = () => {
     t,
   ]);
 
-  const moveToStepThree = useCallback(async () => {
+  const ensureModelsStepCompleted = useCallback(async () => {
     if (requireVerificationBeforeProceed) {
       if (!hasModelPreviewCredentials) {
         showInfo(t('channel.edit.model_selector.verify_prerequisite'));
-        return;
+        return false;
       }
       if (!isCurrentSignatureVerified) {
         showInfo(t('channel.edit.model_selector.verify_required'));
-        return;
+        return false;
       }
     }
     if (inputs.protocol !== 'proxy' && inputs.models.length === 0) {
       showInfo(t('channel.edit.messages.models_required'));
-      return;
+      return false;
     }
     if (isCreateMode) {
       const ok = await saveDraftChannel();
       if (!ok) {
-        return;
+        return false;
       }
       const expectedModels = [...inputs.models];
       let persisted = await verifyDraftModelsPersisted(expectedModels);
       if (!persisted) {
         // Retry once with a minimal payload to force model persistence.
-        const targetDraftID = (draftChannelIdRef.current || draftChannelId || '').trim();
+        const targetDraftID = (
+          draftChannelIdRef.current ||
+          draftChannelId ||
+          ''
+        ).trim();
         if (targetDraftID !== '') {
           try {
             const retryRes = await API.put('/api/v1/admin/channel/', {
@@ -531,13 +660,12 @@ const EditChannel = () => {
       }
       if (!persisted) {
         showError(t('channel.edit.messages.update_draft_failed'));
-        return;
+        return false;
       }
     }
-    goToCreateStep(3);
+    return true;
   }, [
     draftChannelId,
-    goToCreateStep,
     hasModelPreviewCredentials,
     inputs.models.length,
     inputs.models,
@@ -551,101 +679,125 @@ const EditChannel = () => {
     verifyDraftModelsPersisted,
   ]);
 
+  const moveToStepThree = useCallback(async () => {
+    const ok = await ensureModelsStepCompleted();
+    if (!ok) {
+      return;
+    }
+    goToCreateStep(3);
+  }, [ensureModelsStepCompleted, goToCreateStep]);
+
+  const moveToStepFour = useCallback(async () => {
+    if (createStep <= 2) {
+      const ok = await ensureModelsStepCompleted();
+      if (!ok) {
+        return;
+      }
+    }
+    goToCreateStep(4);
+  }, [createStep, ensureModelsStepCompleted, goToCreateStep]);
+
   const loadChannelById = useCallback(
     async (targetId, forCopy = false, selectAll = true, fromDraft = false) => {
-    const query = selectAll ? '?select_all=1' : '';
-    let res = await API.get(`/api/v1/admin/channel/${targetId}${query}`);
-    const { success, message, data } = res.data;
-    if (success) {
-      const keySet = !!data.key_set;
-      const selectedModels =
-        data.models === ''
-          ? []
-          : (data.models || '')
-              .split(',')
-              .map((item) => item.trim())
-              .filter((item) => item !== '');
-      const availableModels = Array.isArray(data.available_models)
-        ? data.available_models
-        : [];
-      if (data.model_mapping !== '') {
-        data.model_mapping = JSON.stringify(
-          JSON.parse(data.model_mapping),
-          null,
-          2
-        );
-      }
-      if (data.model_ratio) {
-        data.model_ratio = JSON.stringify(JSON.parse(data.model_ratio), null, 2);
-      } else {
-        data.model_ratio = '';
-      }
-      if (data.completion_ratio) {
-        data.completion_ratio = JSON.stringify(
-          JSON.parse(data.completion_ratio),
-          null,
-          2
-        );
-      } else {
-        data.completion_ratio = '';
-      }
-      let parsedConfig = {};
-      if (data.config !== '') {
-        parsedConfig = JSON.parse(data.config);
-        delete parsedConfig.use_responses;
-      }
-      const normalizedProtocol = resolveProtocolFromChannelPayload(data);
+      const query = selectAll ? '?select_all=1' : '';
+      let res = await API.get(`/api/v1/admin/channel/${targetId}${query}`);
+      const { success, message, data } = res.data;
+      if (success) {
+        const keySet = !!data.key_set;
+        const selectedModels =
+          data.models === ''
+            ? []
+            : (data.models || '')
+                .split(',')
+                .map((item) => item.trim())
+                .filter((item) => item !== '');
+        const availableModels = Array.isArray(data.available_models)
+          ? data.available_models
+          : [];
+        if (data.model_mapping !== '') {
+          data.model_mapping = JSON.stringify(
+            JSON.parse(data.model_mapping),
+            null,
+            2
+          );
+        }
+        if (data.model_ratio) {
+          data.model_ratio = JSON.stringify(
+            JSON.parse(data.model_ratio),
+            null,
+            2
+          );
+        } else {
+          data.model_ratio = '';
+        }
+        if (data.completion_ratio) {
+          data.completion_ratio = JSON.stringify(
+            JSON.parse(data.completion_ratio),
+            null,
+            2
+          );
+        } else {
+          data.completion_ratio = '';
+        }
+        let parsedConfig = {};
+        if (data.config !== '') {
+          parsedConfig = JSON.parse(data.config);
+          delete parsedConfig.use_responses;
+        }
+        const normalizedProtocol = resolveProtocolFromChannelPayload(data);
 
-      if (forCopy) {
-        setInputs({
-          name: data.name || '',
-          protocol: normalizedProtocol,
-          key: '',
-          base_url: data.base_url || '',
-          other: data.other || '',
-          model_mapping: data.model_mapping || '',
-          model_ratio: data.model_ratio || '',
-          completion_ratio: data.completion_ratio || '',
-          system_prompt: data.system_prompt || '',
-          models: selectedModels,
-        });
+        if (forCopy) {
+          setInputs({
+            name: data.name || '',
+            protocol: normalizedProtocol,
+            key: '',
+            base_url: data.base_url || '',
+            other: data.other || '',
+            model_mapping: data.model_mapping || '',
+            model_ratio: data.model_ratio || '',
+            completion_ratio: data.completion_ratio || '',
+            system_prompt: data.system_prompt || '',
+            models: selectedModels,
+          });
+        } else {
+          setInputs({
+            id: data.id,
+            name: data.name || '',
+            protocol: normalizedProtocol,
+            key: '',
+            base_url: data.base_url || '',
+            other: data.other || '',
+            model_mapping: data.model_mapping || '',
+            model_ratio: data.model_ratio || '',
+            completion_ratio: data.completion_ratio || '',
+            system_prompt: data.system_prompt || '',
+            models: selectedModels,
+            test_model: data.test_model || '',
+            status: data.status,
+            weight: data.weight,
+            priority: data.priority,
+          });
+        }
+        const { options } = buildModelOptions(
+          availableModels.length > 0 ? availableModels : selectedModels
+        );
+        setOriginModelOptions(options);
+        setConfig((prev) => ({
+          ...prev,
+          ...parsedConfig,
+        }));
+        if (fromDraft || isEdit) {
+          setChannelKeySet(keySet);
+        } else {
+          setChannelKeySet(false);
+        }
       } else {
-        setInputs({
-          id: data.id,
-          name: data.name || '',
-          protocol: normalizedProtocol,
-          key: '',
-          base_url: data.base_url || '',
-          other: data.other || '',
-          model_mapping: data.model_mapping || '',
-          model_ratio: data.model_ratio || '',
-          completion_ratio: data.completion_ratio || '',
-          system_prompt: data.system_prompt || '',
-          models: selectedModels,
-          test_model: data.test_model || '',
-          status: data.status,
-          weight: data.weight,
-          priority: data.priority,
-        });
+        showError(message);
       }
-      const { options } = buildModelOptions(
-        availableModels.length > 0 ? availableModels : selectedModels
-      );
-      setOriginModelOptions(options);
-      setConfig((prev) => ({
-        ...prev,
-        ...parsedConfig,
-      }));
-      if (fromDraft || isEdit) {
-        setChannelKeySet(keySet);
-      } else {
-        setChannelKeySet(false);
-      }
-    } else {
-      showError(message);
-    }
-    setLoading(false);
-  }, [isEdit]);
+      setLoading(false);
+    },
+    [isEdit]
+  );
 
   const applyModelCandidates = useCallback((models, selectAll = false) => {
     const { options, ids } = buildModelOptions(models);
@@ -685,7 +837,8 @@ const EditChannel = () => {
         });
         const { success, message, data } = res.data || {};
         if (!success) {
-          const errorMessage = message || t('channel.edit.messages.fetch_models_failed');
+          const errorMessage =
+            message || t('channel.edit.messages.fetch_models_failed');
           setModelsSyncError(errorMessage);
           setVerifiedModelSignature('');
           if (!silent) {
@@ -714,7 +867,8 @@ const EditChannel = () => {
         }
         return true;
       } catch (error) {
-        const errorMessage = error?.message || t('channel.edit.messages.fetch_models_failed');
+        const errorMessage =
+          error?.message || t('channel.edit.messages.fetch_models_failed');
         setModelsSyncError(errorMessage);
         setVerifiedModelSignature('');
         if (!silent) {
@@ -743,6 +897,70 @@ const EditChannel = () => {
       setChannelProtocolOptions(options);
     }
   }, []);
+
+  const handleTestCapabilities = useCallback(async () => {
+    if (inputs.protocol === 'proxy') {
+      return;
+    }
+    if (inputs.models.length === 0) {
+      showInfo(t('channel.edit.messages.models_required'));
+      return;
+    }
+    const ok = isCreateMode ? await saveDraftChannel() : true;
+    if (!ok) {
+      return;
+    }
+    setCapabilityTesting(true);
+    try {
+      const res = await API.post('/api/v1/admin/channel/preview/capabilities', {
+        protocol: inputs.protocol,
+        key: effectivePreviewKey,
+        base_url: normalizeBaseURL(inputs.base_url),
+        draft_id: previewChannelID,
+        config,
+        models: inputs.models,
+        test_model: inputs.test_model || '',
+      });
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        const errorMessage =
+          message || t('channel.edit.capability_tester.test_failed');
+        setCapabilityResults([]);
+        setCapabilityTestError(errorMessage);
+        setCapabilityTestedAt(0);
+        setCapabilityTestedSignature('');
+        showError(errorMessage);
+        return;
+      }
+      setCapabilityResults(normalizeCapabilityResults(data?.results));
+      setCapabilityTestError('');
+      setCapabilityTestedAt(Date.now());
+      setCapabilityTestedSignature(currentCapabilitySignature);
+      showSuccess(t('channel.edit.capability_tester.test_success'));
+    } catch (error) {
+      const errorMessage =
+        error?.message || t('channel.edit.capability_tester.test_failed');
+      setCapabilityResults([]);
+      setCapabilityTestError(errorMessage);
+      setCapabilityTestedAt(0);
+      setCapabilityTestedSignature('');
+      showError(errorMessage);
+    } finally {
+      setCapabilityTesting(false);
+    }
+  }, [
+    config,
+    currentCapabilitySignature,
+    effectivePreviewKey,
+    inputs.base_url,
+    inputs.models,
+    inputs.protocol,
+    inputs.test_model,
+    isCreateMode,
+    previewChannelID,
+    saveDraftChannel,
+    t,
+  ]);
 
   useEffect(() => {
     let localModelOptions = [...originModelOptions];
@@ -809,7 +1027,14 @@ const EditChannel = () => {
     setChannelKeySet(false);
     restoreCreateDraft();
     setLoading(false);
-  }, [channelId, copyFromId, draftIdFromQuery, isEdit, loadChannelById, restoreCreateDraft]);
+  }, [
+    channelId,
+    copyFromId,
+    draftIdFromQuery,
+    isEdit,
+    loadChannelById,
+    restoreCreateDraft,
+  ]);
 
   useEffect(() => {
     if (isEdit) {
@@ -891,6 +1116,10 @@ const EditChannel = () => {
       modelsSyncError,
       modelsLastSyncedAt,
       verifiedModelSignature,
+      capabilityResults,
+      capabilityTestError,
+      capabilityTestedAt,
+      capabilityTestedSignature,
       draft_channel_id: draftChannelId,
       channel_key_set: channelKeySet,
       savedAt: Date.now(),
@@ -904,6 +1133,10 @@ const EditChannel = () => {
     inputs,
     isEdit,
     loading,
+    capabilityResults,
+    capabilityTestError,
+    capabilityTestedAt,
+    capabilityTestedSignature,
     modelsLastSyncedAt,
     modelsSyncError,
     originModelOptions,
@@ -941,6 +1174,19 @@ const EditChannel = () => {
   }, [requiresConnectionVerification, verifiedModelSignature]);
 
   useEffect(() => {
+    if (capabilityTestedSignature === '') {
+      return;
+    }
+    if (capabilityTestedSignature === currentCapabilitySignature) {
+      return;
+    }
+    setCapabilityResults([]);
+    setCapabilityTestError(t('channel.edit.capability_tester.stale'));
+    setCapabilityTestedAt(0);
+    setCapabilityTestedSignature('');
+  }, [capabilityTestedSignature, currentCapabilitySignature, t]);
+
+  useEffect(() => {
     fetchChannelTypes().then();
   }, [fetchChannelTypes]);
 
@@ -976,7 +1222,10 @@ const EditChannel = () => {
       showInfo('模型倍率必须是合法的 JSON 格式！');
       return;
     }
-    if (inputs.completion_ratio !== '' && !verifyJSON(inputs.completion_ratio)) {
+    if (
+      inputs.completion_ratio !== '' &&
+      !verifyJSON(inputs.completion_ratio)
+    ) {
       showInfo('补全倍率必须是合法的 JSON 格式！');
       return;
     }
@@ -1055,6 +1304,15 @@ const EditChannel = () => {
                     basic={createStep !== 3}
                     color={createStep === 3 ? 'blue' : undefined}
                     onClick={moveToStepThree}
+                  >
+                    {t('channel.edit.wizard.step_capabilities')}
+                  </Button>
+                  <Button
+                    type='button'
+                    size='tiny'
+                    basic={createStep !== 4}
+                    color={createStep === 4 ? 'blue' : undefined}
+                    onClick={moveToStepFour}
                   >
                     {t('channel.edit.wizard.step_advanced')}
                   </Button>
@@ -1275,7 +1533,9 @@ const EditChannel = () => {
                       total: visibleModelOptions.length,
                     })}
                   </span>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <div
+                    style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}
+                  >
                     <Button
                       type='button'
                       size='tiny'
@@ -1318,7 +1578,8 @@ const EditChannel = () => {
                     maxHeight: '320px',
                     overflowY: 'auto',
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                    gridTemplateColumns:
+                      'repeat(auto-fill, minmax(260px, 1fr))',
                     gap: '8px 16px',
                   }}
                 >
@@ -1347,6 +1608,110 @@ const EditChannel = () => {
               </Form.Field>
             )}
             {showStepThree && inputs.protocol !== 'proxy' && (
+              <Form.Field>
+                <label>{t('channel.edit.capability_tester.title')}</label>
+                <Message info>
+                  {t('channel.edit.capability_tester.hint')}
+                </Message>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <Button
+                    type='button'
+                    color='blue'
+                    loading={capabilityTesting}
+                    disabled={capabilityTesting || inputs.models.length === 0}
+                    onClick={handleTestCapabilities}
+                  >
+                    {t('channel.edit.capability_tester.button')}
+                  </Button>
+                  {capabilityTestedAt > 0 && (
+                    <span style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                      {t('channel.edit.capability_tester.last_tested', {
+                        time: new Date(capabilityTestedAt).toLocaleString(),
+                      })}
+                    </span>
+                  )}
+                </div>
+                {capabilityTestError && (
+                  <div style={{ color: '#d9534f', marginBottom: '12px' }}>
+                    {capabilityTestError}
+                  </div>
+                )}
+                <Table celled stackable>
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.HeaderCell>
+                        {t('channel.edit.capability_tester.table.capability')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell>
+                        {t('channel.edit.capability_tester.table.endpoint')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell>
+                        {t('channel.edit.capability_tester.table.model')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell collapsing>
+                        {t('channel.edit.capability_tester.table.status')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell collapsing>
+                        {t('channel.edit.capability_tester.table.latency')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell>
+                        {t('channel.edit.capability_tester.table.message')}
+                      </Table.HeaderCell>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {capabilityResults.length === 0 ? (
+                      <Table.Row>
+                        <Table.Cell colSpan='6'>
+                          {t('channel.edit.capability_tester.empty')}
+                        </Table.Cell>
+                      </Table.Row>
+                    ) : (
+                      capabilityResults.map((item) => {
+                        const labelColor =
+                          item.status === 'supported'
+                            ? 'green'
+                            : item.status === 'skipped'
+                            ? 'grey'
+                            : 'red';
+                        return (
+                          <Table.Row
+                            key={`${item.capability}-${item.endpoint}`}
+                          >
+                            <Table.Cell>{item.label}</Table.Cell>
+                            <Table.Cell>{item.endpoint || '-'}</Table.Cell>
+                            <Table.Cell>{item.model || '-'}</Table.Cell>
+                            <Table.Cell>
+                              <Label basic color={labelColor}>
+                                {t(
+                                  `channel.edit.capability_tester.status.${item.status}`
+                                )}
+                              </Label>
+                            </Table.Cell>
+                            <Table.Cell>
+                              {item.latency_ms > 0
+                                ? `${item.latency_ms} ms`
+                                : '-'}
+                            </Table.Cell>
+                            <Table.Cell>{item.message || '-'}</Table.Cell>
+                          </Table.Row>
+                        );
+                      })
+                    )}
+                  </Table.Body>
+                </Table>
+              </Form.Field>
+            )}
+            {showStepFour && inputs.protocol !== 'proxy' && (
               <>
                 <Form.Field>
                   <Form.TextArea
@@ -1366,7 +1731,10 @@ const EditChannel = () => {
                 </Form.Field>
                 <Form.Field>
                   <Form.TextArea
-                    label={`${t('operation.ratio.model.title', '模型倍率')}（JSON）`}
+                    label={`${t(
+                      'operation.ratio.model.title',
+                      '模型倍率'
+                    )}（JSON）`}
                     placeholder={t(
                       'operation.ratio.model.placeholder',
                       '为一个 JSON 文本，键为模型名称，值为倍率'
@@ -1383,7 +1751,10 @@ const EditChannel = () => {
                 </Form.Field>
                 <Form.Field>
                   <Form.TextArea
-                    label={`${t('operation.ratio.completion.title', '补全倍率')}（JSON）`}
+                    label={`${t(
+                      'operation.ratio.completion.title',
+                      '补全倍率'
+                    )}（JSON）`}
                     placeholder={t(
                       'operation.ratio.completion.placeholder',
                       '为一个 JSON 文本，键为模型名称，值为倍率'
@@ -1512,7 +1883,8 @@ const EditChannel = () => {
                   positive
                   onClick={submit}
                   disabled={
-                    requireVerificationBeforeProceed && !isCurrentSignatureVerified
+                    requireVerificationBeforeProceed &&
+                    !isCurrentSignatureVerified
                   }
                 >
                   {t('channel.edit.buttons.submit')}
@@ -1532,7 +1904,13 @@ const EditChannel = () => {
                   <Button
                     type='button'
                     positive
-                    onClick={createStep === 1 ? moveToStepTwo : moveToStepThree}
+                    onClick={
+                      createStep === 1
+                        ? moveToStepTwo
+                        : createStep === 2
+                        ? moveToStepThree
+                        : moveToStepFour
+                    }
                   >
                     {t('channel.edit.buttons.next_step')}
                   </Button>
@@ -1542,7 +1920,8 @@ const EditChannel = () => {
                     positive
                     onClick={submit}
                     disabled={
-                      requireVerificationBeforeProceed && !isCurrentSignatureVerified
+                      requireVerificationBeforeProceed &&
+                      !isCurrentSignatureVerified
                     }
                   >
                     {t('channel.edit.buttons.submit')}

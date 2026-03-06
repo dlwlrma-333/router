@@ -341,10 +341,21 @@ type ChannelUpdateRequest struct {
 }
 
 type ChannelPreviewModelsRequest struct {
-	Type    int    `json:"type" example:"50"`
-	Key     string `json:"key" example:"sk-***"`
-	BaseURL string `json:"base_url,omitempty" example:"https://api.openai.com"`
-	Config  any    `json:"config,omitempty"`
+	Protocol string `json:"protocol" example:"openai"`
+	Key      string `json:"key" example:"sk-***"`
+	BaseURL  string `json:"base_url,omitempty" example:"https://api.openai.com"`
+	DraftID  string `json:"draft_id,omitempty" example:"cad8bd65524a4d0c8f345a8c86ea9685"`
+	Config   any    `json:"config,omitempty"`
+}
+
+type ChannelPreviewCapabilitiesRequest struct {
+	Protocol  string   `json:"protocol" example:"openai"`
+	Key       string   `json:"key" example:"sk-***"`
+	BaseURL   string   `json:"base_url,omitempty" example:"https://api.openai.com"`
+	DraftID   string   `json:"draft_id,omitempty" example:"cad8bd65524a4d0c8f345a8c86ea9685"`
+	Config    any      `json:"config,omitempty"`
+	Models    []string `json:"models,omitempty" example:"gpt-4o-mini"`
+	TestModel string   `json:"test_model,omitempty" example:"gpt-4o-mini"`
 }
 
 type ModelProviderCatalogItem struct {

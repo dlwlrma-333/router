@@ -201,6 +201,7 @@ func SetApiRouter(engine *gin.Engine) {
 			adminChannelRoute.GET("/update_balance", channel.UpdateAllChannelsBalance)
 			adminChannelRoute.GET("/update_balance/:id", channel.UpdateChannelBalance)
 			adminChannelRoute.POST("/preview/models", channel.PreviewChannelModels)
+			adminChannelRoute.POST("/preview/capabilities", channel.PreviewChannelCapabilities)
 			adminChannelRoute.POST("/draft", channel.CreateChannelDraft)
 			adminChannelRoute.POST("/", channel.AddChannel)
 			adminChannelRoute.PUT("/", channel.UpdateChannel)

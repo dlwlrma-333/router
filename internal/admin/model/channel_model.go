@@ -209,6 +209,10 @@ func loadChannelModelRowsByChannelIDs(db *gorm.DB, channelIDs []string) (map[str
 		return nil, err
 	}
 	for _, row := range rows {
+		normalizeChannelModelRow(&row)
+		if row.ChannelId == "" || row.Model == "" {
+			continue
+		}
 		rowsByChannelID[row.ChannelId] = append(rowsByChannelID[row.ChannelId], row)
 	}
 	return rowsByChannelID, nil
@@ -249,7 +253,18 @@ func listChannelModelRowsByChannelIDWithDB(db *gorm.DB, channelID string) ([]Cha
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
+	for i := range rows {
+		normalizeChannelModelRow(&rows[i])
+	}
 	return rows, nil
+}
+
+func normalizeChannelModelRow(row *ChannelModel) {
+	if row == nil {
+		return
+	}
+	row.ChannelId = strings.TrimSpace(row.ChannelId)
+	row.Model = strings.TrimSpace(row.Model)
 }
 
 func applyChannelModelRows(channel *Channel, rows []ChannelModel) {

@@ -1,11 +1,15 @@
 package channel
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -14,7 +18,13 @@ import (
 	commonutils "github.com/yeying-community/router/common/utils"
 	"github.com/yeying-community/router/internal/admin/model"
 	channelsvc "github.com/yeying-community/router/internal/admin/service/channel"
+	"github.com/yeying-community/router/internal/relay"
+	openaiadaptor "github.com/yeying-community/router/internal/relay/adaptor/openai"
 	relaychannel "github.com/yeying-community/router/internal/relay/channel"
+	relaycontroller "github.com/yeying-community/router/internal/relay/controller"
+	"github.com/yeying-community/router/internal/relay/meta"
+	relaymodel "github.com/yeying-community/router/internal/relay/model"
+	"github.com/yeying-community/router/internal/transport/http/middleware"
 )
 
 type previewModelsRequest struct {
@@ -23,6 +33,16 @@ type previewModelsRequest struct {
 	BaseURL  string          `json:"base_url"`
 	DraftID  string          `json:"draft_id"`
 	Config   json.RawMessage `json:"config"`
+}
+
+type previewCapabilitiesRequest struct {
+	Protocol  string          `json:"protocol"`
+	Key       string          `json:"key"`
+	BaseURL   string          `json:"base_url"`
+	DraftID   string          `json:"draft_id"`
+	Config    json.RawMessage `json:"config"`
+	Models    []string        `json:"models"`
+	TestModel string          `json:"test_model"`
 }
 
 type openAIModelsResponse struct {
@@ -34,6 +54,23 @@ type openAIModelsResponse struct {
 		Message string `json:"message"`
 	} `json:"error,omitempty"`
 }
+
+type previewCapabilityResult struct {
+	Capability string `json:"capability"`
+	Label      string `json:"label"`
+	Endpoint   string `json:"endpoint"`
+	Model      string `json:"model,omitempty"`
+	Status     string `json:"status"`
+	Supported  bool   `json:"supported"`
+	Message    string `json:"message,omitempty"`
+	LatencyMs  int64  `json:"latency_ms,omitempty"`
+}
+
+const (
+	previewCapabilityStatusSupported   = "supported"
+	previewCapabilityStatusUnsupported = "unsupported"
+	previewCapabilityStatusSkipped     = "skipped"
+)
 
 func resolveModelsURL(baseURL string) string {
 	resolvedBaseURL := strings.TrimRight(strings.TrimSpace(baseURL), "/")
@@ -133,6 +170,340 @@ func resolvePreviewBaseURL(protocol string, baseURL string) string {
 	return relaychannel.BaseURLByProtocol(normalized)
 }
 
+func loadPreviewChannel(protocol string, key string, baseURL string, draftID string, configRaw json.RawMessage, selectedModels []string, testModel string) (*model.Channel, string, error) {
+	normalizedProtocol := relaychannel.NormalizeProtocolName(protocol)
+	trimmedKey := strings.TrimSpace(key)
+	trimmedBaseURL := strings.TrimSpace(baseURL)
+	trimmedDraftID := strings.TrimSpace(draftID)
+	normalizedModels := model.NormalizeChannelModelIDsPreserveOrder(selectedModels)
+	keySource := "request"
+
+	previewChannel := &model.Channel{
+		Protocol: normalizedProtocol,
+		Key:      trimmedKey,
+	}
+
+	if trimmedDraftID != "" {
+		savedChannel, err := channelsvc.GetByID(trimmedDraftID, true)
+		if err != nil {
+			return nil, keySource, fmt.Errorf("渠道不存在或已删除")
+		}
+		previewChannel = savedChannel
+		if trimmedKey == "" {
+			trimmedKey = strings.TrimSpace(savedChannel.Key)
+			keySource = "draft"
+		}
+		if normalizedProtocol == "" {
+			normalizedProtocol = savedChannel.GetProtocol()
+		}
+		if trimmedBaseURL == "" {
+			trimmedBaseURL = strings.TrimSpace(savedChannel.GetBaseURL())
+		}
+		if len(normalizedModels) == 0 {
+			normalizedModels = savedChannel.SelectedModelIDs()
+		}
+		if strings.TrimSpace(testModel) == "" {
+			testModel = strings.TrimSpace(savedChannel.TestModel)
+		}
+	}
+
+	if normalizedProtocol == "" {
+		normalizedProtocol = previewChannel.GetProtocol()
+	}
+	previewChannel.Protocol = normalizedProtocol
+	previewChannel.NormalizeProtocol()
+	previewChannel.Key = trimmedKey
+	if trimmedBaseURL != "" {
+		previewChannel.BaseURL = &trimmedBaseURL
+	} else {
+		resolvedBaseURL := resolvePreviewBaseURL(previewChannel.GetProtocol(), previewChannel.GetBaseURL())
+		if resolvedBaseURL != "" {
+			previewChannel.BaseURL = &resolvedBaseURL
+		}
+	}
+	if len(configRaw) > 0 && string(configRaw) != "null" {
+		previewChannel.Config = string(configRaw)
+	}
+	if len(normalizedModels) > 0 {
+		previewChannel.SetSelectedModelIDs(normalizedModels)
+	}
+	if strings.TrimSpace(testModel) != "" {
+		previewChannel.TestModel = strings.TrimSpace(testModel)
+	}
+	return previewChannel, keySource, nil
+}
+
+func pickCapabilityModels(channel *model.Channel) (string, string, string) {
+	if channel == nil {
+		return "", "", ""
+	}
+	selectedModels := channel.SelectedModelIDs()
+	textModel := strings.TrimSpace(channel.TestModel)
+	imageModel := ""
+	audioModel := ""
+	if textModel != "" {
+		switch model.InferModelType(textModel) {
+		case model.ModelProviderModelTypeImage:
+			imageModel = textModel
+			textModel = ""
+		case model.ModelProviderModelTypeAudio:
+			audioModel = textModel
+			textModel = ""
+		}
+	}
+	for _, modelName := range selectedModels {
+		switch model.InferModelType(modelName) {
+		case model.ModelProviderModelTypeImage:
+			if imageModel == "" {
+				imageModel = modelName
+			}
+		case model.ModelProviderModelTypeAudio:
+			if audioModel == "" {
+				audioModel = modelName
+			}
+		default:
+			if textModel == "" {
+				textModel = modelName
+			}
+		}
+	}
+	if textModel == "" && len(selectedModels) > 0 {
+		textModel = selectedModels[0]
+	}
+	return textModel, imageModel, audioModel
+}
+
+func resolvePreviewModelName(channel *model.Channel, requestedModel string) string {
+	modelName := strings.TrimSpace(requestedModel)
+	if channel == nil {
+		return modelName
+	}
+	if modelName == "" {
+		selected := channel.SelectedModelIDs()
+		if len(selected) > 0 {
+			modelName = selected[0]
+		}
+	}
+	if mapped := channel.GetModelMapping()[modelName]; mapped != "" {
+		return mapped
+	}
+	return modelName
+}
+
+func newPreviewRelayContext(path string, channel *model.Channel, userAgent string) (*gin.Context, *meta.Meta, error) {
+	if channel == nil {
+		return nil, nil, fmt.Errorf("渠道不能为空")
+	}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	requestURL := &url.URL{Path: path}
+	c.Request = &http.Request{
+		Method: "POST",
+		URL:    requestURL,
+		Body:   io.NopCloser(bytes.NewBuffer(nil)),
+		Header: make(http.Header),
+	}
+	c.Request.Header.Set("Content-Type", "application/json")
+	if strings.TrimSpace(userAgent) != "" {
+		c.Request.Header.Set("User-Agent", strings.TrimSpace(userAgent))
+	}
+	middleware.SetupContextForSelectedChannel(c, channel, "")
+	return c, meta.GetByContext(c), nil
+}
+
+func executePreviewTextCapability(channel *model.Channel, path string, request *relaymodel.GeneralOpenAIRequest, userAgent string) (int64, string, error) {
+	if request == nil {
+		return 0, "", fmt.Errorf("请求不能为空")
+	}
+	c, relayMeta, err := newPreviewRelayContext(path, channel, userAgent)
+	if err != nil {
+		return 0, "", err
+	}
+	adaptor := relay.GetAdaptor(relayMeta.APIType)
+	if adaptor == nil {
+		return 0, "", fmt.Errorf("invalid api type: %d", relayMeta.APIType)
+	}
+	adaptor.Init(relayMeta)
+	request.Model = resolvePreviewModelName(channel, request.Model)
+	if request.Model == "" {
+		return 0, "", fmt.Errorf("未找到可用于测试的模型")
+	}
+	relayMeta.OriginModelName = request.Model
+	relayMeta.ActualModelName = request.Model
+	convertedRequest, err := adaptor.ConvertRequest(c, relayMeta.Mode, request)
+	if err != nil {
+		return 0, "", err
+	}
+	requestBody, err := json.Marshal(convertedRequest)
+	if err != nil {
+		return 0, "", err
+	}
+	startedAt := time.Now()
+	resp, err := adaptor.DoRequest(c, relayMeta, bytes.NewBuffer(requestBody))
+	latencyMs := time.Since(startedAt).Milliseconds()
+	if err != nil {
+		return latencyMs, "", err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		relayErr := relaycontroller.RelayErrorHandler(resp)
+		if relayErr != nil && strings.TrimSpace(relayErr.Error.Message) != "" {
+			return latencyMs, "", fmt.Errorf("http status code: %d, error message: %s", resp.StatusCode, relayErr.Error.Message)
+		}
+		return latencyMs, "", fmt.Errorf("http status code: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return latencyMs, "", err
+	}
+	if err := resp.Body.Close(); err != nil {
+		return latencyMs, "", err
+	}
+	message, err := parseChannelTestResponse(string(body))
+	if err != nil {
+		return latencyMs, "", err
+	}
+	return latencyMs, message, nil
+}
+
+func executePreviewImageCapability(channel *model.Channel, modelName string, userAgent string) (int64, string, error) {
+	c, relayMeta, err := newPreviewRelayContext("/v1/images/generations", channel, userAgent)
+	if err != nil {
+		return 0, "", err
+	}
+	adaptor := relay.GetAdaptor(relayMeta.APIType)
+	if adaptor == nil {
+		return 0, "", fmt.Errorf("invalid api type: %d", relayMeta.APIType)
+	}
+	adaptor.Init(relayMeta)
+	actualModelName := resolvePreviewModelName(channel, modelName)
+	if actualModelName == "" {
+		return 0, "", fmt.Errorf("未找到可用于图片能力测试的模型")
+	}
+	relayMeta.OriginModelName = strings.TrimSpace(modelName)
+	relayMeta.ActualModelName = actualModelName
+	imageRequest := &relaymodel.ImageRequest{
+		Model:  actualModelName,
+		Prompt: "A blue square on a white background.",
+		N:      1,
+		Size:   "1024x1024",
+	}
+	convertedRequest, err := adaptor.ConvertImageRequest(imageRequest)
+	if err != nil {
+		return 0, "", err
+	}
+	requestBody, err := json.Marshal(convertedRequest)
+	if err != nil {
+		return 0, "", err
+	}
+	startedAt := time.Now()
+	resp, err := adaptor.DoRequest(c, relayMeta, bytes.NewBuffer(requestBody))
+	latencyMs := time.Since(startedAt).Milliseconds()
+	if err != nil {
+		return latencyMs, "", err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		relayErr := relaycontroller.RelayErrorHandler(resp)
+		if relayErr != nil && strings.TrimSpace(relayErr.Error.Message) != "" {
+			return latencyMs, "", fmt.Errorf("http status code: %d, error message: %s", resp.StatusCode, relayErr.Error.Message)
+		}
+		return latencyMs, "", fmt.Errorf("http status code: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return latencyMs, "", err
+	}
+	if err := resp.Body.Close(); err != nil {
+		return latencyMs, "", err
+	}
+	preview := "图片接口返回成功"
+	imageResponse := openaiadaptor.ImageResponse{}
+	if err := json.Unmarshal(body, &imageResponse); err == nil && len(imageResponse.Data) > 0 {
+		preview = fmt.Sprintf("返回 %d 个图片结果", len(imageResponse.Data))
+	}
+	return latencyMs, preview, nil
+}
+
+func executePreviewAudioCapability(channel *model.Channel, modelName string, userAgent string) (int64, string, error) {
+	actualModelName := resolvePreviewModelName(channel, modelName)
+	if actualModelName == "" {
+		return 0, "", fmt.Errorf("未找到可用于音频能力测试的模型")
+	}
+	if strings.Contains(strings.ToLower(actualModelName), "whisper") {
+		return 0, "", fmt.Errorf("当前音频模型更像转录模型，暂不自动探测")
+	}
+	c, relayMeta, err := newPreviewRelayContext("/v1/audio/speech", channel, userAgent)
+	if err != nil {
+		return 0, "", err
+	}
+	c.Request.Header.Set("Accept", "audio/mpeg")
+	adaptor := relay.GetAdaptor(relayMeta.APIType)
+	if adaptor == nil {
+		return 0, "", fmt.Errorf("invalid api type: %d", relayMeta.APIType)
+	}
+	adaptor.Init(relayMeta)
+	relayMeta.OriginModelName = strings.TrimSpace(modelName)
+	relayMeta.ActualModelName = actualModelName
+	requestBody, err := json.Marshal(openaiadaptor.TextToSpeechRequest{
+		Model:          actualModelName,
+		Input:          "Capability test from Router.",
+		Voice:          "alloy",
+		ResponseFormat: "mp3",
+	})
+	if err != nil {
+		return 0, "", err
+	}
+	startedAt := time.Now()
+	resp, err := adaptor.DoRequest(c, relayMeta, bytes.NewBuffer(requestBody))
+	latencyMs := time.Since(startedAt).Milliseconds()
+	if err != nil {
+		return latencyMs, "", err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		relayErr := relaycontroller.RelayErrorHandler(resp)
+		if relayErr != nil && strings.TrimSpace(relayErr.Error.Message) != "" {
+			return latencyMs, "", fmt.Errorf("http status code: %d, error message: %s", resp.StatusCode, relayErr.Error.Message)
+		}
+		return latencyMs, "", fmt.Errorf("http status code: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return latencyMs, "", err
+	}
+	if err := resp.Body.Close(); err != nil {
+		return latencyMs, "", err
+	}
+	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
+	if contentType == "" {
+		contentType = "audio payload"
+	}
+	if len(body) == 0 {
+		return latencyMs, "", fmt.Errorf("响应为空")
+	}
+	return latencyMs, fmt.Sprintf("返回 %d bytes (%s)", len(body), contentType), nil
+}
+
+func buildPreviewCapabilityResult(capability string, label string, endpoint string, modelName string, latencyMs int64, message string, err error) previewCapabilityResult {
+	result := previewCapabilityResult{
+		Capability: capability,
+		Label:      label,
+		Endpoint:   endpoint,
+		Model:      strings.TrimSpace(modelName),
+		LatencyMs:  latencyMs,
+	}
+	if err == nil {
+		result.Status = previewCapabilityStatusSupported
+		result.Supported = true
+		result.Message = strings.TrimSpace(message)
+		return result
+	}
+	result.Message = strings.TrimSpace(err.Error())
+	if result.Message == "" {
+		result.Message = "能力测试失败"
+	}
+	result.Status = previewCapabilityStatusUnsupported
+	return result
+}
+
 // PreviewChannelModels godoc
 // @Summary Preview models for channel protocol (admin)
 // @Tags admin
@@ -152,41 +523,25 @@ func PreviewChannelModels(c *gin.Context) {
 		})
 		return
 	}
-
-	protocol := relaychannel.NormalizeProtocolName(req.Protocol)
-	key := strings.TrimSpace(req.Key)
-	baseURL := strings.TrimSpace(req.BaseURL)
-	draftID := strings.TrimSpace(req.DraftID)
-	keySource := "request"
-	if draftID != "" && key == "" {
-		channel, err := channelsvc.GetByID(draftID, true)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "渠道不存在或已删除",
-			})
-			return
-		}
-		key = strings.TrimSpace(channel.Key)
-		keySource = "draft"
-		if protocol == "" {
-			protocol = channel.GetProtocol()
-		}
-		if baseURL == "" {
-			baseURL = strings.TrimSpace(channel.GetBaseURL())
-		}
-	}
-
-	baseURL = resolvePreviewBaseURL(protocol, baseURL)
-	modelIDs, modelsURL, err := fetchModelsByConfiguredChannelDetailed(key, baseURL, "")
+	previewChannel, keySource, err := loadPreviewChannel(req.Protocol, req.Key, req.BaseURL, req.DraftID, req.Config, nil, "")
 	if err != nil {
-		logger.SysWarnf("channel preview models failed: source=%s draft_id=%s models_url=%s err=%v", keySource, draftID, modelsURL, err)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+	baseURL := resolvePreviewBaseURL(previewChannel.GetProtocol(), previewChannel.GetBaseURL())
+	modelIDs, modelsURL, err := fetchModelsByConfiguredChannelDetailed(previewChannel.Key, baseURL, "")
+	if err != nil {
+		logger.SysWarnf("channel preview models failed: source=%s draft_id=%s models_url=%s err=%v", keySource, strings.TrimSpace(req.DraftID), modelsURL, err)
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	draftID := strings.TrimSpace(req.DraftID)
 	logger.SysLogf("channel preview models fetched: source=%s draft_id=%s models_url=%s count=%d", keySource, draftID, modelsURL, len(modelIDs))
 	if draftID != "" {
 		if err := model.SyncFetchedChannelModelsWithDB(model.DB, draftID, modelIDs); err != nil {
@@ -216,6 +571,130 @@ func PreviewChannelModels(c *gin.Context) {
 			"key_source": keySource,
 			"draft_id":   draftID,
 			"models_url": modelsURL,
+		},
+	})
+}
+
+// PreviewChannelCapabilities godoc
+// @Summary Preview channel capabilities (admin)
+// @Tags admin
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body docs.ChannelPreviewCapabilitiesRequest true "Preview payload"
+// @Success 200 {object} docs.StandardResponse
+// @Failure 401 {object} docs.ErrorResponse
+// @Router /api/v1/admin/channel/preview/capabilities [post]
+func PreviewChannelCapabilities(c *gin.Context) {
+	var req previewCapabilitiesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	previewChannel, keySource, err := loadPreviewChannel(req.Protocol, req.Key, req.BaseURL, req.DraftID, req.Config, req.Models, req.TestModel)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	if strings.TrimSpace(previewChannel.Key) == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "请先填写 Key",
+		})
+		return
+	}
+	if strings.TrimSpace(previewChannel.GetBaseURL()) == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "请先填写 Base URL",
+		})
+		return
+	}
+
+	textModel, imageModel, audioModel := pickCapabilityModels(previewChannel)
+	userAgent := strings.TrimSpace(c.Request.UserAgent())
+	results := make([]previewCapabilityResult, 0, 4)
+
+	if strings.TrimSpace(textModel) == "" {
+		results = append(results, previewCapabilityResult{
+			Capability: "chat",
+			Label:      "Chat",
+			Endpoint:   "/v1/chat/completions",
+			Status:     previewCapabilityStatusSkipped,
+			Message:    "未找到可用于文本能力测试的模型",
+		})
+		results = append(results, previewCapabilityResult{
+			Capability: "responses",
+			Label:      "Responses",
+			Endpoint:   "/v1/responses",
+			Status:     previewCapabilityStatusSkipped,
+			Message:    "未找到可用于文本能力测试的模型",
+		})
+	} else {
+		latencyMs, message, execErr := executePreviewTextCapability(previewChannel, "/v1/chat/completions", &relaymodel.GeneralOpenAIRequest{
+			Model: textModel,
+			Messages: []relaymodel.Message{{
+				Role:    "user",
+				Content: "Reply with pong.",
+			}},
+		}, userAgent)
+		results = append(results, buildPreviewCapabilityResult("chat", "Chat", "/v1/chat/completions", textModel, latencyMs, message, execErr))
+
+		latencyMs, message, execErr = executePreviewTextCapability(previewChannel, "/v1/responses", &relaymodel.GeneralOpenAIRequest{
+			Model: textModel,
+			Input: "Reply with pong.",
+		}, userAgent)
+		results = append(results, buildPreviewCapabilityResult("responses", "Responses", "/v1/responses", textModel, latencyMs, message, execErr))
+	}
+
+	if strings.TrimSpace(imageModel) == "" {
+		results = append(results, previewCapabilityResult{
+			Capability: "images",
+			Label:      "Images",
+			Endpoint:   "/v1/images/generations",
+			Status:     previewCapabilityStatusSkipped,
+			Message:    "未选择图片模型，已跳过图片能力测试",
+		})
+	} else {
+		latencyMs, message, execErr := executePreviewImageCapability(previewChannel, imageModel, userAgent)
+		results = append(results, buildPreviewCapabilityResult("images", "Images", "/v1/images/generations", imageModel, latencyMs, message, execErr))
+	}
+
+	if strings.TrimSpace(audioModel) == "" {
+		results = append(results, previewCapabilityResult{
+			Capability: "audio",
+			Label:      "Audio",
+			Endpoint:   "/v1/audio/speech",
+			Status:     previewCapabilityStatusSkipped,
+			Message:    "未选择音频模型，已跳过音频能力测试",
+		})
+	} else {
+		latencyMs, message, execErr := executePreviewAudioCapability(previewChannel, audioModel, userAgent)
+		result := buildPreviewCapabilityResult("audio", "Audio", "/v1/audio/speech", audioModel, latencyMs, message, execErr)
+		if execErr != nil && strings.Contains(strings.ToLower(execErr.Error()), "暂不自动探测") {
+			result.Status = previewCapabilityStatusSkipped
+			result.Message = execErr.Error()
+		}
+		results = append(results, result)
+	}
+
+	logger.SysLogf("channel preview capabilities fetched: source=%s draft_id=%s base_url=%s results=%d", keySource, strings.TrimSpace(req.DraftID), previewChannel.GetBaseURL(), len(results))
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"results": results,
+		},
+		"meta": gin.H{
+			"source":     "channel",
+			"key_source": keySource,
+			"draft_id":   strings.TrimSpace(req.DraftID),
 		},
 	})
 }
