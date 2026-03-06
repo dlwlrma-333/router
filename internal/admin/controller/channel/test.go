@@ -2,7 +2,6 @@ package channel
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,71 +18,8 @@ import (
 	"github.com/yeying-community/router/internal/admin/model"
 	"github.com/yeying-community/router/internal/admin/monitor"
 	channelsvc "github.com/yeying-community/router/internal/admin/service/channel"
-	"github.com/yeying-community/router/internal/relay/adaptor/openai"
 	relaymodel "github.com/yeying-community/router/internal/relay/model"
 )
-
-func parseTestResponse(resp string) (*openai.TextResponse, string, error) {
-	var response openai.TextResponse
-	err := json.Unmarshal([]byte(resp), &response)
-	if err != nil {
-		return nil, "", err
-	}
-	if len(response.Choices) == 0 {
-		return nil, "", errors.New("response has no choices")
-	}
-	stringContent, ok := response.Choices[0].Content.(string)
-	if !ok {
-		return nil, "", errors.New("response content is not string")
-	}
-	return &response, stringContent, nil
-}
-
-type responsesEnvelope struct {
-	Output []struct {
-		Content []struct {
-			Type       string `json:"type"`
-			Text       string `json:"text"`
-			OutputText string `json:"output_text"`
-		} `json:"content"`
-	} `json:"output"`
-}
-
-func parseResponsesTestResponse(resp string) (string, error) {
-	var env responsesEnvelope
-	if err := json.Unmarshal([]byte(resp), &env); err != nil {
-		return "", err
-	}
-	contentTypes := make([]string, 0)
-	for _, output := range env.Output {
-		for _, content := range output.Content {
-			if content.Type != "" {
-				contentTypes = append(contentTypes, content.Type)
-			} else {
-				contentTypes = append(contentTypes, "<empty>")
-			}
-			if content.Text != "" {
-				return content.Text, nil
-			}
-			if content.OutputText != "" {
-				return content.OutputText, nil
-			}
-		}
-	}
-	return "", errors.New("response has no output text, content types: " + strings.Join(contentTypes, ","))
-}
-
-func parseChannelTestResponse(resp string) (string, error) {
-	_, chatText, chatErr := parseTestResponse(resp)
-	if chatErr == nil {
-		return chatText, nil
-	}
-	responsesText, responsesErr := parseResponsesTestResponse(resp)
-	if responsesErr == nil {
-		return responsesText, nil
-	}
-	return "", fmt.Errorf("parse as chat failed: %v; parse as responses failed: %v", chatErr, responsesErr)
-}
 
 func summarizeCapabilityTestResults(results []previewCapabilityResult) (bool, string, int64, string) {
 	if len(results) == 0 {

@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/yeying-community/router/common/client"
+	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/common/logger"
 	commonutils "github.com/yeying-community/router/common/utils"
 	"github.com/yeying-community/router/internal/admin/model"
@@ -309,7 +310,7 @@ func runChannelCapabilityTests(channel *model.Channel, userAgent string) ([]prev
 			Model: textModel,
 			Messages: []relaymodel.Message{{
 				Role:    "user",
-				Content: "Reply with pong.",
+				Content: config.TestPrompt,
 			}},
 		}, userAgent)
 		results = append(results, buildPreviewCapabilityResult("chat", "Chat", "/v1/chat/completions", textModel, latencyMs, message, execErr))
@@ -329,7 +330,10 @@ func runChannelCapabilityTests(channel *model.Channel, userAgent string) ([]prev
 				resolvedUserAgent := channel.ResolveCapabilityUpstreamUserAgent(model.ChannelCapabilityResponses, rule.ClientProfile, clientProfiles, userAgent)
 				latencyMs, message, execErr = executePreviewTextCapability(channel, "/v1/responses", &relaymodel.GeneralOpenAIRequest{
 					Model: textModel,
-					Input: "Reply with pong.",
+					Input: []relaymodel.Message{{
+						Role:    "user",
+						Content: config.TestPrompt,
+					}},
 				}, resolvedUserAgent)
 				label := "Responses"
 				if displayName := clientProfileNames[rule.ClientProfile]; displayName != "" {
@@ -509,7 +513,7 @@ func executePreviewTextCapability(channel *model.Channel, path string, request *
 	if err := resp.Body.Close(); err != nil {
 		return latencyMs, "", err
 	}
-	message, err := parseChannelTestResponse(string(body))
+	message, err := parseTextCapabilityResponse(string(body))
 	if err != nil {
 		return latencyMs, "", err
 	}
