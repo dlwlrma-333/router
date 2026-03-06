@@ -24,14 +24,13 @@ const (
 )
 
 type ClientProfile struct {
-	Name             string `json:"name" gorm:"primaryKey;type:varchar(64)"`
-	DisplayName      string `json:"display_name" gorm:"type:varchar(128);default:''"`
-	DefaultUserAgent string `json:"default_user_agent" gorm:"type:text"`
-	MatchMode        string `json:"match_mode" gorm:"type:varchar(32);default:'contains'"`
-	MatchValue       string `json:"match_value" gorm:"type:text"`
-	SortOrder        int    `json:"sort_order" gorm:"type:int;not null;default:1000"`
-	Enabled          bool   `json:"enabled" gorm:"not null;default:true"`
-	UpdatedAt        int64  `json:"updated_at" gorm:"bigint"`
+	Name        string `json:"name" gorm:"primaryKey;type:varchar(64)"`
+	DisplayName string `json:"display_name" gorm:"type:varchar(128);default:''"`
+	MatchMode   string `json:"match_mode" gorm:"type:varchar(32);default:'contains'"`
+	MatchValue  string `json:"match_value" gorm:"type:text"`
+	SortOrder   int    `json:"sort_order" gorm:"type:int;not null;default:1000"`
+	Enabled     bool   `json:"enabled" gorm:"not null;default:true"`
+	UpdatedAt   int64  `json:"updated_at" gorm:"bigint"`
 }
 
 func (ClientProfile) TableName() string {
@@ -62,54 +61,49 @@ func BuildDefaultClientProfiles(now int64) []ClientProfile {
 	}
 	return []ClientProfile{
 		{
-			Name:             ClientProfileCodexCLI,
-			DisplayName:      "Codex CLI",
-			DefaultUserAgent: "codex-cli",
-			MatchMode:        ClientProfileMatchModeContains,
-			MatchValue:       "codex-cli",
-			SortOrder:        10,
-			Enabled:          true,
-			UpdatedAt:        now,
+			Name:        ClientProfileCodexCLI,
+			DisplayName: "Codex CLI",
+			MatchMode:   ClientProfileMatchModeContains,
+			MatchValue:  "codex-cli",
+			SortOrder:   10,
+			Enabled:     true,
+			UpdatedAt:   now,
 		},
 		{
-			Name:             ClientProfileClaudeCode,
-			DisplayName:      "Claude Code",
-			DefaultUserAgent: "claude-code",
-			MatchMode:        ClientProfileMatchModeContains,
-			MatchValue:       "claude-code",
-			SortOrder:        20,
-			Enabled:          true,
-			UpdatedAt:        now,
+			Name:        ClientProfileClaudeCode,
+			DisplayName: "Claude Code",
+			MatchMode:   ClientProfileMatchModeContains,
+			MatchValue:  "claude-code",
+			SortOrder:   20,
+			Enabled:     true,
+			UpdatedAt:   now,
 		},
 		{
-			Name:             ClientProfileGeminiCLI,
-			DisplayName:      "Gemini CLI",
-			DefaultUserAgent: "gemini-cli",
-			MatchMode:        ClientProfileMatchModeContains,
-			MatchValue:       "gemini-cli",
-			SortOrder:        30,
-			Enabled:          true,
-			UpdatedAt:        now,
+			Name:        ClientProfileGeminiCLI,
+			DisplayName: "Gemini CLI",
+			MatchMode:   ClientProfileMatchModeContains,
+			MatchValue:  "gemini-cli",
+			SortOrder:   30,
+			Enabled:     true,
+			UpdatedAt:   now,
 		},
 		{
-			Name:             ClientProfileGenericAPI,
-			DisplayName:      "Generic API",
-			DefaultUserAgent: "",
-			MatchMode:        ClientProfileMatchModeFallback,
-			MatchValue:       "",
-			SortOrder:        900,
-			Enabled:          true,
-			UpdatedAt:        now,
+			Name:        ClientProfileGenericAPI,
+			DisplayName: "Generic API",
+			MatchMode:   ClientProfileMatchModeFallback,
+			MatchValue:  "",
+			SortOrder:   900,
+			Enabled:     true,
+			UpdatedAt:   now,
 		},
 		{
-			Name:             ClientProfileAny,
-			DisplayName:      "Any Client",
-			DefaultUserAgent: "",
-			MatchMode:        ClientProfileMatchModeWildcard,
-			MatchValue:       "",
-			SortOrder:        1000,
-			Enabled:          true,
-			UpdatedAt:        now,
+			Name:        ClientProfileAny,
+			DisplayName: "Any Client",
+			MatchMode:   ClientProfileMatchModeWildcard,
+			MatchValue:  "",
+			SortOrder:   1000,
+			Enabled:     true,
+			UpdatedAt:   now,
 		},
 	}
 }
@@ -137,7 +131,6 @@ func NormalizeClientProfiles(profiles []ClientProfile) []ClientProfile {
 		if profile.DisplayName == "" {
 			profile.DisplayName = name
 		}
-		profile.DefaultUserAgent = strings.TrimSpace(profile.DefaultUserAgent)
 		profile.MatchMode = strings.TrimSpace(strings.ToLower(profile.MatchMode))
 		profile.MatchValue = strings.TrimSpace(strings.ToLower(profile.MatchValue))
 		if profile.MatchMode == "" {
@@ -152,19 +145,6 @@ func NormalizeClientProfiles(profiles []ClientProfile) []ClientProfile {
 		return normalized[i].Name < normalized[j].Name
 	})
 	return normalized
-}
-
-func FindClientProfileByName(profiles []ClientProfile, name string) *ClientProfile {
-	normalizedName := NormalizeClientProfileName(name)
-	if normalizedName == "" {
-		return nil
-	}
-	for i := range profiles {
-		if NormalizeClientProfileName(profiles[i].Name) == normalizedName {
-			return &profiles[i]
-		}
-	}
-	return nil
 }
 
 func ResolveClientProfileByUserAgent(userAgent string, profiles []ClientProfile) string {
@@ -195,12 +175,4 @@ func ResolveClientProfileByUserAgent(userAgent string, profiles []ClientProfile)
 		}
 	}
 	return fallback
-}
-
-func ResolveClientProfileDefaultUserAgent(name string, profiles []ClientProfile) string {
-	profile := FindClientProfileByName(profiles, name)
-	if profile == nil {
-		return ""
-	}
-	return strings.TrimSpace(profile.DefaultUserAgent)
 }

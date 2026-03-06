@@ -151,17 +151,6 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	c.Set(ctxkey.OriginalModel, modelName) // for retry
 	c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
 	c.Set(ctxkey.BaseURL, channel.GetBaseURL())
-	if resolveRequestCapability(c.Request.URL.Path) == model.ChannelCapabilityResponses {
-		clientProfiles, err := model.ListEnabledClientProfilesWithDB(model.DB)
-		if err == nil {
-			clientProfile := model.ResolveClientProfileByUserAgent(c.Request.UserAgent(), clientProfiles)
-			if channel.SupportsCapabilityClientProfile(model.ChannelCapabilityResponses, clientProfile) {
-				if upstreamUA := channel.ResolveCapabilityUpstreamUserAgent(model.ChannelCapabilityResponses, clientProfile, clientProfiles, c.Request.UserAgent()); upstreamUA != "" {
-					c.Request.Header.Set("User-Agent", upstreamUA)
-				}
-			}
-		}
-	}
 	cfg, _ := channel.LoadConfig()
 	// this is for backward compatibility
 	if channel.Other != nil {

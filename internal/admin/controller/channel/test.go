@@ -105,7 +105,7 @@ func recordCapabilityTestLog(ctx context.Context, channel *model.Channel, modelN
 	})
 }
 
-func executeChannelCapabilityTest(ctx context.Context, channel *model.Channel, overrideTestModel string, userAgent string) ([]previewCapabilityResult, bool, string, int64, string, *relaymodel.Error, int, error) {
+func executeChannelCapabilityTest(ctx context.Context, channel *model.Channel, overrideTestModel string) ([]previewCapabilityResult, bool, string, int64, string, *relaymodel.Error, int, error) {
 	if channel == nil {
 		return nil, false, "", 0, "", nil, 0, fmt.Errorf("渠道不存在")
 	}
@@ -114,7 +114,7 @@ func executeChannelCapabilityTest(ctx context.Context, channel *model.Channel, o
 		targetChannel.TestModel = strings.TrimSpace(overrideTestModel)
 	}
 	startedAt := time.Now()
-	results, err := runChannelCapabilityTests(&targetChannel, userAgent)
+	results, err := runChannelCapabilityTests(&targetChannel)
 	if err != nil {
 		modelName := strings.TrimSpace(targetChannel.TestModel)
 		recordCapabilityTestLog(ctx, channel, modelName, false, err.Error(), startedAt)
@@ -165,7 +165,7 @@ func TestChannel(c *gin.Context) {
 		return
 	}
 	testModel := strings.TrimSpace(c.Query("model"))
-	results, success, responseMessage, milliseconds, modelName, _, _, err := executeChannelCapabilityTest(ctx, channel, testModel, c.Request.UserAgent())
+	results, success, responseMessage, milliseconds, modelName, _, _, err := executeChannelCapabilityTest(ctx, channel, testModel)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -202,7 +202,7 @@ func TestChannel(c *gin.Context) {
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
-func testChannels(ctx context.Context, notify bool, scope string, userAgent string) error {
+func testChannels(ctx context.Context, notify bool, scope string) error {
 	if config.RootUserEmail == "" {
 		config.RootUserEmail = model.GetRootUserEmail()
 	}
@@ -235,7 +235,7 @@ func testChannels(ctx context.Context, notify bool, scope string, userAgent stri
 		}()
 		for _, channel := range channels {
 			isChannelEnabled := channel.Status == model.ChannelStatusEnabled
-			_, success, responseMessage, milliseconds, _, relayErr, statusCode, _ := executeChannelCapabilityTest(ctx, channel, strings.TrimSpace(channel.TestModel), userAgent)
+			_, success, responseMessage, milliseconds, _, relayErr, statusCode, _ := executeChannelCapabilityTest(ctx, channel, strings.TrimSpace(channel.TestModel))
 			if isChannelEnabled && success && milliseconds > disableThreshold {
 				timeoutErr := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
 				if config.AutomaticDisableChannelEnabled {
@@ -272,7 +272,7 @@ func TestChannels(c *gin.Context) {
 	if scope == "" {
 		scope = "all"
 	}
-	err := testChannels(ctx, true, scope, c.Request.UserAgent())
+	err := testChannels(ctx, true, scope)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -292,7 +292,7 @@ func AutomaticallyTestChannels(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Minute)
 		logger.SysLog("testing all channels")
-		_ = testChannels(ctx, false, "all", "")
+		_ = testChannels(ctx, false, "all")
 		logger.SysLog("channel test finished")
 	}
 }

@@ -188,39 +188,6 @@ func (channel *Channel) CapabilityProfilesByCapability(capability string) []Chan
 	return NormalizeChannelCapabilityProfileRules(result)
 }
 
-func (channel *Channel) ResolveCapabilityUpstreamUserAgent(capability string, clientProfile string, profiles []ClientProfile, inboundUserAgent string) string {
-	if channel == nil {
-		return strings.TrimSpace(inboundUserAgent)
-	}
-	normalizedCapability := NormalizeChannelCapabilityName(capability)
-	normalizedClientProfile := NormalizeClientProfileName(clientProfile)
-	for _, rule := range channel.CapabilityProfilesByCapability(normalizedCapability) {
-		if NormalizeClientProfileName(rule.ClientProfile) != normalizedClientProfile {
-			continue
-		}
-		if strings.TrimSpace(rule.UpstreamUserAgent) != "" {
-			return strings.TrimSpace(rule.UpstreamUserAgent)
-		}
-		if defaultUA := ResolveClientProfileDefaultUserAgent(normalizedClientProfile, profiles); defaultUA != "" {
-			return defaultUA
-		}
-		return strings.TrimSpace(inboundUserAgent)
-	}
-	for _, rule := range channel.CapabilityProfilesByCapability(normalizedCapability) {
-		if NormalizeClientProfileName(rule.ClientProfile) != ClientProfileAny {
-			continue
-		}
-		if strings.TrimSpace(rule.UpstreamUserAgent) != "" {
-			return strings.TrimSpace(rule.UpstreamUserAgent)
-		}
-		if defaultUA := ResolveClientProfileDefaultUserAgent(ClientProfileAny, profiles); defaultUA != "" {
-			return defaultUA
-		}
-		return strings.TrimSpace(inboundUserAgent)
-	}
-	return strings.TrimSpace(inboundUserAgent)
-}
-
 func (channel *Channel) SupportsCapabilityClientProfile(capability string, clientProfile string) bool {
 	if channel == nil {
 		return false

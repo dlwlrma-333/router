@@ -281,7 +281,7 @@ func buildClientProfileDisplayNames(profiles []model.ClientProfile) map[string]s
 	return result
 }
 
-func runChannelCapabilityTests(channel *model.Channel, userAgent string) ([]previewCapabilityResult, error) {
+func runChannelCapabilityTests(channel *model.Channel) ([]previewCapabilityResult, error) {
 	textModel, imageModel, audioModel := pickCapabilityModels(channel)
 	clientProfiles, err := model.ListEnabledClientProfilesWithDB(model.DB)
 	if err != nil {
@@ -312,7 +312,7 @@ func runChannelCapabilityTests(channel *model.Channel, userAgent string) ([]prev
 				Role:    "user",
 				Content: config.TestPrompt,
 			}},
-		}, userAgent)
+		})
 		results = append(results, buildPreviewCapabilityResult("chat", "Chat", "/v1/chat/completions", textModel, latencyMs, message, execErr))
 
 		responseRules := channel.CapabilityProfilesByCapability(model.ChannelCapabilityResponses)
@@ -327,28 +327,19 @@ func runChannelCapabilityTests(channel *model.Channel, userAgent string) ([]prev
 			})
 		} else {
 			for _, rule := range responseRules {
-				resolvedUserAgent := channel.ResolveCapabilityUpstreamUserAgent(model.ChannelCapabilityResponses, rule.ClientProfile, clientProfiles, userAgent)
 				latencyMs, message, execErr = executePreviewTextCapability(channel, "/v1/responses", &relaymodel.GeneralOpenAIRequest{
 					Model: textModel,
 					Input: []relaymodel.Message{{
 						Role:    "user",
 						Content: config.TestPrompt,
 					}},
-				}, resolvedUserAgent)
+				})
 				label := "Responses"
 				if displayName := clientProfileNames[rule.ClientProfile]; displayName != "" {
 					label = "Responses / " + displayName
 				}
 				result := buildPreviewCapabilityResult("responses:"+rule.ClientProfile, label, "/v1/responses", textModel, latencyMs, message, execErr)
 				result.ClientProfile = rule.ClientProfile
-				result.UserAgent = resolvedUserAgent
-				if resolvedUserAgent != "" {
-					if strings.TrimSpace(result.Message) == "" {
-						result.Message = "User-Agent: " + resolvedUserAgent
-					} else {
-						result.Message = "User-Agent: " + resolvedUserAgent + " | " + result.Message
-					}
-				}
 				results = append(results, result)
 			}
 		}
@@ -363,7 +354,7 @@ func runChannelCapabilityTests(channel *model.Channel, userAgent string) ([]prev
 			Message:    "未选择图片模型，已跳过图片能力测试",
 		})
 	} else {
-		latencyMs, message, execErr := executePreviewImageCapability(channel, imageModel, userAgent)
+		latencyMs, message, execErr := executePreviewImageCapability(channel, imageModel)
 		results = append(results, buildPreviewCapabilityResult("images", "Images", "/v1/images/generations", imageModel, latencyMs, message, execErr))
 	}
 
@@ -376,7 +367,7 @@ func runChannelCapabilityTests(channel *model.Channel, userAgent string) ([]prev
 			Message:    "未选择音频模型，已跳过音频能力测试",
 		})
 	} else {
-		latencyMs, message, execErr := executePreviewAudioCapability(channel, audioModel, userAgent)
+		latencyMs, message, execErr := executePreviewAudioCapability(channel, audioModel)
 		result := buildPreviewCapabilityResult("audio", "Audio", "/v1/audio/speech", audioModel, latencyMs, message, execErr)
 		if execErr != nil && strings.Contains(strings.ToLower(execErr.Error()), "暂不自动探测") {
 			result.Status = previewCapabilityStatusSkipped
@@ -445,7 +436,7 @@ func resolvePreviewModelName(channel *model.Channel, requestedModel string) stri
 	return modelName
 }
 
-func newPreviewRelayContext(path string, channel *model.Channel, userAgent string) (*gin.Context, *meta.Meta, error) {
+func newPreviewRelayContext(path string, channel *model.Channel) (*gin.Context, *meta.Meta, error) {
 	if channel == nil {
 		return nil, nil, fmt.Errorf("渠道不能为空")
 	}
@@ -459,18 +450,15 @@ func newPreviewRelayContext(path string, channel *model.Channel, userAgent strin
 		Header: make(http.Header),
 	}
 	c.Request.Header.Set("Content-Type", "application/json")
-	if strings.TrimSpace(userAgent) != "" {
-		c.Request.Header.Set("User-Agent", strings.TrimSpace(userAgent))
-	}
 	middleware.SetupContextForSelectedChannel(c, channel, "")
 	return c, meta.GetByContext(c), nil
 }
 
-func executePreviewTextCapability(channel *model.Channel, path string, request *relaymodel.GeneralOpenAIRequest, userAgent string) (int64, string, error) {
+func executePreviewTextCapability(channel *model.Channel, path string, request *relaymodel.GeneralOpenAIRequest) (int64, string, error) {
 	if request == nil {
 		return 0, "", fmt.Errorf("请求不能为空")
 	}
-	c, relayMeta, err := newPreviewRelayContext(path, channel, userAgent)
+	c, relayMeta, err := newPreviewRelayContext(path, channel)
 	if err != nil {
 		return 0, "", err
 	}
@@ -520,8 +508,8 @@ func executePreviewTextCapability(channel *model.Channel, path string, request *
 	return latencyMs, message, nil
 }
 
-func executePreviewImageCapability(channel *model.Channel, modelName string, userAgent string) (int64, string, error) {
-	c, relayMeta, err := newPreviewRelayContext("/v1/images/generations", channel, userAgent)
+func executePreviewImageCapability(channel *model.Channel, modelName string) (int64, string, error) {
+	c, relayMeta, err := newPreviewRelayContext("/v1/images/generations", channel)
 	if err != nil {
 		return 0, "", err
 	}
@@ -578,7 +566,7 @@ func executePreviewImageCapability(channel *model.Channel, modelName string, use
 	return latencyMs, preview, nil
 }
 
-func executePreviewAudioCapability(channel *model.Channel, modelName string, userAgent string) (int64, string, error) {
+func executePreviewAudioCapability(channel *model.Channel, modelName string) (int64, string, error) {
 	actualModelName := resolvePreviewModelName(channel, modelName)
 	if actualModelName == "" {
 		return 0, "", fmt.Errorf("未找到可用于音频能力测试的模型")
@@ -586,7 +574,7 @@ func executePreviewAudioCapability(channel *model.Channel, modelName string, use
 	if strings.Contains(strings.ToLower(actualModelName), "whisper") {
 		return 0, "", fmt.Errorf("当前音频模型更像转录模型，暂不自动探测")
 	}
-	c, relayMeta, err := newPreviewRelayContext("/v1/audio/speech", channel, userAgent)
+	c, relayMeta, err := newPreviewRelayContext("/v1/audio/speech", channel)
 	if err != nil {
 		return 0, "", err
 	}
@@ -775,8 +763,7 @@ func PreviewChannelCapabilities(c *gin.Context) {
 		return
 	}
 
-	userAgent := strings.TrimSpace(c.Request.UserAgent())
-	results, err := runChannelCapabilityTests(previewChannel, userAgent)
+	results, err := runChannelCapabilityTests(previewChannel)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

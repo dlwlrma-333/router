@@ -15,12 +15,11 @@ const (
 )
 
 type ChannelCapabilityProfile struct {
-	ChannelId         string `json:"channel_id" gorm:"primaryKey;type:char(36);index"`
-	Capability        string `json:"capability" gorm:"primaryKey;type:varchar(32)"`
-	ClientProfile     string `json:"client_profile" gorm:"primaryKey;type:varchar(64)"`
-	Enabled           bool   `json:"enabled" gorm:"not null;default:true"`
-	UpstreamUserAgent string `json:"upstream_user_agent" gorm:"type:text"`
-	UpdatedAt         int64  `json:"updated_at" gorm:"bigint"`
+	ChannelId     string `json:"channel_id" gorm:"primaryKey;type:char(36);index"`
+	Capability    string `json:"capability" gorm:"primaryKey;type:varchar(32)"`
+	ClientProfile string `json:"client_profile" gorm:"primaryKey;type:varchar(64)"`
+	Enabled       bool   `json:"enabled" gorm:"not null;default:true"`
+	UpdatedAt     int64  `json:"updated_at" gorm:"bigint"`
 }
 
 func (ChannelCapabilityProfile) TableName() string {
@@ -28,10 +27,9 @@ func (ChannelCapabilityProfile) TableName() string {
 }
 
 type ChannelCapabilityProfileRule struct {
-	Capability        string `json:"capability"`
-	ClientProfile     string `json:"client_profile"`
-	Enabled           bool   `json:"enabled"`
-	UpstreamUserAgent string `json:"upstream_user_agent,omitempty"`
+	Capability    string `json:"capability"`
+	ClientProfile string `json:"client_profile"`
+	Enabled       bool   `json:"enabled"`
 }
 
 func NormalizeChannelCapabilityName(capability string) string {
@@ -59,10 +57,9 @@ func NormalizeChannelCapabilityProfileRules(rules []ChannelCapabilityProfileRule
 		}
 		seen[key] = struct{}{}
 		normalized = append(normalized, ChannelCapabilityProfileRule{
-			Capability:        capability,
-			ClientProfile:     clientProfile,
-			Enabled:           true,
-			UpstreamUserAgent: strings.TrimSpace(rule.UpstreamUserAgent),
+			Capability:    capability,
+			ClientProfile: clientProfile,
+			Enabled:       true,
 		})
 	}
 	sort.SliceStable(normalized, func(i, j int) bool {
@@ -129,12 +126,11 @@ func ReplaceChannelCapabilityProfilesWithDB(db *gorm.DB, channelID string, rules
 			enabled = true
 		}
 		rows = append(rows, ChannelCapabilityProfile{
-			ChannelId:         normalizedChannelID,
-			Capability:        rule.Capability,
-			ClientProfile:     rule.ClientProfile,
-			Enabled:           enabled,
-			UpstreamUserAgent: strings.TrimSpace(rule.UpstreamUserAgent),
-			UpdatedAt:         now,
+			ChannelId:     normalizedChannelID,
+			Capability:    rule.Capability,
+			ClientProfile: rule.ClientProfile,
+			Enabled:       enabled,
+			UpdatedAt:     now,
 		})
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
@@ -168,10 +164,9 @@ func loadChannelCapabilityProfileRowsByChannelIDs(db *gorm.DB, channelIDs []stri
 			continue
 		}
 		rowsByChannelID[channelID] = append(rowsByChannelID[channelID], ChannelCapabilityProfileRule{
-			Capability:        capability,
-			ClientProfile:     clientProfile,
-			Enabled:           true,
-			UpstreamUserAgent: strings.TrimSpace(row.UpstreamUserAgent),
+			Capability:    capability,
+			ClientProfile: clientProfile,
+			Enabled:       true,
 		})
 	}
 	for channelID, rules := range rowsByChannelID {

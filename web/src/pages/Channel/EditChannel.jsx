@@ -120,7 +120,6 @@ const normalizeCapabilityProfiles = (profiles) => {
       capability,
       client_profile: clientProfile,
       enabled: true,
-      upstream_user_agent: (item.upstream_user_agent || '').toString().trim(),
     });
   });
   result.sort((left, right) => {
@@ -134,10 +133,7 @@ const normalizeCapabilityProfiles = (profiles) => {
 
 const serializeCapabilityProfiles = (profiles) =>
   normalizeCapabilityProfiles(profiles)
-    .map(
-      (item) =>
-        `${item.capability}:${item.client_profile}:${item.upstream_user_agent}`
-    )
+    .map((item) => `${item.capability}:${item.client_profile}`)
     .join('|');
 
 const normalizeBaseURL = (baseURL) =>
@@ -1016,7 +1012,6 @@ const EditChannel = () => {
       .map((item) => ({
         name: normalizeClientProfileName(item?.name),
         display_name: item?.display_name || item?.name || '',
-        default_user_agent: item?.default_user_agent || '',
       }))
       .filter((item) => item.name !== '');
     setClientProfiles(normalized);
@@ -1159,7 +1154,6 @@ const EditChannel = () => {
             capability: 'responses',
             client_profile: normalizedProfileName,
             enabled: true,
-            upstream_user_agent: profile?.default_user_agent || '',
           });
         }
         return {
@@ -1170,27 +1164,6 @@ const EditChannel = () => {
     },
     []
   );
-
-  const updateResponseProfileUserAgent = useCallback((profileName, value) => {
-    const normalizedProfileName = normalizeClientProfileName(profileName);
-    if (!normalizedProfileName) return;
-    setInputs((prev) => {
-      const next = normalizeCapabilityProfiles(prev.capability_profiles).map(
-        (item) =>
-          item.capability === 'responses' &&
-          item.client_profile === normalizedProfileName
-            ? {
-                ...item,
-                upstream_user_agent: (value || '').trim(),
-              }
-            : item
-      );
-      return {
-        ...prev,
-        capability_profiles: next,
-      };
-    });
-  }, []);
 
   useEffect(() => {
     if (isEdit) {
@@ -1888,42 +1861,9 @@ const EditChannel = () => {
                                   fontSize: '12px',
                                 }}
                               >
-                                {profile.default_user_agent
-                                  ? t(
-                                      'channel.edit.capability_tester.default_user_agent',
-                                      {
-                                        userAgent:
-                                          profile.default_user_agent,
-                                      }
-                                    )
-                                  : t(
-                                      'channel.edit.capability_tester.no_default_user_agent'
-                                    )}
+                                {profile.name}
                               </span>
                             </div>
-                            {selected && (
-                              <Form.Input
-                                style={{ marginTop: '10px', marginBottom: 0 }}
-                                label={t(
-                                  'channel.edit.capability_tester.upstream_user_agent'
-                                )}
-                                placeholder={
-                                  profile.default_user_agent ||
-                                  t(
-                                    'channel.edit.capability_tester.upstream_user_agent_placeholder'
-                                  )
-                                }
-                                value={
-                                  selectedProfile?.upstream_user_agent || ''
-                                }
-                                onChange={(e, { value }) =>
-                                  updateResponseProfileUserAgent(
-                                    profile.name,
-                                    value
-                                  )
-                                }
-                              />
-                            )}
                           </div>
                         );
                       })}

@@ -246,12 +246,8 @@
         "test_failed": "Capability test failed",
         "stale": "Connection info or model selection changed. Please run capability tests again.",
         "responses_whitelist": "Responses Client Whitelist",
-        "responses_whitelist_hint": "Choose which client profiles can use /v1/responses on this channel, and specify the User-Agent sent upstream for each profile.",
+        "responses_whitelist_hint": "Choose which client profiles can use /v1/responses on this channel. Router identifies the client profile from the inbound User-Agent and forwards that original User-Agent upstream.",
         "responses_whitelist_empty": "No client profiles available.",
-        "upstream_user_agent": "Upstream User-Agent",
-        "upstream_user_agent_placeholder": "Leave blank to use the default User-Agent for this client profile",
-        "default_user_agent": "Default User-Agent: {{userAgent}}",
-        "no_default_user_agent": "No default User-Agent for this client profile",
         "status": {
           "supported": "Supported",
           "unsupported": "Unsupported",

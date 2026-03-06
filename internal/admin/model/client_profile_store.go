@@ -32,9 +32,6 @@ func syncClientProfilesWithDB(db *gorm.DB) error {
 			if strings.TrimSpace(current.DisplayName) == "" {
 				current.DisplayName = profile.DisplayName
 			}
-			if strings.TrimSpace(current.DefaultUserAgent) == "" {
-				current.DefaultUserAgent = profile.DefaultUserAgent
-			}
 			if strings.TrimSpace(current.MatchMode) == "" {
 				current.MatchMode = profile.MatchMode
 			}

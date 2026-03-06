@@ -246,12 +246,8 @@
         "test_failed": "能力测试失败",
         "stale": "连接信息或模型选择已变更，请重新执行能力测试。",
         "responses_whitelist": "Responses 客户端白名单",
-        "responses_whitelist_hint": "选择哪些客户端画像可以使用该渠道的 /v1/responses，并为每个画像指定向上游发送的 User-Agent。",
+        "responses_whitelist_hint": "选择哪些客户端画像可以使用该渠道的 /v1/responses。Router 会根据来访请求的 User-Agent 识别客户端画像，并将原始 User-Agent 透传给上游。",
         "responses_whitelist_empty": "暂无可用客户端画像。",
-        "upstream_user_agent": "上游 User-Agent",
-        "upstream_user_agent_placeholder": "留空则使用该客户端画像的默认 User-Agent",
-        "default_user_agent": "默认 User-Agent: {{userAgent}}",
-        "no_default_user_agent": "该客户端画像没有默认 User-Agent",
         "status": {
           "supported": "支持",
           "unsupported": "不支持",
