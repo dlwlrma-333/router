@@ -42,7 +42,10 @@ func GetAll(startIdx int, num int, status string) ([]*model.Channel, error) {
 	default:
 		err = model.DB.Order("created_time desc").Limit(num).Offset(startIdx).Omit("key").Find(&channels).Error
 	}
-	return channels, err
+	if err != nil {
+		return nil, err
+	}
+	return channels, model.HydrateChannelsWithModels(model.DB, channels)
 }
 
 func Search(keyword string) ([]*model.Channel, error) {
@@ -52,7 +55,10 @@ func Search(keyword string) ([]*model.Channel, error) {
 		return channels, nil
 	}
 	err := model.DB.Omit("key").Where("id = ? or name LIKE ?", trimmed, trimmed+"%").Find(&channels).Error
-	return channels, err
+	if err != nil {
+		return nil, err
+	}
+	return channels, model.HydrateChannelsWithModels(model.DB, channels)
 }
 
 func GetByID(id string, selectAll bool) (*model.Channel, error) {
@@ -64,7 +70,10 @@ func GetByID(id string, selectAll bool) (*model.Channel, error) {
 	} else {
 		err = model.DB.Omit("key").First(&channel, "id = ?", id).Error
 	}
-	return &channel, err
+	if err != nil {
+		return nil, err
+	}
+	return &channel, model.HydrateChannelWithModels(model.DB, &channel)
 }
 
 func BatchInsert(channels []model.Channel) error {
@@ -78,13 +87,28 @@ func BatchInsert(channels []model.Channel) error {
 			channels[i].CreatedTime = now
 		}
 	}
-	err := model.DB.Create(&channels).Error
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&channels).Error; err != nil {
+			return err
+		}
+		for i := range channels {
+			if err := model.ReplaceChannelSelectedModelsWithDB(tx, channels[i].Id, channels[i].SelectedModelIDs()); err != nil {
+				return err
+			}
+			if err := model.EnsureChannelTestModelWithDB(tx, channels[i].Id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	for _, channel := range channels {
-		err = channel.AddAbilities()
-		if err != nil {
+	for i := range channels {
+		if err := model.HydrateChannelWithModels(model.DB, &channels[i]); err != nil {
+			return err
+		}
+		if err := channels[i].AddAbilities(); err != nil {
 			return err
 		}
 	}
@@ -99,8 +123,19 @@ func Insert(channel *model.Channel) error {
 	if channel.CreatedTime == 0 {
 		channel.CreatedTime = helper.GetTimestamp()
 	}
-	err := model.DB.Create(channel).Error
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(channel).Error; err != nil {
+			return err
+		}
+		if err := model.ReplaceChannelSelectedModelsWithDB(tx, channel.Id, channel.SelectedModelIDs()); err != nil {
+			return err
+		}
+		return model.EnsureChannelTestModelWithDB(tx, channel.Id)
+	})
 	if err != nil {
+		return err
+	}
+	if err := model.HydrateChannelWithModels(model.DB, channel); err != nil {
 		return err
 	}
 	return channel.AddAbilities()
@@ -110,11 +145,29 @@ func Update(channel *model.Channel) error {
 	if strings.TrimSpace(channel.Protocol) != "" {
 		channel.NormalizeProtocol()
 	}
-	err := model.DB.Model(channel).Updates(channel).Error
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Channel{}).Where("id = ?", channel.Id).Updates(channel).Error; err != nil {
+			return err
+		}
+		if channel.ModelsProvided {
+			if err := model.ReplaceChannelSelectedModelsWithDB(tx, channel.Id, channel.SelectedModelIDs()); err != nil {
+				return err
+			}
+			if err := model.EnsureChannelTestModelWithDB(tx, channel.Id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	model.DB.Model(channel).First(channel, "id = ?", channel.Id)
+	if err := model.DB.First(channel, "id = ?", channel.Id).Error; err != nil {
+		return err
+	}
+	if err := model.HydrateChannelWithModels(model.DB, channel); err != nil {
+		return err
+	}
 	return channel.UpdateAbilities()
 }
 
@@ -139,11 +192,15 @@ func UpdateBalance(channel *model.Channel, balance float64) {
 }
 
 func Delete(channel *model.Channel) error {
-	err := model.DB.Delete(channel).Error
-	if err != nil {
-		return err
-	}
-	return channel.DeleteAbilities()
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := model.DeleteChannelModelsByChannelIDWithDB(tx, channel.Id); err != nil {
+			return err
+		}
+		if err := tx.Where("channel_id = ?", strings.TrimSpace(channel.Id)).Delete(&model.Ability{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&model.Channel{}, "id = ?", strings.TrimSpace(channel.Id)).Error
+	})
 }
 
 func DeleteByID(id string) error {
@@ -153,8 +210,7 @@ func DeleteByID(id string) error {
 }
 
 func DeleteDisabled() (int64, error) {
-	result := model.DB.Where("status = ? or status = ?", model.ChannelStatusAutoDisabled, model.ChannelStatusManuallyDisabled).Delete(&model.Channel{})
-	return result.RowsAffected, result.Error
+	return deleteChannelsByQuery(model.DB.Where("status = ? or status = ?", model.ChannelStatusAutoDisabled, model.ChannelStatusManuallyDisabled))
 }
 
 func UpdateStatusByID(id string, status int) {
@@ -191,6 +247,28 @@ func UpdateTestModelByID(id string, testModel string) error {
 }
 
 func DeleteByStatus(status int64) (int64, error) {
-	result := model.DB.Where("status = ?", status).Delete(&model.Channel{})
-	return result.RowsAffected, result.Error
+	return deleteChannelsByQuery(model.DB.Where("status = ?", status))
+}
+
+func deleteChannelsByQuery(query *gorm.DB) (int64, error) {
+	channelIDs := make([]string, 0)
+	if err := query.Model(&model.Channel{}).Pluck("id", &channelIDs).Error; err != nil {
+		return 0, err
+	}
+	if len(channelIDs) == 0 {
+		return 0, nil
+	}
+	var rowsAffected int64
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := model.DeleteChannelModelsByChannelIDsWithDB(tx, channelIDs); err != nil {
+			return err
+		}
+		if err := tx.Where("channel_id IN ?", channelIDs).Delete(&model.Ability{}).Error; err != nil {
+			return err
+		}
+		result := tx.Where("id IN ?", channelIDs).Delete(&model.Channel{})
+		rowsAffected = result.RowsAffected
+		return result.Error
+	})
+	return rowsAffected, err
 }

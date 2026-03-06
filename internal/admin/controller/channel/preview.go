@@ -12,6 +12,7 @@ import (
 	"github.com/yeying-community/router/common/client"
 	"github.com/yeying-community/router/common/logger"
 	commonutils "github.com/yeying-community/router/common/utils"
+	"github.com/yeying-community/router/internal/admin/model"
 	channelsvc "github.com/yeying-community/router/internal/admin/service/channel"
 	relaychannel "github.com/yeying-community/router/internal/relay/channel"
 )
@@ -187,6 +188,24 @@ func PreviewChannelModels(c *gin.Context) {
 		return
 	}
 	logger.SysLogf("channel preview models fetched: source=%s draft_id=%s models_url=%s count=%d", keySource, draftID, modelsURL, len(modelIDs))
+	if draftID != "" {
+		if err := model.SyncFetchedChannelModelsWithDB(model.DB, draftID, modelIDs); err != nil {
+			logger.SysWarnf("channel preview models save failed: draft_id=%s err=%v", draftID, err)
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "保存渠道模型失败",
+			})
+			return
+		}
+		if err := model.EnsureChannelTestModelWithDB(model.DB, draftID); err != nil {
+			logger.SysWarnf("channel preview test model sync failed: draft_id=%s err=%v", draftID, err)
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "保存测试模型失败",
+			})
+			return
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

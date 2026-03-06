@@ -70,53 +70,26 @@ var defaultChannelProtocolSeeds = []channelProtocolSeed{
 	{ID: 13, Label: "代理：AIGC2D", Color: "purple"},
 }
 
-func runChannelProtocolCatalogMigrationsWithDB(db *gorm.DB) error {
+func syncChannelProtocolCatalogWithDB(db *gorm.DB) error {
 	if err := db.AutoMigrate(&ChannelProtocolCatalog{}); err != nil {
 		return err
 	}
 	now := helper.GetTimestamp()
-	if err := normalizeChannelProtocolCatalogRows(db, now); err != nil {
-		return err
-	}
-	defaults := buildDefaultChannelProtocolCatalog(now)
-	if len(defaults) == 0 {
-		return nil
-	}
-	for _, item := range defaults {
-		updateValues := map[string]any{
-			"id":          item.ProtocolID,
-			"label":       item.Label,
-			"color":       item.Color,
-			"description": item.Description,
-			"tip":         item.Tip,
-			"source":      item.Source,
-			"enabled":     item.Enabled,
-			"sort_order":  item.SortOrder,
-			"updated_at":  item.UpdatedAt,
-		}
-		result := db.Model(&ChannelProtocolCatalog{}).Where("name = ?", item.Name).Updates(updateValues)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			if err := db.Create(&item).Error; err != nil {
-				return err
-			}
-		}
-	}
-
-	// OpenAI-compatible has been removed; keep catalog normalized.
-	if err := db.Where("name = ?", "openai-compatible").Delete(&ChannelProtocolCatalog{}).Error; err != nil {
-		return err
-	}
-	logger.SysLogf("migration: synchronized channel protocol catalog with %d default items", len(defaults))
-	return nil
-}
-
-func normalizeChannelProtocolCatalogRows(db *gorm.DB, now int64) error {
 	rows := make([]ChannelProtocolCatalog, 0)
-	if err := db.Find(&rows).Error; err != nil {
+	if err := db.Order("sort_order asc, id asc").Find(&rows).Error; err != nil {
 		return err
+	}
+
+	if len(rows) == 0 {
+		defaults := buildDefaultChannelProtocolCatalog(now)
+		if len(defaults) == 0 {
+			return nil
+		}
+		if err := db.Create(&defaults).Error; err != nil {
+			return err
+		}
+		logger.SysLogf("migration: initialized channel protocol catalog with %d default items", len(defaults))
+		return nil
 	}
 	for _, row := range rows {
 		if row.ProtocolID == relaychannel.OpenAICompatible || strings.EqualFold(strings.TrimSpace(row.Name), "openai-compatible") {
@@ -145,6 +118,7 @@ func normalizeChannelProtocolCatalogRows(db *gorm.DB, now int64) error {
 			return err
 		}
 	}
+	logger.SysLogf("migration: normalized %d existing channel protocol rows", len(rows))
 	return nil
 }
 

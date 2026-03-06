@@ -35,80 +35,10 @@ type versionedMigration struct {
 func runMainVersionedMigrations(db *gorm.DB) error {
 	migrations := []versionedMigration{
 		{
-			Version:     "202603040100_baseline_uuid_bootstrap",
-			Description: "baseline: rebuild uuid schema and seed catalogs",
+			Version:     "202603071300_main_baseline",
+			Description: "baseline: create current main schema and seed initial catalogs",
 			Up: func(tx *gorm.DB) error {
 				return runMainBaselineMigrationWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603050100_model_provider_catalog_v2",
-			Description: "upgrade model provider catalog with full code model set and model metadata",
-			Up: func(tx *gorm.DB) error {
-				return runModelProviderMigrationsWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603050200_model_provider_sort_order",
-			Description: "add model provider sort order and initialize missing values",
-			Up: func(tx *gorm.DB) error {
-				return runModelProviderSortOrderMigrationWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603050300_model_provider_models_table",
-			Description: "move model provider models to dedicated table",
-			Up: func(tx *gorm.DB) error {
-				return runModelProviderModelsTableMigrationWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603050400_model_provider_models_rename_to_models",
-			Description: "rename provider model table to models",
-			Up: func(tx *gorm.DB) error {
-				return runModelProviderModelsTableRenameMigrationWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603050500_drop_channel_model_provider_column",
-			Description: "drop deprecated channels.model_provider column",
-			Up: func(tx *gorm.DB) error {
-				return runDropChannelModelProviderColumnMigrationWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603060100_channel_protocol_name",
-			Description: "migrate channels to protocol name and normalize legacy type mapping",
-			Up: func(tx *gorm.DB) error {
-				return runChannelProtocolMigrationWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603060110_channel_protocol_catalog_name_key",
-			Description: "normalize channel protocol catalog to use protocol name as key",
-			Up: func(tx *gorm.DB) error {
-				return runChannelProtocolCatalogMigrationsWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603060120_drop_channel_type_column",
-			Description: "drop deprecated channels.type column after protocol migration",
-			Up: func(tx *gorm.DB) error {
-				return runDropChannelTypeColumnMigrationWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603051100_remove_openai_compatible_protocol",
-			Description: "remove openai-compatible protocol type and normalize existing channels to openai",
-			Up: func(tx *gorm.DB) error {
-				return runRemoveOpenAICompatibleProtocolMigrationWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603051200_drop_channel_group_column",
-			Description: "migrate channel-group relation to group_model_channels and drop channels.group",
-			Up: func(tx *gorm.DB) error {
-				return runDropChannelGroupColumnMigrationWithDB(tx)
 			},
 		},
 	}
@@ -118,10 +48,10 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 func runLogVersionedMigrations(db *gorm.DB) error {
 	migrations := []versionedMigration{
 		{
-			Version:     "202603040101_log_uuid_baseline",
-			Description: "baseline: rebuild logs table with uuid primary key",
+			Version:     "202603070101_log_baseline",
+			Description: "baseline: create current log schema",
 			Up: func(tx *gorm.DB) error {
-				return runLogUUIDPrimaryKeyDestructiveMigrationWithDB(tx)
+				return runLogBaselineMigrationWithDB(tx)
 			},
 		},
 	}

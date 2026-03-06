@@ -117,41 +117,7 @@ func InitDB() {
 }
 
 func migrateDB() error {
-	var err error
-	if err = DB.AutoMigrate(&Channel{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&Token{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&User{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&Option{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&Redemption{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&Ability{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&Log{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&ModelProvider{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&ModelProviderModel{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&ChannelProtocolCatalog{}); err != nil {
-		return err
-	}
-	if err = runMainVersionedMigrations(DB); err != nil {
-		return err
-	}
-	return nil
+	return runMainVersionedMigrations(DB)
 }
 
 func InitLogDB() {
@@ -184,10 +150,6 @@ func InitLogDB() {
 }
 
 func migrateLOGDB() error {
-	var err error
-	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
-		return err
-	}
 	return runLogVersionedMigrations(LOG_DB)
 }
 

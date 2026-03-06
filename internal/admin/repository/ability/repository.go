@@ -7,7 +7,6 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/yeying-community/router/common/utils"
 	"github.com/yeying-community/router/internal/admin/model"
 )
 
@@ -82,8 +81,7 @@ func buildAbilitiesForChannel(channel *model.Channel, groups []string) []model.A
 	if channel == nil || len(groups) == 0 {
 		return nil
 	}
-	models := strings.Split(channel.Models, ",")
-	models = utils.DeDuplication(models)
+	models := channel.SelectedModelIDs()
 	abilities := make([]model.Ability, 0, len(models)*len(groups))
 	for _, modelName := range models {
 		normalizedModel := strings.TrimSpace(modelName)

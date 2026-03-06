@@ -1,9 +1,6 @@
 package model
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
 	"sort"
 	"strings"
 
@@ -12,8 +9,6 @@ import (
 	commonutils "github.com/yeying-community/router/common/utils"
 	"gorm.io/gorm"
 )
-
-const optionKeyModelProviderCatalog = "ModelProviderCatalog"
 
 type modelProviderCatalogMigrationItem struct {
 	Provider     string                     `json:"provider"`
@@ -69,169 +64,27 @@ func finalizeModelProviderCatalogSortOrders(items []modelProviderCatalogMigratio
 	return items
 }
 
-func runModelProviderMigrationsWithDB(db *gorm.DB) error {
-	if err := ensureModelProviderCatalogTable(db); err != nil {
-		return err
-	}
-	return nil
-}
-
-func runModelProviderSortOrderMigrationWithDB(db *gorm.DB) error {
-	rows := make([]ModelProvider, 0)
-	if err := db.Order("sort_order asc, provider asc").Find(&rows).Error; err != nil {
-		return err
-	}
-	updated := 0
-	nextOrder := 10
-	for _, row := range rows {
-		targetOrder := normalizeModelProviderSortOrderValue(row.SortOrder)
-		if targetOrder > 0 {
-			if targetOrder >= nextOrder {
-				nextOrder = targetOrder + 10
-			}
-		} else {
-			targetOrder = nextOrder
-			nextOrder += 10
-		}
-		if row.SortOrder == targetOrder {
-			continue
-		}
-		if err := db.Model(&ModelProvider{}).
-			Where("provider = ?", row.Provider).
-			Update("sort_order", targetOrder).Error; err != nil {
-			return err
-		}
-		updated++
-	}
-	if updated > 0 {
-		logger.SysLogf("migration: normalized sort_order for %d model providers", updated)
-	}
-	return nil
-}
-
-func runModelProviderModelsTableMigrationWithDB(db *gorm.DB) error {
-	if err := db.AutoMigrate(&ModelProviderModel{}); err != nil {
+func syncModelProviderCatalogWithDB(db *gorm.DB) error {
+	if err := db.AutoMigrate(&ModelProvider{}, &ModelProviderModel{}); err != nil {
 		return err
 	}
 
-	detailsByProvider, err := LoadModelProviderModelDetailsMap(db)
-	if err != nil {
-		return err
-	}
-	legacyRawByProvider, legacyErr := LoadLegacyModelProviderModelsRawMap(db)
-	if legacyErr != nil {
-		return legacyErr
-	}
-
-	if len(legacyRawByProvider) > 0 {
-		now := helper.GetTimestamp()
-		rowsToCreate := make([]ModelProviderModel, 0)
-		for provider, raw := range legacyRawByProvider {
-			if len(detailsByProvider[provider]) > 0 {
-				continue
-			}
-			details := MergeModelProviderDetails(provider, ParseModelProviderModelsRaw(raw), nil, false, now)
-			rowsToCreate = append(rowsToCreate, BuildModelProviderModelRows(provider, details, now)...)
-		}
-		if len(rowsToCreate) > 0 {
-			if err := db.Create(&rowsToCreate).Error; err != nil {
-				return err
-			}
-			logger.SysLogf("migration: backfilled %d provider-model rows from legacy model_providers.models", len(rowsToCreate))
-		}
-	}
-
-	if db.Migrator().HasColumn("model_providers", "models") {
-		if err := db.Migrator().DropColumn("model_providers", "models"); err != nil {
-			return err
-		}
-		logger.SysLog("migration: dropped legacy model_providers.models column")
-	}
-	return nil
-}
-
-func runModelProviderModelsTableRenameMigrationWithDB(db *gorm.DB) error {
-	oldTable := LegacyModelProviderModelsTableName
-	newTable := ModelProviderModelsTableName
-
-	hasOld := db.Migrator().HasTable(oldTable)
-	if !hasOld {
-		return nil
-	}
-	hasNew := db.Migrator().HasTable(newTable)
-
-	if !hasNew {
-		if err := db.Migrator().RenameTable(oldTable, newTable); err != nil {
-			return err
-		}
-		logger.SysLogf("migration: renamed table %s -> %s", oldTable, newTable)
-		return nil
-	}
-
-	copySQL := fmt.Sprintf(
-		"INSERT INTO %s (provider, model, type, input_price, output_price, price_unit, currency, source, updated_at) "+
-			"SELECT provider, model, type, input_price, output_price, price_unit, currency, source, updated_at FROM %s "+
-			"ON CONFLICT (provider, model) DO NOTHING",
-		newTable,
-		oldTable,
-	)
-	if err := db.Exec(copySQL).Error; err != nil {
-		return err
-	}
-	if err := db.Migrator().DropTable(oldTable); err != nil {
-		return err
-	}
-	logger.SysLogf("migration: merged table %s into %s and dropped %s", oldTable, newTable, oldTable)
-	return nil
-}
-
-func runDropChannelModelProviderColumnMigrationWithDB(db *gorm.DB) error {
-	const channelsTable = "channels"
-	const columnName = "model_provider"
-	if !db.Migrator().HasColumn(channelsTable, columnName) {
-		return nil
-	}
-	if err := db.Migrator().DropColumn(channelsTable, columnName); err != nil {
-		return err
-	}
-	logger.SysLog("migration: dropped channels.model_provider column")
-	return nil
-}
-
-func ensureModelProviderCatalogTable(db *gorm.DB) error {
-	tableItems, err := loadModelProviderCatalogFromTable(db)
+	items, err := loadModelProviderCatalogFromTable(db)
 	if err != nil {
 		return err
 	}
 
-	if len(tableItems) == 0 {
-		legacyItems, legacyErr := loadModelProviderCatalogFromLegacyOption(db)
-		if legacyErr != nil {
-			return legacyErr
-		}
-		if len(legacyItems) > 0 {
-			tableItems = legacyItems
-			logger.SysLog("migration: imported model providers from options.ModelProviderCatalog")
-		} else {
-			tableItems = buildDefaultModelProviderCatalogMigration(helper.GetTimestamp())
-			logger.SysLog("migration: initialized model providers from code model catalog")
+	if len(items) == 0 {
+		items = buildDefaultModelProviderCatalogMigration(helper.GetTimestamp())
+		logger.SysLogf("migration: initialized model provider catalog with %d default providers", len(items))
+	} else {
+		items, err = normalizeModelProviderCatalogItems(items, false)
+		if err != nil {
+			return err
 		}
 	}
 
-	normalizedItems, normalizeErr := normalizeModelProviderCatalogItems(tableItems, true)
-	if normalizeErr != nil {
-		logger.SysError("migration: normalize model providers failed, fallback to code defaults: " + normalizeErr.Error())
-		normalizedItems = buildDefaultModelProviderCatalogMigration(helper.GetTimestamp())
-	}
-
-	if err := saveModelProviderCatalogToTable(db, normalizedItems); err != nil {
-		return err
-	}
-
-	if err := db.Where("key = ?", optionKeyModelProviderCatalog).Delete(&Option{}).Error; err != nil {
-		return err
-	}
-	return nil
+	return saveModelProviderCatalogToTable(db, items)
 }
 
 func normalizeModelProviderCatalogItems(items []modelProviderCatalogMigrationItem, mergeWithCodeDefaults bool) ([]modelProviderCatalogMigrationItem, error) {
@@ -323,39 +176,10 @@ func normalizeModelProviderCatalogItems(items []modelProviderCatalogMigrationIte
 	return normalized, nil
 }
 
-func loadModelProviderCatalogFromLegacyOption(db *gorm.DB) ([]modelProviderCatalogMigrationItem, error) {
-	var option Option
-	err := db.Where("key = ?", optionKeyModelProviderCatalog).First(&option).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	raw := strings.TrimSpace(option.Value)
-	if raw == "" {
-		return nil, nil
-	}
-	normalizedRaw, normalizeErr := normalizeModelProviderCatalogRaw(raw, true)
-	if normalizeErr != nil {
-		logger.SysError("migration: failed to parse options.ModelProviderCatalog, fallback to defaults: " + normalizeErr.Error())
-		return nil, nil
-	}
-	items := make([]modelProviderCatalogMigrationItem, 0)
-	if err := json.Unmarshal([]byte(normalizedRaw), &items); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 func loadModelProviderCatalogFromTable(db *gorm.DB) ([]modelProviderCatalogMigrationItem, error) {
 	detailsByProvider, err := LoadModelProviderModelDetailsMap(db)
 	if err != nil {
 		return nil, err
-	}
-	legacyRawByProvider, legacyErr := LoadLegacyModelProviderModelsRawMap(db)
-	if legacyErr != nil {
-		return nil, legacyErr
 	}
 
 	rows := make([]ModelProvider, 0)
@@ -368,14 +192,7 @@ func loadModelProviderCatalogFromTable(db *gorm.DB) ([]modelProviderCatalogMigra
 		if provider == "" {
 			continue
 		}
-		details := detailsByProvider[provider]
-		if len(details) == 0 {
-			legacyRaw := strings.TrimSpace(legacyRawByProvider[provider])
-			if legacyRaw != "" {
-				details = ParseModelProviderModelsRaw(legacyRaw)
-			}
-		}
-		details = MergeModelProviderDetails(provider, details, nil, false, helper.GetTimestamp())
+		details := MergeModelProviderDetails(provider, detailsByProvider[provider], nil, false, helper.GetTimestamp())
 		items = append(items, modelProviderCatalogMigrationItem{
 			Provider:     provider,
 			Name:         strings.TrimSpace(row.Name),
@@ -458,36 +275,6 @@ func buildDefaultModelProviderCatalogMigration(now int64) []modelProviderCatalog
 		})
 	}
 	return items
-}
-
-func buildDefaultModelProviderCatalogRaw() (string, error) {
-	items := buildDefaultModelProviderCatalogMigration(helper.GetTimestamp())
-	raw, err := json.Marshal(items)
-	return string(raw), err
-}
-
-func normalizeModelProviderCatalogRaw(raw string, mergeWithCodeDefaults bool) (string, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		if mergeWithCodeDefaults {
-			return buildDefaultModelProviderCatalogRaw()
-		}
-		emptyRaw, err := json.Marshal([]modelProviderCatalogMigrationItem{})
-		return string(emptyRaw), err
-	}
-	items := make([]modelProviderCatalogMigrationItem, 0)
-	if err := json.Unmarshal([]byte(trimmed), &items); err != nil {
-		return "", err
-	}
-	normalized, err := normalizeModelProviderCatalogItems(items, mergeWithCodeDefaults)
-	if err != nil {
-		return "", err
-	}
-	normalizedRaw, err := json.Marshal(normalized)
-	if err != nil {
-		return "", err
-	}
-	return string(normalizedRaw), nil
 }
 
 func reconcileWithCodeDefaults(items []modelProviderCatalogMigrationItem, now int64) []modelProviderCatalogMigrationItem {

@@ -50,20 +50,7 @@ func buildTestRequest(model string) *relaymodel.GeneralOpenAIRequest {
 }
 
 func parseChannelModelIDs(models string) []string {
-	parsed := make([]string, 0)
-	seen := make(map[string]struct{})
-	for _, item := range strings.Split(models, ",") {
-		modelID := strings.TrimSpace(item)
-		if modelID == "" {
-			continue
-		}
-		if _, ok := seen[modelID]; ok {
-			continue
-		}
-		seen[modelID] = struct{}{}
-		parsed = append(parsed, modelID)
-	}
-	return parsed
+	return model.ParseChannelModelCSV(models)
 }
 
 func containsModelID(modelIDs []string, target string) bool {

@@ -7,11 +7,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type legacyModelProviderModelsRow struct {
-	Provider string
-	Models   string
-}
-
 var providersUseFlatModelIDs = map[string]struct{}{
 	"openai":      {},
 	"google":      {},
@@ -129,30 +124,4 @@ func BuildModelProviderModelRows(provider string, details []ModelProviderModelDe
 		})
 	}
 	return rows
-}
-
-func LoadLegacyModelProviderModelsRawMap(db *gorm.DB) (map[string]string, error) {
-	result := make(map[string]string, 0)
-	if !db.Migrator().HasColumn("model_providers", "models") {
-		return result, nil
-	}
-	rows := make([]legacyModelProviderModelsRow, 0)
-	if err := db.Raw("SELECT provider, models FROM model_providers").Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		provider := commonutils.NormalizeModelProvider(row.Provider)
-		if provider == "" {
-			provider = strings.TrimSpace(strings.ToLower(row.Provider))
-		}
-		if provider == "" {
-			continue
-		}
-		raw := strings.TrimSpace(row.Models)
-		if raw == "" {
-			continue
-		}
-		result[provider] = raw
-	}
-	return result, nil
 }

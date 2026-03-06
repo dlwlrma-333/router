@@ -18,29 +18,31 @@ const (
 )
 
 type Channel struct {
-	Id                 string  `json:"id" gorm:"type:char(36);primaryKey"`
-	Protocol           string  `json:"protocol" gorm:"type:varchar(64);default:'openai';index"`
-	Key                string  `json:"key" gorm:"type:text"`
-	Status             int     `json:"status" gorm:"default:1"`
-	Name               string  `json:"name" gorm:"index"`
-	Weight             *uint   `json:"weight" gorm:"default:0"`
-	CreatedTime        int64   `json:"created_time" gorm:"bigint"`
-	TestTime           int64   `json:"test_time" gorm:"bigint"`
-	ResponseTime       int     `json:"response_time"`
-	BaseURL            *string `json:"base_url" gorm:"column:base_url;default:''"`
-	Other              *string `json:"other"`
-	Balance            float64 `json:"balance"`
-	BalanceUpdatedTime int64   `json:"balance_updated_time" gorm:"bigint"`
-	Models             string  `json:"models"`
-	UsedQuota          int64   `json:"used_quota" gorm:"bigint;default:0"`
-	ModelMapping       *string `json:"model_mapping" gorm:"type:varchar(1024);default:''"`
-	Priority           *int64  `json:"priority" gorm:"bigint;default:0"`
-	Config             string  `json:"config"`
-	SystemPrompt       *string `json:"system_prompt" gorm:"type:text"`
-	ModelRatio         *string `json:"model_ratio" gorm:"type:text;default:''"`
-	CompletionRatio    *string `json:"completion_ratio" gorm:"type:text;default:''"`
-	TestModel          string  `json:"test_model" gorm:"type:varchar(255);default:''"`
-	KeySet             bool    `json:"key_set" gorm:"-"`
+	Id                 string   `json:"id" gorm:"type:char(36);primaryKey"`
+	Protocol           string   `json:"protocol" gorm:"type:varchar(64);default:'openai';index"`
+	Key                string   `json:"key" gorm:"type:text"`
+	Status             int      `json:"status" gorm:"default:1"`
+	Name               string   `json:"name" gorm:"index"`
+	Weight             *uint    `json:"weight" gorm:"default:0"`
+	CreatedTime        int64    `json:"created_time" gorm:"bigint"`
+	TestTime           int64    `json:"test_time" gorm:"bigint"`
+	ResponseTime       int      `json:"response_time"`
+	BaseURL            *string  `json:"base_url" gorm:"column:base_url;default:''"`
+	Other              *string  `json:"other"`
+	Balance            float64  `json:"balance"`
+	BalanceUpdatedTime int64    `json:"balance_updated_time" gorm:"bigint"`
+	Models             string   `json:"models" gorm:"-"`
+	AvailableModels    []string `json:"available_models,omitempty" gorm:"-"`
+	UsedQuota          int64    `json:"used_quota" gorm:"bigint;default:0"`
+	ModelMapping       *string  `json:"model_mapping" gorm:"type:varchar(1024);default:''"`
+	Priority           *int64   `json:"priority" gorm:"bigint;default:0"`
+	Config             string   `json:"config"`
+	SystemPrompt       *string  `json:"system_prompt" gorm:"type:text"`
+	ModelRatio         *string  `json:"model_ratio" gorm:"type:text;default:''"`
+	CompletionRatio    *string  `json:"completion_ratio" gorm:"type:text;default:''"`
+	TestModel          string   `json:"test_model" gorm:"type:varchar(255);default:''"`
+	KeySet             bool     `json:"key_set" gorm:"-"`
+	ModelsProvided     bool     `json:"-" gorm:"-"`
 }
 
 type ChannelConfig struct {
@@ -125,6 +127,27 @@ func (channel *Channel) GetModelMapping() map[string]string {
 		return nil
 	}
 	return modelMapping
+}
+
+func (channel *Channel) SelectedModelIDs() []string {
+	if channel == nil {
+		return nil
+	}
+	return ParseChannelModelCSV(channel.Models)
+}
+
+func (channel *Channel) SetSelectedModelIDs(modelIDs []string) {
+	if channel == nil {
+		return
+	}
+	channel.Models = JoinChannelModelCSV(modelIDs)
+}
+
+func (channel *Channel) SetAvailableModelIDs(modelIDs []string) {
+	if channel == nil {
+		return
+	}
+	channel.AvailableModels = NormalizeChannelModelIDsPreserveOrder(modelIDs)
 }
 
 func (channel *Channel) Insert() error {

@@ -35,6 +35,7 @@ func sanitizeChannelForResponse(channel *model.Channel) {
 	channel.Id = strings.TrimSpace(channel.Id)
 	channel.TestModel = strings.TrimSpace(channel.TestModel)
 	channel.Models = strings.TrimSpace(channel.Models)
+	channel.AvailableModels = model.NormalizeChannelModelIDsPreserveOrder(channel.AvailableModels)
 	channel.KeySet = strings.TrimSpace(channel.Key) != ""
 	channel.Key = ""
 }
@@ -44,8 +45,8 @@ func isModelInChannelModels(testModel string, models string) bool {
 	if normalized == "" {
 		return true
 	}
-	for _, item := range strings.Split(models, ",") {
-		if strings.TrimSpace(item) == normalized {
+	for _, item := range model.ParseChannelModelCSV(models) {
+		if item == normalized {
 			return true
 		}
 	}
@@ -343,6 +344,15 @@ func UpdateChannel(c *gin.Context) {
 		})
 		return
 	}
+	rawFields := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(rawBody, &rawFields); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	_, channel.ModelsProvided = rawFields["models"]
 	err = channelsvc.Update(&channel)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{

@@ -23,16 +23,16 @@ func TestBuildDefaultChannelProtocolCatalog(t *testing.T) {
 	}
 }
 
-func TestRunChannelProtocolCatalogMigrationsWithDB(t *testing.T) {
+func TestSyncChannelProtocolCatalogWithDB(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
 
-	if err := runChannelProtocolCatalogMigrationsWithDB(db); err != nil {
+	if err := syncChannelProtocolCatalogWithDB(db); err != nil {
 		t.Fatalf("first run failed: %v", err)
 	}
-	if err := runChannelProtocolCatalogMigrationsWithDB(db); err != nil {
+	if err := syncChannelProtocolCatalogWithDB(db); err != nil {
 		t.Fatalf("second run failed: %v", err)
 	}
 

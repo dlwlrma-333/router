@@ -558,11 +558,16 @@ const EditChannel = () => {
     const { success, message, data } = res.data;
     if (success) {
       const keySet = !!data.key_set;
-      if (data.models === '') {
-        data.models = [];
-      } else {
-        data.models = data.models.split(',');
-      }
+      const selectedModels =
+        data.models === ''
+          ? []
+          : (data.models || '')
+              .split(',')
+              .map((item) => item.trim())
+              .filter((item) => item !== '');
+      const availableModels = Array.isArray(data.available_models)
+        ? data.available_models
+        : [];
       if (data.model_mapping !== '') {
         data.model_mapping = JSON.stringify(
           JSON.parse(data.model_mapping),
@@ -602,11 +607,31 @@ const EditChannel = () => {
           model_ratio: data.model_ratio || '',
           completion_ratio: data.completion_ratio || '',
           system_prompt: data.system_prompt || '',
-          models: data.models || [],
+          models: selectedModels,
         });
       } else {
-        setInputs({ ...data, key: '', protocol: normalizedProtocol });
+        setInputs({
+          id: data.id,
+          name: data.name || '',
+          protocol: normalizedProtocol,
+          key: '',
+          base_url: data.base_url || '',
+          other: data.other || '',
+          model_mapping: data.model_mapping || '',
+          model_ratio: data.model_ratio || '',
+          completion_ratio: data.completion_ratio || '',
+          system_prompt: data.system_prompt || '',
+          models: selectedModels,
+          test_model: data.test_model || '',
+          status: data.status,
+          weight: data.weight,
+          priority: data.priority,
+        });
       }
+      const { options } = buildModelOptions(
+        availableModels.length > 0 ? availableModels : selectedModels
+      );
+      setOriginModelOptions(options);
       setConfig((prev) => ({
         ...prev,
         ...parsedConfig,

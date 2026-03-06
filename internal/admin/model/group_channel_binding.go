@@ -26,9 +26,16 @@ func ListGroupChannelBindings(group string) ([]GroupChannelBindingItem, error) {
 
 	channels := make([]Channel, 0)
 	if err := DB.
-		Select("id", "name", "protocol", "status", "models", "created_time").
+		Select("id", "name", "protocol", "status", "created_time").
 		Order("created_time desc").
 		Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	channelRefs := make([]*Channel, 0, len(channels))
+	for i := range channels {
+		channelRefs = append(channelRefs, &channels[i])
+	}
+	if err := HydrateChannelsWithModels(DB, channelRefs); err != nil {
 		return nil, err
 	}
 
@@ -82,9 +89,16 @@ func ReplaceGroupChannelBindings(group string, channelIDs []string) error {
 	if len(normalizedChannelIDs) > 0 {
 		channels := make([]Channel, 0)
 		if err := DB.
-			Select("id", "name", "status", "models", "priority").
+			Select("id", "name", "status", "priority").
 			Where("id IN ?", normalizedChannelIDs).
 			Find(&channels).Error; err != nil {
+			return err
+		}
+		channelRefs := make([]*Channel, 0, len(channels))
+		for i := range channels {
+			channelRefs = append(channelRefs, &channels[i])
+		}
+		if err := HydrateChannelsWithModels(DB, channelRefs); err != nil {
 			return err
 		}
 		for _, channel := range channels {
@@ -105,7 +119,7 @@ func ReplaceGroupChannelBindings(group string, channelIDs []string) error {
 	abilities := make([]Ability, 0)
 	for _, id := range normalizedChannelIDs {
 		channel := channelsByID[id]
-		models := normalizeModelNames(strings.Split(channel.Models, ","))
+		models := normalizeModelNames(channel.SelectedModelIDs())
 		for _, modelName := range models {
 			abilities = append(abilities, Ability{
 				Group:     groupName,

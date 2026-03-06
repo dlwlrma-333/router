@@ -168,10 +168,6 @@ func loadModelProviderCatalog() ([]modelProviderCatalogItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	legacyRawByProvider, legacyErr := model.LoadLegacyModelProviderModelsRawMap(model.DB)
-	if legacyErr != nil {
-		return nil, legacyErr
-	}
 
 	rows := make([]model.ModelProvider, 0)
 	if err := model.DB.Order("sort_order asc, provider asc").Find(&rows).Error; err != nil {
@@ -183,14 +179,7 @@ func loadModelProviderCatalog() ([]modelProviderCatalogItem, error) {
 		if provider == "" {
 			continue
 		}
-		details := detailsByProvider[provider]
-		if len(details) == 0 {
-			legacyRaw := strings.TrimSpace(legacyRawByProvider[provider])
-			if legacyRaw != "" {
-				details = model.ParseModelProviderModelsRaw(legacyRaw)
-			}
-		}
-		details = model.MergeModelProviderDetails(provider, details, nil, false, helper.GetTimestamp())
+		details := model.MergeModelProviderDetails(provider, detailsByProvider[provider], nil, false, helper.GetTimestamp())
 		items = append(items, modelProviderCatalogItem{
 			Provider:     provider,
 			Name:         strings.TrimSpace(row.Name),

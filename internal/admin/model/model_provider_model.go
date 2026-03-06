@@ -1,8 +1,7 @@
 package model
 
 const (
-	ModelProviderModelsTableName       = "models"
-	LegacyModelProviderModelsTableName = "model_provider_models"
+	ModelProviderModelsTableName = "provider_models"
 )
 
 type ModelProviderModel struct {
