@@ -483,6 +483,18 @@ const EditChannel = () => {
   const [config, setConfig] = useState(CHANNEL_DEFAULT_CONFIG);
   const fetchingModelsRef = useRef(false);
   const draftChannelIdRef = useRef(draftIdFromQuery);
+  const currentProtocolOption = useMemo(() => {
+    const normalizedProtocol = (inputs.protocol || '').toString().trim().toLowerCase();
+    if (normalizedProtocol === '') {
+      return null;
+    }
+    return (
+      channelProtocolOptions.find(
+        (option) =>
+          (option?.value || '').toString().trim().toLowerCase() === normalizedProtocol,
+      ) || null
+    );
+  }, [channelProtocolOptions, inputs.protocol]);
 
   const buildEffectiveKey = useCallback(() => {
     let effectiveKey = inputs.key || '';
@@ -1616,16 +1628,24 @@ const EditChannel = () => {
                   />
                 </Form.Field>
                 <Form.Field>
-                  <Form.Select
-                    label={t('channel.edit.type')}
-                    name='protocol'
-                    required
-                    search
-                    options={channelProtocolOptions}
-                    value={inputs.protocol}
-                    onChange={handleInputChange}
-                    {...selectDisabledProps}
-                  />
+                  {isDetailMode ? (
+                    <Form.Input
+                      label={t('channel.edit.type')}
+                      value={currentProtocolOption?.text || inputs.protocol || '-'}
+                      readOnly
+                    />
+                  ) : (
+                    <Form.Select
+                      label={t('channel.edit.type')}
+                      name='protocol'
+                      required
+                      search
+                      options={channelProtocolOptions}
+                      value={inputs.protocol}
+                      onChange={handleInputChange}
+                      {...selectDisabledProps}
+                    />
+                  )}
                 </Form.Field>
                 {inputs.protocol === 'azure' && (
                   <Form.Field>
