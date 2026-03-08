@@ -1,11 +1,10 @@
-import React, { useRef } from 'react';
-import { Button, Card } from 'semantic-ui-react';
+import React from 'react';
+import { Card } from 'semantic-ui-react';
 import { useTranslation } from 'react-i18next';
 import GroupsManager from '../../components/GroupsManager';
 
 const Group = () => {
   const { t } = useTranslation();
-  const managerRef = useRef(null);
 
   return (
     <div className='dashboard-container'>
@@ -16,11 +15,8 @@ const Group = () => {
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
           >
             <span>{t('group_manage.title')}</span>
-            <Button type='button' onClick={() => managerRef.current?.openCreatePanel()}>
-              {t('group_manage.buttons.add')}
-            </Button>
           </Card.Header>
-          <GroupsManager ref={managerRef} />
+          <GroupsManager />
         </Card.Content>
       </Card>
     </div>

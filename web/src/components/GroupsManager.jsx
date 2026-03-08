@@ -1,10 +1,4 @@
-import React, {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Form, Label, Modal, Table } from 'semantic-ui-react';
 import { API, showError, showInfo, showSuccess, timestamp2string } from '../helpers';
@@ -59,11 +53,12 @@ const panelTitleStyle = { fontSize: '16px', fontWeight: 600 };
 
 const panelActionsStyle = { display: 'flex', alignItems: 'center', gap: '8px' };
 
-const GroupsManager = forwardRef((_, ref) => {
+const GroupsManager = () => {
   const { t } = useTranslation();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
 
   const [createVisible, setCreateVisible] = useState(false);
   const [createForm, setCreateForm] = useState(createEmptyForm());
@@ -141,6 +136,19 @@ const GroupsManager = forwardRef((_, ref) => {
     loadCatalog().then();
   }, [loadCatalog]);
 
+  const visibleRows = useMemo(() => {
+    const keyword = typeof searchKeyword === 'string' ? searchKeyword.trim().toLowerCase() : '';
+    if (!keyword) {
+      return rows;
+    }
+    return rows.filter((row) => {
+      const haystacks = [row.id, row.name, row.description];
+      return haystacks.some((item) =>
+        typeof item === 'string' ? item.toLowerCase().includes(keyword) : false
+      );
+    });
+  }, [rows, searchKeyword]);
+
   const resetCreatePanel = () => {
     setCreateVisible(false);
     setCreateForm(createEmptyForm());
@@ -182,10 +190,6 @@ const GroupsManager = forwardRef((_, ref) => {
     setEditVisible(true);
     await loadEditChannelBindings(row.id || '');
   };
-
-  useImperativeHandle(ref, () => ({
-    openCreatePanel,
-  }));
 
   const closeCreatePanel = () => {
     if (submitting) return;
@@ -337,6 +341,35 @@ const GroupsManager = forwardRef((_, ref) => {
 
   return (
     <>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexWrap: 'wrap',
+          marginBottom: '12px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <Button type='button' disabled={submitting || loading} onClick={openCreatePanel}>
+            {t('group_manage.buttons.add')}
+          </Button>
+          <Button type='button' disabled={submitting} loading={loading} onClick={loadCatalog}>
+            {t('group_manage.buttons.refresh')}
+          </Button>
+        </div>
+        <Form style={{ width: '320px', maxWidth: '100%' }}>
+          <Form.Input
+            icon='search'
+            iconPosition='left'
+            placeholder={t('group_manage.search')}
+            value={searchKeyword}
+            onChange={(e, { value }) => setSearchKeyword(value || '')}
+          />
+        </Form>
+      </div>
+
       {createVisible && (
         <div style={panelStyle}>
           <div style={panelHeaderStyle}>
@@ -505,7 +538,7 @@ const GroupsManager = forwardRef((_, ref) => {
         </div>
       )}
 
-      <Table basic='very' compact size='small'>
+      <Table basic='very' compact size='small' className='router-hover-table'>
         <Table.Header>
           <Table.Row>
             <Table.HeaderCell>{t('group_manage.table.id')}</Table.HeaderCell>
@@ -521,7 +554,7 @@ const GroupsManager = forwardRef((_, ref) => {
           </Table.Row>
         </Table.Header>
         <Table.Body>
-          {rows.map((row) => (
+          {visibleRows.map((row) => (
             <Table.Row key={row.id}>
               <Table.Cell>{row.id}</Table.Cell>
               <Table.Cell>{row.name || '-'}</Table.Cell>
@@ -580,7 +613,7 @@ const GroupsManager = forwardRef((_, ref) => {
               </Table.Cell>
             </Table.Row>
           ))}
-          {rows.length === 0 && (
+          {visibleRows.length === 0 && (
             <Table.Row>
               <Table.Cell colSpan={8} textAlign='center'>
                 {loading
@@ -610,8 +643,6 @@ const GroupsManager = forwardRef((_, ref) => {
       </Modal>
     </>
   );
-});
-
-GroupsManager.displayName = 'GroupsManager';
+};
 
 export default GroupsManager;

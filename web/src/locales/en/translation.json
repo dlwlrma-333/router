@@ -321,6 +321,7 @@
   },
   "group_manage": {
     "title": "Group Management",
+    "search": "Search group ID, name, or description",
     "table": {
       "id": "Group ID",
       "name": "Display Name",
@@ -351,6 +352,7 @@
     },
     "buttons": {
       "add": "Add Group",
+      "refresh": "Refresh",
       "edit": "Edit",
       "bind_channels": "Configure Channels",
       "enable": "Enable",

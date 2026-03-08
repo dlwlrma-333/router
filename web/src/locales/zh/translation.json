@@ -321,6 +321,7 @@
   },
   "group_manage": {
     "title": "分组管理",
+    "search": "搜索分组标识、名称或描述",
     "table": {
       "id": "分组标识",
       "name": "展示名称",
@@ -351,6 +352,7 @@
     },
     "buttons": {
       "add": "新增分组",
+      "refresh": "刷新",
       "edit": "编辑",
       "bind_channels": "配置渠道",
       "enable": "启用",
