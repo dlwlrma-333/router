@@ -18,10 +18,10 @@ type GroupChannelBindingItem struct {
 	Updated  int64  `json:"updated_at"`
 }
 
-func ListGroupChannelBindings(group string) ([]GroupChannelBindingItem, error) {
-	groupName := strings.TrimSpace(group)
-	if groupName == "" {
-		return nil, fmt.Errorf("分组名称不能为空")
+func ListGroupChannelBindings(groupID string) ([]GroupChannelBindingItem, error) {
+	groupID = strings.TrimSpace(groupID)
+	if groupID == "" {
+		return nil, fmt.Errorf("分组标识不能为空")
 	}
 
 	channels := make([]Channel, 0)
@@ -43,7 +43,7 @@ func ListGroupChannelBindings(group string) ([]GroupChannelBindingItem, error) {
 	groupCol := `"group"`
 	if err := DB.Model(&Ability{}).
 		Distinct("channel_id").
-		Where(groupCol+" = ?", groupName).
+		Where(groupCol+" = ?", groupID).
 		Pluck("channel_id", &boundIDs).Error; err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func ListGroupChannelBindings(group string) ([]GroupChannelBindingItem, error) {
 		_, bound := boundSet[channel.Id]
 		items = append(items, GroupChannelBindingItem{
 			Id:       channel.Id,
-			Name:     strings.TrimSpace(channel.Name),
+			Name:     channel.DisplayName(),
 			Protocol: channel.GetProtocol(),
 			Status:   channel.Status,
 			Models:   strings.TrimSpace(channel.Models),
@@ -72,14 +72,14 @@ func ListGroupChannelBindings(group string) ([]GroupChannelBindingItem, error) {
 	return items, nil
 }
 
-func ReplaceGroupChannelBindings(group string, channelIDs []string) error {
-	groupName := strings.TrimSpace(group)
-	if groupName == "" {
-		return fmt.Errorf("分组名称不能为空")
+func ReplaceGroupChannelBindings(groupID string, channelIDs []string) error {
+	groupID = strings.TrimSpace(groupID)
+	if groupID == "" {
+		return fmt.Errorf("分组标识不能为空")
 	}
 
 	groupCatalog := GroupCatalog{}
-	if err := DB.Where("name = ?", groupName).First(&groupCatalog).Error; err != nil {
+	if err := DB.Where("id = ?", groupID).First(&groupCatalog).Error; err != nil {
 		return err
 	}
 
@@ -122,7 +122,7 @@ func ReplaceGroupChannelBindings(group string, channelIDs []string) error {
 		models := normalizeModelNames(channel.SelectedModelIDs())
 		for _, modelName := range models {
 			abilities = append(abilities, Ability{
-				Group:     groupName,
+				Group:     groupID,
 				Model:     modelName,
 				ChannelId: channel.Id,
 				Enabled:   channel.Status == ChannelStatusEnabled,
@@ -133,7 +133,7 @@ func ReplaceGroupChannelBindings(group string, channelIDs []string) error {
 
 	groupCol := `"group"`
 	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where(groupCol+" = ?", groupName).Delete(&Ability{}).Error; err != nil {
+		if err := tx.Where(groupCol+" = ?", groupID).Delete(&Ability{}).Error; err != nil {
 			return err
 		}
 		if len(abilities) == 0 {

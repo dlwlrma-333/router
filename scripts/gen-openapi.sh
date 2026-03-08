@@ -14,3 +14,7 @@ fi
 if [ -f docs/swagger/swagger.json ]; then
   mv docs/swagger/swagger.json docs/swagger/openapi.json
 fi
+
+if [ -f docs/swagger/docs.go ]; then
+  perl -0pi -e 's/^package swagger$/package docs/m' docs/swagger/docs.go
+fi

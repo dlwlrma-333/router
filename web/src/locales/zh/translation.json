@@ -45,10 +45,11 @@
       "channels": "渠道管理",
       "model_providers": "模型供应商"
     },
-    "search": "搜索渠道的 ID，名称和密钥 ...",
-    "table": {
-      "id": "ID",
-      "name": "名称",
+  "search": "搜索渠道标识或显示名称...",
+  "table": {
+    "id": "ID",
+    "name": "渠道",
+    "identifier": "标识：{{id}}",
       "group": "分组",
       "type": "协议类型",
       "status": "状态",
@@ -184,12 +185,14 @@
       }
     },
     "edit": {
-      "title_detail": "渠道详情",
-      "title_edit": "更新渠道信息",
-      "title_create": "创建新的渠道",
-      "type": "协议类型",
-      "name": "名称",
-      "name_placeholder": "请输入名称",
+    "title_detail": "渠道详情",
+    "title_edit": "更新渠道信息",
+    "title_create": "创建新的渠道",
+    "identifier": "渠道标识",
+    "identifier_placeholder": "例如：openai-main",
+    "type": "协议类型",
+    "name": "显示名称",
+    "name_placeholder": "可选，留空时直接显示渠道标识",
       "group": "分组",
       "group_placeholder": "请选择可以使用该渠道的分组",
       "group_addition": "可在分组管理页面新增分组：",
@@ -267,9 +270,11 @@
           "message": "说明"
         }
       },
-      "messages": {
-        "name_required": "请填写渠道名称和渠道密钥！",
-        "groups_required": "请至少选择一个分组！",
+    "messages": {
+      "identifier_required": "请填写渠道标识！",
+      "identifier_invalid": "渠道标识只支持小写字母、数字和 -，且长度不能超过 64 个字符。",
+      "key_required": "请填写渠道密钥！",
+      "groups_required": "请至少选择一个分组！",
         "models_required": "请至少选择一个模型！",
         "create_draft_failed": "创建草稿渠道失败",
         "update_draft_failed": "保存草稿渠道失败",
@@ -317,8 +322,8 @@
   "group_manage": {
     "title": "分组管理",
     "table": {
-      "name": "分组标识",
-      "display_name": "展示名称",
+      "id": "分组标识",
+      "name": "展示名称",
       "description": "描述",
       "billing_ratio": "业务倍率",
       "source": "来源",
@@ -332,10 +337,10 @@
       "disabled": "已禁用"
     },
     "form": {
-      "name": "分组标识",
-      "name_placeholder": "例如：enterprise",
-      "display_name": "展示名称",
-      "display_name_placeholder": "例如：企业版",
+      "id": "分组标识",
+      "id_placeholder": "例如：enterprise",
+      "name": "展示名称",
+      "name_placeholder": "例如：企业版",
       "description": "描述",
       "description_placeholder": "可选，用于说明该分组用途",
       "billing_ratio": "业务倍率",
@@ -358,13 +363,13 @@
       "create_title": "新增分组",
       "edit_title": "编辑分组",
       "delete_title": "确认删除分组",
-      "delete_confirm": "确定删除分组 {{name}} 吗？",
-      "bind_channels_title": "配置分组 {{name}} 的渠道"
+      "delete_confirm": "确定删除分组 {{id}} 吗？",
+      "bind_channels_title": "配置分组 {{id}} 的渠道"
     },
     "messages": {
       "loading": "加载中...",
       "empty": "暂无分组",
-      "name_required": "分组名称不能为空",
+      "id_required": "分组标识不能为空",
       "billing_ratio_invalid": "业务倍率必须大于或等于 0",
       "load_failed": "加载分组失败",
       "bind_load_failed": "加载分组渠道失败",

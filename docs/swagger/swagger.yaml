@@ -72,6 +72,9 @@ definitions:
       config:
         example: '{}'
         type: string
+      id:
+        example: openai-main
+        type: string
       key:
         example: sk-***
         type: string
@@ -83,7 +86,7 @@ definitions:
         example: gpt-4o-mini,gpt-4o
         type: string
       name:
-        example: OpenAI
+        example: OpenAI Main
         type: string
       priority:
         example: 0
@@ -213,7 +216,7 @@ definitions:
         example: '{}'
         type: string
       id:
-        example: 550e8400-e29b-41d4-a716-446655440000
+        example: openai-main
         type: string
       key:
         example: sk-***
@@ -226,7 +229,7 @@ definitions:
         example: gpt-4o-mini,gpt-4o
         type: string
       name:
-        example: OpenAI
+        example: OpenAI Main
         type: string
       priority:
         example: 0
@@ -263,6 +266,9 @@ definitions:
       base_url:
         example: https://api.openai.com
         type: string
+      id:
+        example: openai
+        type: string
       model_details:
         items:
           $ref: '#/definitions/docs.ModelProviderModelDetail'
@@ -273,9 +279,6 @@ definitions:
         type: array
       name:
         example: OpenAI
-        type: string
-      provider:
-        example: openai
         type: string
       sort_order:
         example: 10
@@ -2127,12 +2130,12 @@ paths:
       summary: Update group (admin)
       tags:
       - admin
-  /api/v1/admin/group/{name}:
+  /api/v1/admin/group/{id}:
     delete:
       parameters:
-      - description: Group name
+      - description: Group ID
         in: path
-        name: name
+        name: id
         required: true
         type: string
       produces:
@@ -2151,12 +2154,12 @@ paths:
       summary: Delete group (admin)
       tags:
       - admin
-  /api/v1/admin/group/{name}/channels:
+  /api/v1/admin/group/{id}/channels:
     get:
       parameters:
-      - description: Group name
+      - description: Group ID
         in: path
-        name: name
+        name: id
         required: true
         type: string
       produces:
@@ -2179,9 +2182,9 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: Group name
+      - description: Group ID
         in: path
-        name: name
+        name: id
         required: true
         type: string
       produces:

@@ -58,6 +58,30 @@ function renderProtocol(protocol, protocolMap) {
   );
 }
 
+function getChannelDisplayName(channel) {
+  const name = (channel?.name || '').toString().trim();
+  if (name !== '') {
+    return name;
+  }
+  return (channel?.id || '').toString().trim();
+}
+
+function renderChannelName(channel, t) {
+  const displayName = getChannelDisplayName(channel);
+  const identifier = (channel?.id || '').toString().trim();
+  const showIdentifier = identifier !== '' && displayName !== identifier;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+      <span>{displayName || t('channel.table.no_name')}</span>
+      {showIdentifier && (
+        <span style={{ fontSize: '12px', color: 'rgba(0, 0, 0, 0.45)' }}>
+          {t('channel.table.identifier', { id: identifier })}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function renderBalance(protocol, balance, t) {
   const normalized = (protocol || '').toString().trim().toLowerCase();
   switch (normalized) {
@@ -433,7 +457,7 @@ const ChannelsTable = () => {
         if (!silent) {
           showSuccess(
             t('channel.messages.test_success', {
-              name: channel.name,
+              name: getChannelDisplayName(channel),
               model: testedModelName || channel.test_model || '-',
               time,
               message,
@@ -952,7 +976,7 @@ const ChannelsTable = () => {
                       />
                     </Table.Cell>
                   )}
-                  <Table.Cell>{channel.name ? channel.name : t('channel.table.no_name')}</Table.Cell>
+                  <Table.Cell>{renderChannelName(channel, t)}</Table.Cell>
                   <Table.Cell>{renderProtocol(channel.protocol, protocolMap)}</Table.Cell>
                   <Table.Cell>{renderStatus(channel.status, t)}</Table.Cell>
                   <Table.Cell>
@@ -978,7 +1002,11 @@ const ChannelsTable = () => {
                       trigger={
                         <span
                           onClick={() => {
-                            updateChannelBalance(channel.id, channel.name, idx);
+                            updateChannelBalance(
+                              channel.id,
+                              getChannelDisplayName(channel),
+                              idx,
+                            );
                           }}
                           style={{ cursor: 'pointer' }}
                         >

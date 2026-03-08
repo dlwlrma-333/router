@@ -45,10 +45,11 @@
       "channels": "Channels",
       "model_providers": "Model Providers"
     },
-    "search": "Search channels by ID, name and key...",
-    "table": {
-      "id": "ID",
-      "name": "Name",
+  "search": "Search channels by identifier or display name...",
+  "table": {
+    "id": "ID",
+    "name": "Channel",
+    "identifier": "Identifier: {{id}}",
       "group": "Group",
       "type": "Protocol Type",
       "status": "Status",
@@ -184,12 +185,14 @@
       }
     },
     "edit": {
-      "title_detail": "Channel Details",
-      "title_edit": "Update Channel Information",
-      "title_create": "Create New Channel",
-      "type": "Protocol Type",
-      "name": "Name",
-      "name_placeholder": "Please enter name",
+    "title_detail": "Channel Details",
+    "title_edit": "Update Channel Information",
+    "title_create": "Create New Channel",
+    "identifier": "Channel Identifier",
+    "identifier_placeholder": "e.g. openai-main",
+    "type": "Protocol Type",
+    "name": "Display Name",
+    "name_placeholder": "Optional, falls back to the channel identifier",
       "group": "Group",
       "group_placeholder": "Please select groups that can use this channel",
       "group_addition": "You can add a group in Group Management:",
@@ -267,9 +270,11 @@
           "message": "Message"
         }
       },
-      "messages": {
-        "name_required": "Please enter channel name and key!",
-        "groups_required": "Please select at least one group!",
+    "messages": {
+      "identifier_required": "Please enter a channel identifier!",
+      "identifier_invalid": "Channel identifier only supports lowercase letters, digits, and -, with a maximum length of 64 characters.",
+      "key_required": "Please enter the channel key!",
+      "groups_required": "Please select at least one group!",
         "models_required": "Please select at least one model!",
         "create_draft_failed": "Failed to create channel draft",
         "update_draft_failed": "Failed to save channel draft",
@@ -317,8 +322,8 @@
   "group_manage": {
     "title": "Group Management",
     "table": {
-      "name": "Group Name",
-      "display_name": "Display Name",
+      "id": "Group ID",
+      "name": "Display Name",
       "description": "Description",
       "billing_ratio": "Billing Ratio",
       "source": "Source",
@@ -332,10 +337,10 @@
       "disabled": "Disabled"
     },
     "form": {
-      "name": "Group Name",
-      "name_placeholder": "e.g. enterprise",
-      "display_name": "Display Name",
-      "display_name_placeholder": "e.g. Enterprise",
+      "id": "Group ID",
+      "id_placeholder": "e.g. enterprise",
+      "name": "Display Name",
+      "name_placeholder": "e.g. Enterprise",
       "description": "Description",
       "description_placeholder": "Optional description for this group",
       "billing_ratio": "Billing Ratio",
@@ -358,13 +363,13 @@
       "create_title": "Create Group",
       "edit_title": "Edit Group",
       "delete_title": "Confirm Delete Group",
-      "delete_confirm": "Are you sure you want to delete group {{name}}?",
-      "bind_channels_title": "Configure Channels for Group {{name}}"
+      "delete_confirm": "Are you sure you want to delete group {{id}}?",
+      "bind_channels_title": "Configure Channels for Group {{id}}"
     },
     "messages": {
       "loading": "Loading...",
       "empty": "No groups",
-      "name_required": "Group name is required",
+      "id_required": "Group ID is required",
       "billing_ratio_invalid": "Billing ratio must be greater than or equal to 0",
       "load_failed": "Failed to load groups",
       "bind_load_failed": "Failed to load group channels",

@@ -5,7 +5,7 @@ import "context"
 type Ability struct {
 	Group     string `json:"group" gorm:"type:varchar(32);primaryKey;autoIncrement:false"`
 	Model     string `json:"model" gorm:"primaryKey;autoIncrement:false"`
-	ChannelId string `json:"channel_id" gorm:"type:char(36);primaryKey;autoIncrement:false;index"`
+	ChannelId string `json:"channel_id" gorm:"type:varchar(64);primaryKey;autoIncrement:false;index"`
 	Enabled   bool   `json:"enabled"`
 	Priority  *int64 `json:"priority" gorm:"bigint;default:0;index"`
 }

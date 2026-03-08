@@ -174,7 +174,7 @@ const moveRow = (list, fromIndex, toIndex) => {
 };
 
 const createEmptyRow = () => ({
-  provider: '',
+  id: '',
   name: '',
   base_url: '',
   model_details: [],
@@ -187,7 +187,7 @@ const toEditableRows = (items) => {
   if (!Array.isArray(items)) return [];
   return items.map((item) => ({
     ...createEmptyRow(),
-    provider: normalizeProvider(item?.provider || item?.name || ''),
+    id: normalizeProvider(item?.id || item?.provider || item?.name || ''),
     name: item?.name || '',
     base_url: item?.base_url || '',
     model_details: detailsFromCatalogItem(item),
@@ -276,7 +276,7 @@ const ModelProvidersManager = () => {
     return indexed.filter(({ row }) => {
       const modelNames = (row.model_details || []).map((item) => item.model || '').join(' ');
       const haystack = [
-        row.provider || '',
+        row.id || '',
         row.name || '',
         row.base_url || '',
         row.source || '',
@@ -291,14 +291,14 @@ const ModelProvidersManager = () => {
   const viewingRow = useMemo(() => {
     if (!viewingProvider) return null;
     return (
-      rows.find((row) => normalizeProvider(row.provider) === normalizeProvider(viewingProvider)) ||
+      rows.find((row) => normalizeProvider(row.id) === normalizeProvider(viewingProvider)) ||
       null
     );
   }, [rows, viewingProvider]);
 
   const editingRowProvider = useMemo(() => {
     if (editIndex < 0 || editIndex >= rows.length) return '';
-    return normalizeProvider(rows[editIndex]?.provider || '');
+    return normalizeProvider(rows[editIndex]?.id || '');
   }, [editIndex, rows]);
 
   useEffect(() => {
@@ -368,7 +368,7 @@ const ModelProvidersManager = () => {
   const openEditorByProvider = (provider) => {
     const normalized = normalizeProvider(provider);
     if (!normalized) return;
-    const index = rows.findIndex((row) => normalizeProvider(row.provider) === normalized);
+    const index = rows.findIndex((row) => normalizeProvider(row.id) === normalized);
     if (index === -1) return;
     openEditor(index);
   };
@@ -428,7 +428,7 @@ const ModelProvidersManager = () => {
 
     const providers = [];
     for (const row of orderedRows) {
-      const provider = normalizeProvider(row.provider);
+      const provider = normalizeProvider(row.id);
       const name = (row.name || '').trim();
       const baseURL = (row.base_url || '').trim();
       const details = normalizeModelDetails(row.model_details || []);
@@ -439,7 +439,7 @@ const ModelProvidersManager = () => {
         return false;
       }
       providers.push({
-        provider,
+        id: provider,
         name: name || provider,
         models: details.map((detail) => detail.model),
         model_details: details,
@@ -497,13 +497,13 @@ const ModelProvidersManager = () => {
   };
 
   const applyEditToRows = async () => {
-    const provider = editingRowProvider || normalizeProvider(editRow.provider);
+    const provider = editingRowProvider || normalizeProvider(editRow.id);
     if (!provider) {
       showInfo(t('channel.providers.messages.provider_required'));
       return;
     }
     const duplicatedIndex = rows.findIndex(
-      (row, index) => index !== editIndex && normalizeProvider(row.provider) === provider
+      (row, index) => index !== editIndex && normalizeProvider(row.id) === provider
     );
     if (duplicatedIndex !== -1) {
       showInfo(t('channel.providers.messages.provider_exists'));
@@ -513,7 +513,7 @@ const ModelProvidersManager = () => {
     const now = Math.floor(Date.now() / 1000);
     const normalizedRow = {
       ...editRow,
-      provider,
+      id: provider,
       name: (editRow.name || '').trim() || provider,
       base_url: (editRow.base_url || '').trim() || OFFICIAL_PROVIDER_BASE_URLS[provider] || '',
       model_details: normalizeModelDetails(editRow.model_details || []),
@@ -533,12 +533,12 @@ const ModelProvidersManager = () => {
   };
 
   const applyCreateToRows = async () => {
-    const provider = normalizeProvider(createRow.provider);
+    const provider = normalizeProvider(createRow.id);
     if (!provider) {
       showInfo(t('channel.providers.messages.provider_required'));
       return;
     }
-    const duplicatedIndex = rows.findIndex((row) => normalizeProvider(row.provider) === provider);
+    const duplicatedIndex = rows.findIndex((row) => normalizeProvider(row.id) === provider);
     if (duplicatedIndex !== -1) {
       showInfo(t('channel.providers.messages.provider_exists'));
       return;
@@ -547,7 +547,7 @@ const ModelProvidersManager = () => {
     const now = Math.floor(Date.now() / 1000);
     const normalizedRow = {
       ...createRow,
-      provider,
+      id: provider,
       name: (createRow.name || '').trim() || provider,
       base_url: (createRow.base_url || '').trim() || OFFICIAL_PROVIDER_BASE_URLS[provider] || '',
       model_details: normalizeModelDetails(createRow.model_details || []),
@@ -911,10 +911,10 @@ const ModelProvidersManager = () => {
           ) : (
             visibleRows.map(({ row, index }) => (
               <Table.Row
-                key={`${row.provider}-${index}`}
+                key={`${row.id}-${index}`}
                 draggable={!creating && !editing && !saving}
                 onClick={() => {
-                  openViewer(row.provider);
+                  openViewer(row.id);
                 }}
                 onDragStart={() => {
                   if (creating || editing || saving) return;
@@ -944,8 +944,8 @@ const ModelProvidersManager = () => {
                       : undefined,
                 }}
               >
-                <Table.Cell>{row.provider || '-'}</Table.Cell>
-                <Table.Cell>{row.name || row.provider || '-'}</Table.Cell>
+                <Table.Cell>{row.id || '-'}</Table.Cell>
+                <Table.Cell>{row.name || row.id || '-'}</Table.Cell>
                 <Table.Cell textAlign='left'>
                   <Label>{row.source || '-'}</Label>
                 </Table.Cell>
@@ -1013,7 +1013,7 @@ const ModelProvidersManager = () => {
         <Form.Group widths='equal'>
           <Form.Input
             label={t('channel.providers.dialog.provider')}
-            value={editingRowProvider || editRow.provider}
+            value={editingRowProvider || editRow.id}
             readOnly
           />
           <Form.Input
@@ -1061,7 +1061,7 @@ const ModelProvidersManager = () => {
             type='button'
             color='blue'
             disabled={saving}
-            onClick={() => openEditorByProvider(viewingRow.provider)}
+            onClick={() => openEditorByProvider(viewingRow.id)}
           >
             <Icon name='edit' />
             {t('channel.providers.dialog.edit')}
@@ -1071,7 +1071,7 @@ const ModelProvidersManager = () => {
           <Form.Group widths='equal'>
             <Form.Input
               label={t('channel.providers.dialog.provider')}
-              value={viewingRow.provider || ''}
+              value={viewingRow.id || ''}
               readOnly
             />
             <Form.Input
@@ -1121,8 +1121,8 @@ const ModelProvidersManager = () => {
             <Form.Input
               label={t('channel.providers.dialog.provider')}
               placeholder={t('channel.providers.dialog.provider_placeholder')}
-              value={createRow.provider}
-              onChange={(e, { value }) => setCreateValue('provider', normalizeProvider(value || ''))}
+              value={createRow.id}
+              onChange={(e, { value }) => setCreateValue('id', normalizeProvider(value || ''))}
             />
             <Form.Input
               label={t('channel.providers.dialog.name')}
@@ -1156,7 +1156,7 @@ const ModelProvidersManager = () => {
 
   const renderDeleteModal = () => {
     const targetRow = deletingIndex >= 0 && deletingIndex < rows.length ? rows[deletingIndex] : null;
-    const providerName = targetRow?.name || targetRow?.provider || '-';
+    const providerName = targetRow?.name || targetRow?.id || '-';
     return (
       <Modal
         open={!!targetRow}

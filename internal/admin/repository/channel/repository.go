@@ -6,7 +6,6 @@ import (
 	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/common/helper"
 	"github.com/yeying-community/router/common/logger"
-	"github.com/yeying-community/router/common/random"
 	"github.com/yeying-community/router/internal/admin/model"
 	"gorm.io/gorm"
 )
@@ -16,7 +15,6 @@ func init() {
 		GetAllChannels:               GetAll,
 		SearchChannels:               Search,
 		GetChannelById:               GetByID,
-		BatchInsertChannels:          BatchInsert,
 		Insert:                       Insert,
 		Update:                       Update,
 		UpdateResponseTime:           UpdateResponseTime,
@@ -57,7 +55,11 @@ func Search(keyword string) ([]*model.Channel, error) {
 	if trimmed == "" {
 		return channels, nil
 	}
-	err := model.DB.Omit("key").Where("id = ? or name LIKE ?", trimmed, trimmed+"%").Find(&channels).Error
+	normalizedID := model.NormalizeChannelIdentifier(trimmed)
+	likeKeyword := trimmed + "%"
+	err := model.DB.Omit("key").
+		Where("id LIKE ? OR name LIKE ?", normalizedID+"%", likeKeyword).
+		Find(&channels).Error
 	if err != nil {
 		return nil, err
 	}
@@ -85,57 +87,25 @@ func GetByID(id string, selectAll bool) (*model.Channel, error) {
 	return &channel, model.HydrateChannelWithCapabilityResults(model.DB, &channel)
 }
 
-func BatchInsert(channels []model.Channel) error {
-	now := helper.GetTimestamp()
-	for i := range channels {
-		channels[i].NormalizeProtocol()
-		channels[i].NormalizeModelConfigState()
-		if strings.TrimSpace(channels[i].Id) == "" {
-			channels[i].Id = random.GetUUID()
-		}
-		if channels[i].CreatedTime == 0 {
-			channels[i].CreatedTime = now
-		}
+func prepareChannelForCreate(channel *model.Channel) error {
+	if channel == nil {
+		return gorm.ErrInvalidData
 	}
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&channels).Error; err != nil {
-			return err
-		}
-		for i := range channels {
-			if err := model.ReplaceChannelModelConfigsWithDB(tx, channels[i].Id, channels[i].GetModelConfigs()); err != nil {
-				return err
-			}
-			if err := model.EnsureChannelTestModelWithDB(tx, channels[i].Id); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
+	channel.NormalizeIdentity()
+	if err := channel.ValidateIdentifier(); err != nil {
 		return err
 	}
-	for i := range channels {
-		if err := model.HydrateChannelWithModels(model.DB, &channels[i]); err != nil {
-			return err
-		}
-		if err := model.HydrateChannelWithCapabilityResults(model.DB, &channels[i]); err != nil {
-			return err
-		}
-		if err := channels[i].AddAbilities(); err != nil {
-			return err
-		}
+	channel.NormalizeProtocol()
+	channel.NormalizeModelConfigState()
+	if channel.CreatedTime == 0 {
+		channel.CreatedTime = helper.GetTimestamp()
 	}
 	return nil
 }
 
 func Insert(channel *model.Channel) error {
-	channel.NormalizeProtocol()
-	channel.NormalizeModelConfigState()
-	if strings.TrimSpace(channel.Id) == "" {
-		channel.Id = random.GetUUID()
-	}
-	if channel.CreatedTime == 0 {
-		channel.CreatedTime = helper.GetTimestamp()
+	if err := prepareChannelForCreate(channel); err != nil {
+		return err
 	}
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(channel).Error; err != nil {
@@ -230,6 +200,10 @@ func shouldResetCapabilityResults(existing *model.Channel, incoming *model.Chann
 }
 
 func Update(channel *model.Channel) error {
+	channel.NormalizeIdentity()
+	if err := channel.ValidateIdentifier(); err != nil {
+		return err
+	}
 	if strings.TrimSpace(channel.Protocol) != "" {
 		channel.NormalizeProtocol()
 	}
@@ -243,7 +217,12 @@ func Update(channel *model.Channel) error {
 			return err
 		}
 		resetCapabilityResults := shouldResetCapabilityResults(&existing, channel)
-		if err := tx.Model(&model.Channel{}).Where("id = ?", channel.Id).Updates(channel).Error; err != nil {
+		if channel.NameProvided {
+			if err := tx.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("name", strings.TrimSpace(channel.Name)).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.Model(&model.Channel{}).Where("id = ?", channel.Id).Omit("name").Updates(channel).Error; err != nil {
 			return err
 		}
 		if channel.ModelConfigsProvided {

@@ -108,7 +108,7 @@ func Relay(c *gin.Context) {
 			String("model", originalModel).
 			String("from_channel_id", lastFailedChannelId).
 			String("to_channel_id", channel.Id).
-			String("to_channel_name", channel.Name).
+			String("to_channel_name", channel.DisplayName()).
 			Int("remaining", i-1).
 			Build())
 		middleware.SetupContextForSelectedChannel(c, channel, originalModel)

@@ -11,8 +11,8 @@ import (
 )
 
 type upsertGroupRequest struct {
+	Id           string   `json:"id"`
 	Name         string   `json:"name"`
-	DisplayName  string   `json:"display_name"`
 	Description  string   `json:"description"`
 	BillingRatio *float64 `json:"billing_ratio"`
 	Enabled      *bool    `json:"enabled"`
@@ -74,8 +74,8 @@ func CreateGroup(c *gin.Context) {
 		return
 	}
 	row, err := groupsvc.Create(model.GroupCatalog{
+		Id:           strings.TrimSpace(req.Id),
 		Name:         strings.TrimSpace(req.Name),
-		DisplayName:  strings.TrimSpace(req.DisplayName),
 		Description:  strings.TrimSpace(req.Description),
 		Source:       "manual",
 		BillingRatio: billingRatio,
@@ -112,7 +112,7 @@ func UpdateGroup(c *gin.Context) {
 		})
 		return
 	}
-	current, findErr := groupsvc.Get(strings.TrimSpace(req.Name))
+	current, findErr := groupsvc.Get(strings.TrimSpace(req.Id))
 	if findErr != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -135,8 +135,8 @@ func UpdateGroup(c *gin.Context) {
 		return
 	}
 	row, err := groupsvc.Update(model.GroupCatalog{
+		Id:           strings.TrimSpace(req.Id),
 		Name:         strings.TrimSpace(req.Name),
-		DisplayName:  strings.TrimSpace(req.DisplayName),
 		Description:  strings.TrimSpace(req.Description),
 		BillingRatio: billingRatio,
 		Enabled:      enabled,
@@ -161,20 +161,20 @@ func UpdateGroup(c *gin.Context) {
 // @Tags admin
 // @Security BearerAuth
 // @Produce json
-// @Param name path string true "Group name"
+// @Param id path string true "Group ID"
 // @Success 200 {object} docs.StandardResponse
 // @Failure 401 {object} docs.ErrorResponse
-// @Router /api/v1/admin/group/{name} [delete]
+// @Router /api/v1/admin/group/{id} [delete]
 func DeleteGroup(c *gin.Context) {
-	name := strings.TrimSpace(c.Param("name"))
-	if name == "" {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "分组名称不能为空",
+			"message": "分组标识不能为空",
 		})
 		return
 	}
-	if err := groupsvc.Delete(name); err != nil {
+	if err := groupsvc.Delete(id); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -212,20 +212,20 @@ func resolveUpdateBillingRatio(value *float64, fallback float64) (float64, error
 // @Tags admin
 // @Security BearerAuth
 // @Produce json
-// @Param name path string true "Group name"
+// @Param id path string true "Group ID"
 // @Success 200 {object} docs.StandardResponse
 // @Failure 401 {object} docs.ErrorResponse
-// @Router /api/v1/admin/group/{name}/channels [get]
+// @Router /api/v1/admin/group/{id}/channels [get]
 func GetGroupChannels(c *gin.Context) {
-	name := strings.TrimSpace(c.Param("name"))
-	if name == "" {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "分组名称不能为空",
+			"message": "分组标识不能为空",
 		})
 		return
 	}
-	rows, err := groupsvc.ListChannelBindings(name)
+	rows, err := groupsvc.ListChannelBindings(id)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -246,16 +246,16 @@ func GetGroupChannels(c *gin.Context) {
 // @Security BearerAuth
 // @Accept json
 // @Produce json
-// @Param name path string true "Group name"
+// @Param id path string true "Group ID"
 // @Success 200 {object} docs.StandardResponse
 // @Failure 401 {object} docs.ErrorResponse
-// @Router /api/v1/admin/group/{name}/channels [put]
+// @Router /api/v1/admin/group/{id}/channels [put]
 func UpdateGroupChannels(c *gin.Context) {
-	name := strings.TrimSpace(c.Param("name"))
-	if name == "" {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "分组名称不能为空",
+			"message": "分组标识不能为空",
 		})
 		return
 	}
@@ -268,7 +268,7 @@ func UpdateGroupChannels(c *gin.Context) {
 		})
 		return
 	}
-	if err := groupsvc.ReplaceChannelBindings(name, req.ChannelIDs); err != nil {
+	if err := groupsvc.ReplaceChannelBindings(id, req.ChannelIDs); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),

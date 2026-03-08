@@ -6,8 +6,8 @@ func ListCatalog() ([]model.GroupCatalog, error) {
 	return model.ListGroupCatalog()
 }
 
-func Get(name string) (model.GroupCatalog, error) {
-	return model.GetGroupCatalogByName(name)
+func Get(id string) (model.GroupCatalog, error) {
+	return model.GetGroupCatalogByID(id)
 }
 
 func Create(item model.GroupCatalog) (model.GroupCatalog, error) {
@@ -18,14 +18,14 @@ func Update(item model.GroupCatalog) (model.GroupCatalog, error) {
 	return model.UpdateGroupCatalog(item)
 }
 
-func Delete(name string) error {
-	return model.DeleteGroupCatalog(name)
+func Delete(id string) error {
+	return model.DeleteGroupCatalog(id)
 }
 
-func ListChannelBindings(name string) ([]model.GroupChannelBindingItem, error) {
-	return model.ListGroupChannelBindings(name)
+func ListChannelBindings(id string) ([]model.GroupChannelBindingItem, error) {
+	return model.ListGroupChannelBindings(id)
 }
 
-func ReplaceChannelBindings(name string, channelIDs []string) error {
-	return model.ReplaceGroupChannelBindings(name, channelIDs)
+func ReplaceChannelBindings(id string, channelIDs []string) error {
+	return model.ReplaceGroupChannelBindings(id, channelIDs)
 }

@@ -18,7 +18,7 @@ const (
 )
 
 type ChannelCapabilityResult struct {
-	ChannelId  string `json:"channel_id,omitempty" gorm:"primaryKey;type:char(36);index"`
+	ChannelId  string `json:"channel_id,omitempty" gorm:"primaryKey;type:varchar(64);index"`
 	Capability string `json:"capability" gorm:"primaryKey;type:varchar(128)"`
 	Label      string `json:"label" gorm:"type:varchar(255)"`
 	Endpoint   string `json:"endpoint" gorm:"type:varchar(255)"`

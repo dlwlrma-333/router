@@ -10,8 +10,8 @@ import { Button, Form, Label, Modal, Table } from 'semantic-ui-react';
 import { API, showError, showInfo, showSuccess, timestamp2string } from '../helpers';
 
 const createEmptyForm = () => ({
+  id: '',
   name: '',
-  display_name: '',
   description: '',
   billing_ratio: 1,
   sort_order: 0,
@@ -77,8 +77,8 @@ const GroupsManager = forwardRef((_, ref) => {
   const openEditModal = (row) => {
     if (!row || submitting) return;
     setEditForm({
+      id: row.id || '',
       name: row.name || '',
-      display_name: row.display_name || '',
       description: row.description || '',
       billing_ratio: Number(row.billing_ratio ?? 1),
       sort_order: row.sort_order || 0,
@@ -110,8 +110,8 @@ const GroupsManager = forwardRef((_, ref) => {
     setBindingOpen(true);
     setBindingLoading(true);
     try {
-      const encodedName = encodeURIComponent(row.name || '');
-      const res = await API.get(`/api/v1/admin/group/${encodedName}/channels`);
+      const encodedID = encodeURIComponent(row.id || '');
+      const res = await API.get(`/api/v1/admin/group/${encodedID}/channels`);
       const { success, message, data } = res.data || {};
       if (!success) {
         showError(message || t('group_manage.messages.bind_load_failed'));
@@ -145,9 +145,9 @@ const GroupsManager = forwardRef((_, ref) => {
   };
 
   const submitCreate = async () => {
-    const name = (createForm.name || '').trim();
-    if (name === '') {
-      showInfo(t('group_manage.messages.name_required'));
+    const id = (createForm.id || '').trim();
+    if (id === '') {
+      showInfo(t('group_manage.messages.id_required'));
       return;
     }
     const billingRatio = Number(createForm.billing_ratio ?? 1);
@@ -158,8 +158,8 @@ const GroupsManager = forwardRef((_, ref) => {
     setSubmitting(true);
     try {
       const res = await API.post('/api/v1/admin/group/', {
-        name,
-        display_name: (createForm.display_name || '').trim(),
+        id,
+        name: (createForm.name || '').trim(),
         description: (createForm.description || '').trim(),
         billing_ratio: billingRatio,
       });
@@ -174,7 +174,7 @@ const GroupsManager = forwardRef((_, ref) => {
         if (aOrder !== bOrder) {
           return aOrder - bOrder;
         }
-        return (a.name || '').localeCompare(b.name || '');
+        return (a.id || '').localeCompare(b.id || '');
       }));
       showSuccess(t('group_manage.messages.create_success'));
       setCreateOpen(false);
@@ -187,9 +187,9 @@ const GroupsManager = forwardRef((_, ref) => {
   };
 
   const submitEdit = async () => {
-    const name = (editForm.name || '').trim();
-    if (name === '') {
-      showInfo(t('group_manage.messages.name_required'));
+    const id = (editForm.id || '').trim();
+    if (id === '') {
+      showInfo(t('group_manage.messages.id_required'));
       return;
     }
     const billingRatio = Number(editForm.billing_ratio ?? 1);
@@ -200,8 +200,8 @@ const GroupsManager = forwardRef((_, ref) => {
     setSubmitting(true);
     try {
       const res = await API.put('/api/v1/admin/group/', {
-        name,
-        display_name: (editForm.display_name || '').trim(),
+        id,
+        name: (editForm.name || '').trim(),
         description: (editForm.description || '').trim(),
         billing_ratio: billingRatio,
         sort_order: Number(editForm.sort_order || 0),
@@ -213,14 +213,14 @@ const GroupsManager = forwardRef((_, ref) => {
       }
       setRows((prev) =>
         prev
-          .map((row) => (row.name === data.name ? data : row))
+          .map((row) => (row.id === data.id ? data : row))
           .sort((a, b) => {
             const aOrder = Number(a.sort_order || 0);
             const bOrder = Number(b.sort_order || 0);
             if (aOrder !== bOrder) {
               return aOrder - bOrder;
             }
-            return (a.name || '').localeCompare(b.name || '');
+            return (a.id || '').localeCompare(b.id || '');
           })
       );
       showSuccess(t('group_manage.messages.update_success'));
@@ -238,8 +238,8 @@ const GroupsManager = forwardRef((_, ref) => {
     setSubmitting(true);
     try {
       const res = await API.put('/api/v1/admin/group/', {
-        name: row.name,
-        display_name: row.display_name || '',
+        id: row.id,
+        name: row.name || '',
         description: row.description || '',
         sort_order: Number(row.sort_order || 0),
         enabled: !row.enabled,
@@ -250,7 +250,7 @@ const GroupsManager = forwardRef((_, ref) => {
         return;
       }
       setRows((prev) =>
-        prev.map((item) => (item.name === data.name ? data : item))
+        prev.map((item) => (item.id === data.id ? data : item))
       );
       showSuccess(t('group_manage.messages.update_success'));
     } catch (error) {
@@ -264,14 +264,14 @@ const GroupsManager = forwardRef((_, ref) => {
     if (!deleteTarget || submitting) return;
     setSubmitting(true);
     try {
-      const encodedName = encodeURIComponent(deleteTarget.name || '');
-      const res = await API.delete(`/api/v1/admin/group/${encodedName}`);
+      const encodedID = encodeURIComponent(deleteTarget.id || '');
+      const res = await API.delete(`/api/v1/admin/group/${encodedID}`);
       const { success, message } = res.data || {};
       if (!success) {
         showError(message || t('group_manage.messages.delete_failed'));
         return;
       }
-      setRows((prev) => prev.filter((row) => row.name !== deleteTarget.name));
+      setRows((prev) => prev.filter((row) => row.id !== deleteTarget.id));
       showSuccess(t('group_manage.messages.delete_success'));
       setDeleteOpen(false);
       setDeleteTarget(null);
@@ -286,8 +286,8 @@ const GroupsManager = forwardRef((_, ref) => {
     if (!bindingTarget || submitting) return;
     setSubmitting(true);
     try {
-      const encodedName = encodeURIComponent(bindingTarget.name || '');
-      const res = await API.put(`/api/v1/admin/group/${encodedName}/channels`, {
+      const encodedID = encodeURIComponent(bindingTarget.id || '');
+      const res = await API.put(`/api/v1/admin/group/${encodedID}/channels`, {
         channel_ids: bindingChannelIDs,
       });
       const { success, message } = res.data || {};
@@ -309,8 +309,8 @@ const GroupsManager = forwardRef((_, ref) => {
       <Table basic='very' compact size='small'>
         <Table.Header>
           <Table.Row>
+            <Table.HeaderCell>{t('group_manage.table.id')}</Table.HeaderCell>
             <Table.HeaderCell>{t('group_manage.table.name')}</Table.HeaderCell>
-            <Table.HeaderCell>{t('group_manage.table.display_name')}</Table.HeaderCell>
             <Table.HeaderCell>{t('group_manage.table.description')}</Table.HeaderCell>
             <Table.HeaderCell>{t('group_manage.table.billing_ratio')}</Table.HeaderCell>
             <Table.HeaderCell>{t('group_manage.table.status')}</Table.HeaderCell>
@@ -323,9 +323,9 @@ const GroupsManager = forwardRef((_, ref) => {
         </Table.Header>
         <Table.Body>
           {rows.map((row) => (
-            <Table.Row key={row.name}>
-              <Table.Cell>{row.name}</Table.Cell>
-              <Table.Cell>{row.display_name || '-'}</Table.Cell>
+            <Table.Row key={row.id}>
+              <Table.Cell>{row.id}</Table.Cell>
+              <Table.Cell>{row.name || '-'}</Table.Cell>
               <Table.Cell>{row.description || '-'}</Table.Cell>
               <Table.Cell>{Number(row.billing_ratio ?? 1).toFixed(2)}</Table.Cell>
               <Table.Cell>
@@ -406,22 +406,19 @@ const GroupsManager = forwardRef((_, ref) => {
           <Form>
             <Form.Input
               required
+              label={t('group_manage.form.id')}
+              placeholder={t('group_manage.form.id_placeholder')}
+              value={createForm.id}
+              onChange={(e) =>
+                setCreateForm((prev) => ({ ...prev, id: e.target.value }))
+              }
+            />
+            <Form.Input
               label={t('group_manage.form.name')}
               placeholder={t('group_manage.form.name_placeholder')}
               value={createForm.name}
               onChange={(e) =>
                 setCreateForm((prev) => ({ ...prev, name: e.target.value }))
-              }
-            />
-            <Form.Input
-              label={t('group_manage.form.display_name')}
-              placeholder={t('group_manage.form.display_name_placeholder')}
-              value={createForm.display_name}
-              onChange={(e) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  display_name: e.target.value,
-                }))
               }
             />
             <Form.TextArea
@@ -467,17 +464,17 @@ const GroupsManager = forwardRef((_, ref) => {
           <Form>
             <Form.Input
               disabled
-              label={t('group_manage.form.name')}
-              value={editForm.name}
+              label={t('group_manage.form.id')}
+              value={editForm.id}
             />
             <Form.Input
-              label={t('group_manage.form.display_name')}
-              placeholder={t('group_manage.form.display_name_placeholder')}
-              value={editForm.display_name}
+              label={t('group_manage.form.name')}
+              placeholder={t('group_manage.form.name_placeholder')}
+              value={editForm.name}
               onChange={(e) =>
                 setEditForm((prev) => ({
                   ...prev,
-                  display_name: e.target.value,
+                  name: e.target.value,
                 }))
               }
             />
@@ -533,7 +530,7 @@ const GroupsManager = forwardRef((_, ref) => {
         <Modal.Header>{t('group_manage.modal.delete_title')}</Modal.Header>
         <Modal.Content>
           {t('group_manage.modal.delete_confirm', {
-            name: deleteTarget?.name || '',
+            id: deleteTarget?.id || '',
           })}
         </Modal.Content>
         <Modal.Actions>
@@ -549,7 +546,7 @@ const GroupsManager = forwardRef((_, ref) => {
       <Modal open={bindingOpen} onClose={closeBindingModal} size='small'>
         <Modal.Header>
           {t('group_manage.modal.bind_channels_title', {
-            name: bindingTarget?.name || '',
+            id: bindingTarget?.id || '',
           })}
         </Modal.Header>
         <Modal.Content>

@@ -67,136 +67,16 @@ func syncModelProviderCatalogWithDB(db *gorm.DB) error {
 	if err := db.AutoMigrate(&ModelProvider{}, &ModelProviderModel{}); err != nil {
 		return err
 	}
-
-	items, err := loadModelProviderCatalogFromTable(db)
-	if err != nil {
+	var count int64
+	if err := db.Model(&ModelProvider{}).Count(&count).Error; err != nil {
 		return err
 	}
-
-	if len(items) == 0 {
-		items = buildDefaultModelProviderCatalogMigration(helper.GetTimestamp())
-		logger.SysLogf("migration: initialized model provider catalog with %d default providers", len(items))
-	} else {
-		items, err = normalizeModelProviderCatalogItems(items, false)
-		if err != nil {
-			return err
-		}
+	if count > 0 {
+		return nil
 	}
-
+	items := buildDefaultModelProviderCatalogMigration(helper.GetTimestamp())
+	logger.SysLogf("migration: initialized model provider catalog with %d default providers", len(items))
 	return saveModelProviderCatalogToTable(db, items)
-}
-
-func normalizeModelProviderCatalogItems(items []modelProviderCatalogMigrationItem, mergeWithCodeDefaults bool) ([]modelProviderCatalogMigrationItem, error) {
-	now := helper.GetTimestamp()
-	indexByProvider := make(map[string]int, len(items))
-	normalized := make([]modelProviderCatalogMigrationItem, 0, len(items))
-
-	for _, item := range items {
-		provider := commonutils.NormalizeModelProvider(item.Provider)
-		if provider == "" {
-			provider = commonutils.NormalizeModelProvider(item.Name)
-		}
-		if provider == "" {
-			continue
-		}
-		name := strings.TrimSpace(item.Name)
-		if name == "" {
-			name = provider
-		}
-		source := strings.TrimSpace(strings.ToLower(item.Source))
-		if source == "" {
-			source = "manual"
-		}
-		details := make([]ModelProviderModelDetail, 0, len(item.ModelDetails)+len(item.Models))
-		details = append(details, item.ModelDetails...)
-		for _, modelName := range item.Models {
-			details = append(details, ModelProviderModelDetail{Model: strings.TrimSpace(modelName)})
-		}
-		details = MergeModelProviderDetails(provider, details, item.Models, false, now)
-		entry := modelProviderCatalogMigrationItem{
-			Provider:     provider,
-			Name:         name,
-			Models:       ModelProviderModelNames(details),
-			ModelDetails: details,
-			BaseURL:      strings.TrimSpace(item.BaseURL),
-			SortOrder:    normalizeModelProviderSortOrderValue(item.SortOrder),
-			Source:       source,
-			UpdatedAt:    item.UpdatedAt,
-		}
-
-		if idx, ok := indexByProvider[provider]; ok {
-			existing := normalized[idx]
-			existing.ModelDetails = MergeModelProviderDetails(
-				provider,
-				append(existing.ModelDetails, entry.ModelDetails...),
-				append(existing.Models, entry.Models...),
-				false,
-				now,
-			)
-			existing.Models = ModelProviderModelNames(existing.ModelDetails)
-			if existing.Name == existing.Provider && entry.Name != entry.Provider {
-				existing.Name = entry.Name
-			}
-			if existing.BaseURL == "" && entry.BaseURL != "" {
-				existing.BaseURL = entry.BaseURL
-			}
-			if entry.BaseURL != "" && entry.Source != "default" {
-				existing.BaseURL = entry.BaseURL
-			}
-			if entry.SortOrder > 0 && entry.Source != "default" {
-				existing.SortOrder = entry.SortOrder
-			}
-			if existing.SortOrder <= 0 && entry.SortOrder > 0 {
-				existing.SortOrder = entry.SortOrder
-			}
-			if entry.UpdatedAt > existing.UpdatedAt {
-				existing.UpdatedAt = entry.UpdatedAt
-			}
-			existing.Source = entry.Source
-			normalized[idx] = existing
-			continue
-		}
-
-		indexByProvider[provider] = len(normalized)
-		normalized = append(normalized, entry)
-	}
-
-	if mergeWithCodeDefaults {
-		normalized = reconcileWithCodeDefaults(normalized, now)
-	}
-	normalized = finalizeModelProviderCatalogSortOrders(normalized)
-	return normalized, nil
-}
-
-func loadModelProviderCatalogFromTable(db *gorm.DB) ([]modelProviderCatalogMigrationItem, error) {
-	detailsByProvider, err := LoadModelProviderModelDetailsMap(db)
-	if err != nil {
-		return nil, err
-	}
-
-	rows := make([]ModelProvider, 0)
-	if err := db.Order("sort_order asc, provider asc").Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	items := make([]modelProviderCatalogMigrationItem, 0, len(rows))
-	for _, row := range rows {
-		provider := commonutils.NormalizeModelProvider(row.Provider)
-		if provider == "" {
-			continue
-		}
-		details := MergeModelProviderDetails(provider, detailsByProvider[provider], nil, false, helper.GetTimestamp())
-		items = append(items, modelProviderCatalogMigrationItem{
-			Provider:     provider,
-			Name:         strings.TrimSpace(row.Name),
-			Models:       ModelProviderModelNames(details),
-			ModelDetails: details,
-			BaseURL:      strings.TrimSpace(row.BaseURL),
-			SortOrder:    normalizeModelProviderSortOrderValue(row.SortOrder),
-			Source:       strings.TrimSpace(strings.ToLower(row.Source)),
-			UpdatedAt:    row.UpdatedAt,
-		})
-	}
-	return items, nil
 }
 
 func saveModelProviderCatalogToTable(db *gorm.DB, items []modelProviderCatalogMigrationItem) error {
@@ -219,7 +99,7 @@ func saveModelProviderCatalogToTable(db *gorm.DB, items []modelProviderCatalogMi
 			source = "manual"
 		}
 		providerRows = append(providerRows, ModelProvider{
-			Provider:  provider,
+			Id:        provider,
 			Name:      strings.TrimSpace(item.Name),
 			BaseURL:   strings.TrimSpace(item.BaseURL),
 			SortOrder: item.SortOrder,
@@ -265,76 +145,4 @@ func buildDefaultModelProviderCatalogMigration(now int64) []modelProviderCatalog
 		})
 	}
 	return items
-}
-
-func reconcileWithCodeDefaults(items []modelProviderCatalogMigrationItem, now int64) []modelProviderCatalogMigrationItem {
-	defaults := buildDefaultModelProviderCatalogMigration(now)
-	defaultByProvider := make(map[string]modelProviderCatalogMigrationItem, len(defaults))
-	for _, item := range defaults {
-		defaultByProvider[item.Provider] = item
-	}
-
-	result := make(map[string]modelProviderCatalogMigrationItem, len(items)+len(defaults))
-	for _, item := range defaults {
-		result[item.Provider] = item
-	}
-
-	for _, item := range items {
-		provider := commonutils.NormalizeModelProvider(item.Provider)
-		if provider == "" {
-			continue
-		}
-		item.Provider = provider
-		item.ModelDetails = MergeModelProviderDetails(provider, item.ModelDetails, item.Models, false, now)
-		item.Models = ModelProviderModelNames(item.ModelDetails)
-
-		if seededItem, ok := defaultByProvider[provider]; ok {
-			merged := seededItem
-			if strings.TrimSpace(item.Name) != "" && item.Name != provider {
-				merged.Name = strings.TrimSpace(item.Name)
-			}
-			if strings.TrimSpace(item.BaseURL) != "" {
-				merged.BaseURL = strings.TrimSpace(item.BaseURL)
-			}
-			if item.SortOrder > 0 {
-				merged.SortOrder = item.SortOrder
-			}
-			if item.UpdatedAt > 0 {
-				merged.UpdatedAt = item.UpdatedAt
-			}
-			if item.Source != "default" {
-				merged.Source = item.Source
-			}
-			merged.ModelDetails = MergeModelProviderDetails(
-				provider,
-				append(seededItem.ModelDetails, item.ModelDetails...),
-				append(seededItem.Models, item.Models...),
-				false,
-				now,
-			)
-			merged.Models = ModelProviderModelNames(merged.ModelDetails)
-			result[provider] = merged
-			continue
-		}
-		if item.Source == "" {
-			item.Source = "manual"
-		}
-		item.SortOrder = normalizeModelProviderSortOrderValue(item.SortOrder)
-		result[provider] = item
-	}
-
-	mergedItems := make([]modelProviderCatalogMigrationItem, 0, len(result))
-	for _, item := range result {
-		item.ModelDetails = MergeModelProviderDetails(item.Provider, item.ModelDetails, item.Models, false, now)
-		item.Models = ModelProviderModelNames(item.ModelDetails)
-		if item.Name == "" {
-			item.Name = item.Provider
-		}
-		if item.Source == "" {
-			item.Source = "manual"
-		}
-		item.SortOrder = normalizeModelProviderSortOrderValue(item.SortOrder)
-		mergedItems = append(mergedItems, item)
-	}
-	return finalizeModelProviderCatalogSortOrders(mergedItems)
 }

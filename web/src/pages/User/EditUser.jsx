@@ -41,12 +41,12 @@ const EditUser = () => {
         rows
           .filter((group) => group?.enabled)
           .map((group) => ({
-            key: group.name,
+            key: group.id,
             text:
-              group.display_name && group.display_name !== group.name
-                ? `${group.display_name} (${group.name})`
-                : group.name,
-            value: group.name,
+              group.name && group.name !== group.id
+                ? `${group.name} (${group.id})`
+                : group.id,
+            value: group.id,
           }))
       );
     } catch (error) {

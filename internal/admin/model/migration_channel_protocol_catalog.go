@@ -74,51 +74,21 @@ func syncChannelProtocolCatalogWithDB(db *gorm.DB) error {
 	if err := db.AutoMigrate(&ChannelProtocolCatalog{}); err != nil {
 		return err
 	}
-	now := helper.GetTimestamp()
-	rows := make([]ChannelProtocolCatalog, 0)
-	if err := db.Order("sort_order asc, id asc").Find(&rows).Error; err != nil {
+	var count int64
+	if err := db.Model(&ChannelProtocolCatalog{}).Count(&count).Error; err != nil {
 		return err
 	}
-
-	if len(rows) == 0 {
-		defaults := buildDefaultChannelProtocolCatalog(now)
-		if len(defaults) == 0 {
-			return nil
-		}
-		if err := db.Create(&defaults).Error; err != nil {
-			return err
-		}
-		logger.SysLogf("migration: initialized channel protocol catalog with %d default items", len(defaults))
+	if count > 0 {
 		return nil
 	}
-	for _, row := range rows {
-		if row.ProtocolID == relaychannel.OpenAICompatible || strings.EqualFold(strings.TrimSpace(row.Name), "openai-compatible") {
-			if err := db.Where("id = ? OR name = ?", row.ProtocolID, row.Name).Delete(&ChannelProtocolCatalog{}).Error; err != nil {
-				return err
-			}
-			continue
-		}
-		normalizedName := relaychannel.NormalizeProtocolName(row.Name)
-		if normalizedName == "" {
-			normalizedName = relaychannel.ProtocolByType(row.ProtocolID)
-		}
-		if normalizedName == "" {
-			continue
-		}
-		updates := map[string]any{
-			"name":       normalizedName,
-			"updated_at": now,
-		}
-		if row.ProtocolID <= 0 {
-			updates["id"] = relaychannel.TypeByProtocol(normalizedName)
-		}
-		if err := db.Model(&ChannelProtocolCatalog{}).
-			Where("id = ?", row.ProtocolID).
-			Updates(updates).Error; err != nil {
-			return err
-		}
+	defaults := buildDefaultChannelProtocolCatalog(helper.GetTimestamp())
+	if len(defaults) == 0 {
+		return nil
 	}
-	logger.SysLogf("migration: normalized %d existing channel protocol rows", len(rows))
+	if err := db.Create(&defaults).Error; err != nil {
+		return err
+	}
+	logger.SysLogf("migration: initialized channel protocol catalog with %d default items", len(defaults))
 	return nil
 }
 

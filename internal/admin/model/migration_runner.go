@@ -35,45 +35,10 @@ type versionedMigration struct {
 func runMainVersionedMigrations(db *gorm.DB) error {
 	migrations := []versionedMigration{
 		{
-			Version:     "202603071000_main_baseline_v3",
-			Description: "baseline: create current main schema, normalize log trace_id, drop legacy objects, and seed current catalogs",
+			Version:     "202603081400_main_baseline_v5",
+			Description: "baseline: create current main schema and seed current catalogs",
 			Up: func(tx *gorm.DB) error {
 				return runMainBaselineMigrationWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603071130_channel_model_configs_v1",
-			Description: "expand channel_models with upstream model aliases and per-model ratios",
-			Up: func(tx *gorm.DB) error {
-				return migrateChannelModelConfigsWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603071210_channel_model_configs_finalize_v1",
-			Description: "finalize channel_models as the single source of channel model mapping and ratios",
-			Up: func(tx *gorm.DB) error {
-				return finalizeChannelModelConfigsWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603071530_group_billing_ratio_v1",
-			Description: "add billing_ratio to groups and backfill from legacy GroupRatio option",
-			Up: func(tx *gorm.DB) error {
-				return migrateGroupBillingRatioWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603071700_channel_model_price_overrides_v1",
-			Description: "convert channel model ratios to explicit price override fields",
-			Up: func(tx *gorm.DB) error {
-				return migrateChannelModelPriceOverridesWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603071830_drop_legacy_pricing_options_v1",
-			Description: "drop deprecated ModelRatio, CompletionRatio and GroupRatio options",
-			Up: func(tx *gorm.DB) error {
-				return dropLegacyPricingOptionsWithDB(tx)
 			},
 		},
 	}
@@ -83,8 +48,8 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 func runLogVersionedMigrations(db *gorm.DB) error {
 	migrations := []versionedMigration{
 		{
-			Version:     "202603071001_log_baseline_v2",
-			Description: "baseline: create current log schema and normalize trace_id",
+			Version:     "202603081401_log_baseline_v3",
+			Description: "baseline: create current log schema",
 			Up: func(tx *gorm.DB) error {
 				return runLogBaselineMigrationWithDB(tx)
 			},
@@ -99,6 +64,10 @@ func runVersionedMigrations(db *gorm.DB, scope string, migrations []versionedMig
 	}
 	if strings.TrimSpace(scope) == "" {
 		return fmt.Errorf("migration scope cannot be empty")
+	}
+	keepVersions, err := configuredMigrationVersions(migrations)
+	if err != nil {
+		return err
 	}
 	// Run migrations without prepared statements. Schema changes can invalidate
 	// cached plans for queries such as SELECT *, especially when columns are dropped.
@@ -144,6 +113,43 @@ func runVersionedMigrations(db *gorm.DB, scope string, migrations []versionedMig
 			return fmt.Errorf("migration[%s] failed at %s: %w", scope, migration.Version, err)
 		}
 		logger.SysLogf("migration[%s] applied %s", scope, migration.Version)
+	}
+	return cleanupObsoleteSchemaMigrations(migrationDB, scope, keepVersions)
+}
+
+func configuredMigrationVersions(migrations []versionedMigration) ([]string, error) {
+	if len(migrations) == 0 {
+		return nil, fmt.Errorf("no migrations configured")
+	}
+	seen := make(map[string]struct{}, len(migrations))
+	versions := make([]string, 0, len(migrations))
+	for _, migration := range migrations {
+		version := strings.TrimSpace(migration.Version)
+		if version == "" {
+			return nil, fmt.Errorf("migration version cannot be empty")
+		}
+		if _, ok := seen[version]; ok {
+			return nil, fmt.Errorf("duplicate migration version: %s", version)
+		}
+		seen[version] = struct{}{}
+		versions = append(versions, version)
+	}
+	return versions, nil
+}
+
+func cleanupObsoleteSchemaMigrations(db *gorm.DB, scope string, keepVersions []string) error {
+	if db == nil {
+		return nil
+	}
+	if len(keepVersions) == 0 {
+		return fmt.Errorf("no migration versions configured for scope %s", scope)
+	}
+	result := db.Where("scope = ? AND version NOT IN ?", scope, keepVersions).Delete(&SchemaMigration{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		logger.SysLogf("migration[%s] removed %d obsolete schema_migrations rows", scope, result.RowsAffected)
 	}
 	return nil
 }

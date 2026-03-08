@@ -719,7 +719,7 @@
                 }
             }
         },
-        "/api/v1/admin/group/{name}": {
+        "/api/v1/admin/group/{id}": {
             "delete": {
                 "security": [
                     {
@@ -736,8 +736,8 @@
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group name",
-                        "name": "name",
+                        "description": "Group ID",
+                        "name": "id",
                         "in": "path",
                         "required": true
                     }
@@ -758,7 +758,7 @@
                 }
             }
         },
-        "/api/v1/admin/group/{name}/channels": {
+        "/api/v1/admin/group/{id}/channels": {
             "get": {
                 "security": [
                     {
@@ -775,8 +775,8 @@
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group name",
-                        "name": "name",
+                        "description": "Group ID",
+                        "name": "id",
                         "in": "path",
                         "required": true
                     }
@@ -815,8 +815,8 @@
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group name",
-                        "name": "name",
+                        "description": "Group ID",
+                        "name": "id",
                         "in": "path",
                         "required": true
                     }
@@ -4959,6 +4959,10 @@
                     "type": "string",
                     "example": "{}"
                 },
+                "id": {
+                    "type": "string",
+                    "example": "openai-main"
+                },
                 "key": {
                     "type": "string",
                     "example": "sk-***"
@@ -4975,7 +4979,7 @@
                 },
                 "name": {
                     "type": "string",
-                    "example": "OpenAI"
+                    "example": "OpenAI Main"
                 },
                 "priority": {
                     "type": "integer",
@@ -5157,7 +5161,7 @@
                 },
                 "id": {
                     "type": "string",
-                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                    "example": "openai-main"
                 },
                 "key": {
                     "type": "string",
@@ -5175,7 +5179,7 @@
                 },
                 "name": {
                     "type": "string",
-                    "example": "OpenAI"
+                    "example": "OpenAI Main"
                 },
                 "priority": {
                     "type": "integer",
@@ -5227,6 +5231,10 @@
                     "type": "string",
                     "example": "https://api.openai.com"
                 },
+                "id": {
+                    "type": "string",
+                    "example": "openai"
+                },
                 "model_details": {
                     "type": "array",
                     "items": {
@@ -5242,10 +5250,6 @@
                 "name": {
                     "type": "string",
                     "example": "OpenAI"
-                },
-                "provider": {
-                    "type": "string",
-                    "example": "openai"
                 },
                 "sort_order": {
                     "type": "integer",

@@ -24,11 +24,11 @@ func normalizeGroupBillingRatio(value float64) float64 {
 func buildGroupBillingRatioMap(rows []GroupCatalog) map[string]float64 {
 	ratios := make(map[string]float64, len(rows))
 	for _, row := range rows {
-		name := strings.TrimSpace(row.Name)
-		if name == "" {
+		id := strings.TrimSpace(row.Id)
+		if id == "" {
 			continue
 		}
-		ratios[name] = normalizeGroupBillingRatio(row.BillingRatio)
+		ratios[id] = normalizeGroupBillingRatio(row.BillingRatio)
 	}
 	return ratios
 }
@@ -39,13 +39,13 @@ func setGroupBillingRatioRuntime(ratios map[string]float64) {
 	groupBillingRatioLock.Unlock()
 }
 
-func GetGroupBillingRatio(name string) float64 {
-	groupName := strings.TrimSpace(name)
-	if groupName == "" {
+func GetGroupBillingRatio(id string) float64 {
+	groupID := strings.TrimSpace(id)
+	if groupID == "" {
 		return 1
 	}
 	groupBillingRatioLock.RLock()
-	ratio, ok := groupBillingRatioMap[groupName]
+	ratio, ok := groupBillingRatioMap[groupID]
 	groupBillingRatioLock.RUnlock()
 	if !ok {
 		return 1
@@ -82,14 +82,14 @@ func syncGroupBillingRatiosFromJSONWithDB(db *gorm.DB, raw string) error {
 		return err
 	}
 	for _, row := range rows {
-		name := strings.TrimSpace(row.Name)
-		if name == "" {
+		id := strings.TrimSpace(row.Id)
+		if id == "" {
 			continue
 		}
 		nextRatio := 1.0
-		if value, ok := ratios[name]; ok {
+		if value, ok := ratios[id]; ok {
 			if value < 0 {
-				return fmt.Errorf("group %s billing ratio cannot be negative", name)
+				return fmt.Errorf("group %s billing ratio cannot be negative", id)
 			}
 			nextRatio = value
 		}
@@ -97,7 +97,7 @@ func syncGroupBillingRatiosFromJSONWithDB(db *gorm.DB, raw string) error {
 			continue
 		}
 		if err := db.Model(&GroupCatalog{}).
-			Where("name = ?", name).
+			Where("id = ?", id).
 			Update("billing_ratio", nextRatio).Error; err != nil {
 			return err
 		}

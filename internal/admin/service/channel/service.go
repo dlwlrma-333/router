@@ -17,10 +17,6 @@ func GetByID(id string, selectAll bool) (*model.Channel, error) {
 	return channelrepo.GetByID(id, selectAll)
 }
 
-func BatchInsert(channels []model.Channel) error {
-	return channelrepo.BatchInsert(channels)
-}
-
 func Insert(channel *model.Channel) error {
 	return channelrepo.Insert(channel)
 }

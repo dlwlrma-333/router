@@ -406,14 +406,14 @@ func UpdateChannelBalance(c *gin.Context) {
 	}
 	balance, err := updateChannelBalance(channel)
 	if err != nil {
-		logChannelAdminWarn(c, "refresh_balance", stringField("channel_id", channel.Id), stringField("name", channel.Name), stringField("reason", err.Error()))
+		logChannelAdminWarn(c, "refresh_balance", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	logChannelAdminInfo(c, "refresh_balance", stringField("channel_id", channel.Id), stringField("name", channel.Name), floatField("balance", balance))
+	logChannelAdminInfo(c, "refresh_balance", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), floatField("balance", balance))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -442,7 +442,7 @@ func updateAllChannelsBalance() error {
 		} else {
 			// err is nil & balance <= 0 means quota is used up
 			if balance <= 0 {
-				monitor.DisableChannel(channel.Id, channel.Name, "余额不足")
+				monitor.DisableChannel(channel.Id, channel.DisplayName(), "余额不足")
 			}
 		}
 		time.Sleep(config.RequestInterval)

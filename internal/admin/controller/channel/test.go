@@ -93,9 +93,9 @@ func recordCapabilityTestLog(ctx context.Context, channel *model.Channel, modelN
 	if channel == nil {
 		return
 	}
-	logContent := fmt.Sprintf("渠道 %s 能力测试成功，结果：%s", channel.Name, responseMessage)
+	logContent := fmt.Sprintf("渠道 %s 能力测试成功，结果：%s", channel.DisplayName(), responseMessage)
 	if !success {
-		logContent = fmt.Sprintf("渠道 %s 能力测试失败，错误：%s", channel.Name, responseMessage)
+		logContent = fmt.Sprintf("渠道 %s 能力测试失败，错误：%s", channel.DisplayName(), responseMessage)
 	}
 	model.RecordTestLog(ctx, &model.Log{
 		ChannelId:   channel.Id,
@@ -169,7 +169,7 @@ func TestChannel(c *gin.Context) {
 	testModel := strings.TrimSpace(c.Query("model"))
 	results, success, responseMessage, milliseconds, modelName, _, _, err := executeChannelCapabilityTest(ctx, channel, testModel)
 	if err != nil {
-		logChannelAdminWarn(c, "test", stringField("channel_id", channel.Id), stringField("name", channel.Name), stringField("model", modelName), stringField("reason", responseMessage))
+		logChannelAdminWarn(c, "test", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("model", modelName), stringField("reason", responseMessage))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": responseMessage,
@@ -179,7 +179,7 @@ func TestChannel(c *gin.Context) {
 	go channel.UpdateResponseTime(milliseconds)
 	consumedTime := float64(milliseconds) / 1000.0
 	if !success {
-		logChannelAdminWarn(c, "test", stringField("channel_id", channel.Id), stringField("name", channel.Name), stringField("model", modelName), int64Field("latency_ms", milliseconds), stringField("result", responseMessage))
+		logChannelAdminWarn(c, "test", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("model", modelName), int64Field("latency_ms", milliseconds), stringField("result", responseMessage))
 		c.JSON(http.StatusOK, gin.H{
 			"success":   false,
 			"message":   responseMessage,
@@ -191,7 +191,7 @@ func TestChannel(c *gin.Context) {
 		})
 		return
 	}
-	logChannelAdminInfo(c, "test", stringField("channel_id", channel.Id), stringField("name", channel.Name), stringField("model", modelName), int64Field("latency_ms", milliseconds), intField("capability_count", len(results)))
+	logChannelAdminInfo(c, "test", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("model", modelName), int64Field("latency_ms", milliseconds), intField("capability_count", len(results)))
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
 		"message":   responseMessage,
@@ -244,16 +244,16 @@ func testChannels(ctx context.Context, notify bool, scope string) error {
 			if isChannelEnabled && success && milliseconds > disableThreshold {
 				timeoutErr := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
 				if config.AutomaticDisableChannelEnabled {
-					monitor.DisableChannel(channel.Id, channel.Name, timeoutErr.Error())
+					monitor.DisableChannel(channel.Id, channel.DisplayName(), timeoutErr.Error())
 				} else {
-					_ = message.Notify(message.ByAll, fmt.Sprintf("渠道 %s （%s）测试超时", channel.Name, channel.Id), "", timeoutErr.Error())
+					_ = message.Notify(message.ByAll, fmt.Sprintf("渠道 %s （%s）测试超时", channel.DisplayName(), channel.Id), "", timeoutErr.Error())
 				}
 			}
 			if isChannelEnabled && !success && monitor.ShouldDisableChannel(relayErr, statusCode) {
-				monitor.DisableChannel(channel.Id, channel.Name, responseMessage)
+				monitor.DisableChannel(channel.Id, channel.DisplayName(), responseMessage)
 			}
 			if !isChannelEnabled && success && monitor.ShouldEnableChannel(nil, nil) {
-				monitor.EnableChannel(channel.Id, channel.Name)
+				monitor.EnableChannel(channel.Id, channel.DisplayName())
 			}
 			channel.UpdateResponseTime(milliseconds)
 			time.Sleep(config.RequestInterval)

@@ -13,7 +13,7 @@ const (
 )
 
 type ChannelModel struct {
-	ChannelId     string   `json:"channel_id" gorm:"primaryKey;type:char(36);index"`
+	ChannelId     string   `json:"channel_id" gorm:"primaryKey;type:varchar(64);index"`
 	Model         string   `json:"model" gorm:"primaryKey;type:varchar(255)"`
 	UpstreamModel string   `json:"upstream_model" gorm:"type:varchar(255);default:'';index"`
 	Selected      bool     `json:"selected" gorm:"default:true;index"`

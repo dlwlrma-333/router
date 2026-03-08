@@ -2,6 +2,8 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
+	"regexp"
 	"strings"
 
 	relaychannel "github.com/yeying-community/router/internal/relay/channel"
@@ -13,10 +15,14 @@ const (
 	ChannelStatusManuallyDisabled = 2 // also don't use 0
 	ChannelStatusAutoDisabled     = 3
 	ChannelStatusCreating         = 4
+
+	ChannelIdentifierMaxLength = 64
 )
 
+var channelIdentifierPattern = regexp.MustCompile(`^[a-z0-9-]+$`)
+
 type Channel struct {
-	Id                     string                    `json:"id" gorm:"type:char(36);primaryKey"`
+	Id                     string                    `json:"id" gorm:"type:varchar(64);primaryKey"`
 	Protocol               string                    `json:"protocol" gorm:"type:varchar(64);default:'openai';index"`
 	Key                    string                    `json:"key" gorm:"type:text"`
 	Status                 int                       `json:"status" gorm:"default:1"`
@@ -43,6 +49,7 @@ type Channel struct {
 	ModelsProvided         bool                      `json:"-" gorm:"-"`
 	ModelConfigsProvided   bool                      `json:"-" gorm:"-"`
 	CapabilityResultsStale bool                      `json:"-" gorm:"-"`
+	NameProvided           bool                      `json:"-" gorm:"-"`
 }
 
 type ChannelConfig struct {
@@ -66,6 +73,50 @@ func (channel *Channel) NormalizeProtocol() {
 		protocol = "openai"
 	}
 	channel.Protocol = protocol
+}
+
+func NormalizeChannelIdentifier(id string) string {
+	return strings.ToLower(strings.TrimSpace(id))
+}
+
+func ValidateChannelIdentifier(id string) error {
+	normalized := NormalizeChannelIdentifier(id)
+	switch {
+	case normalized == "":
+		return fmt.Errorf("渠道标识不能为空")
+	case len(normalized) > ChannelIdentifierMaxLength:
+		return fmt.Errorf("渠道标识长度不能超过 %d 个字符", ChannelIdentifierMaxLength)
+	case !channelIdentifierPattern.MatchString(normalized):
+		return fmt.Errorf("渠道标识只支持小写字母、数字和 -")
+	default:
+		return nil
+	}
+}
+
+func (channel *Channel) NormalizeIdentity() {
+	if channel == nil {
+		return
+	}
+	channel.Id = NormalizeChannelIdentifier(channel.Id)
+	channel.Name = strings.TrimSpace(channel.Name)
+}
+
+func (channel *Channel) ValidateIdentifier() error {
+	if channel == nil {
+		return fmt.Errorf("渠道不能为空")
+	}
+	return ValidateChannelIdentifier(channel.Id)
+}
+
+func (channel *Channel) DisplayName() string {
+	if channel == nil {
+		return ""
+	}
+	name := strings.TrimSpace(channel.Name)
+	if name != "" {
+		return name
+	}
+	return NormalizeChannelIdentifier(channel.Id)
 }
 
 func (channel *Channel) GetProtocol() string {
@@ -96,10 +147,6 @@ func SearchChannels(keyword string) ([]*Channel, error) {
 
 func GetChannelById(id string, selectAll bool) (*Channel, error) {
 	return mustChannelRepo().GetChannelById(id, selectAll)
-}
-
-func BatchInsertChannels(channels []Channel) error {
-	return mustChannelRepo().BatchInsertChannels(channels)
 }
 
 func (channel *Channel) GetPriority() int64 {

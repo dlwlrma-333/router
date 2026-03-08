@@ -20,6 +20,7 @@ type updateChannelTestModelRequest struct {
 }
 
 type createChannelDraftRequest struct {
+	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Protocol string `json:"protocol"`
 	Key      string `json:"key"`
@@ -182,26 +183,17 @@ func AddChannel(c *gin.Context) {
 	}
 	channel.NormalizeModelConfigState()
 	channel.CreatedTime = helper.GetTimestamp()
-	keys := strings.Split(channel.Key, "\n")
-	channels := make([]model.Channel, 0, len(keys))
-	for _, key := range keys {
-		if key == "" {
-			continue
-		}
-		localChannel := channel
-		localChannel.Key = key
-		channels = append(channels, localChannel)
-	}
-	err = channelsvc.BatchInsert(channels)
+	channel.NormalizeIdentity()
+	err = channelsvc.Insert(&channel)
 	if err != nil {
-		logChannelAdminWarn(c, "create", stringField("name", channel.Name), stringField("protocol", channel.GetProtocol()), intField("count", len(channels)), stringField("reason", err.Error()))
+		logChannelAdminWarn(c, "create", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	logChannelAdminInfo(c, "create", stringField("name", channel.Name), stringField("protocol", channel.GetProtocol()), intField("count", len(channels)))
+	logChannelAdminInfo(c, "create", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -228,18 +220,28 @@ func CreateChannelDraft(c *gin.Context) {
 		})
 		return
 	}
+	id := model.NormalizeChannelIdentifier(req.ID)
 	name := strings.TrimSpace(req.Name)
 	key := strings.TrimSpace(req.Key)
-	if name == "" || key == "" {
-		logChannelAdminWarn(c, "create_draft", stringField("name", name), stringField("protocol", req.Protocol), stringField("reason", "渠道名称和密钥不能为空"))
+	if err := model.ValidateChannelIdentifier(id); err != nil {
+		logChannelAdminWarn(c, "create_draft", stringField("channel_id", id), stringField("protocol", req.Protocol), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "渠道名称和密钥不能为空",
+			"message": err.Error(),
+		})
+		return
+	}
+	if key == "" {
+		logChannelAdminWarn(c, "create_draft", stringField("channel_id", id), stringField("protocol", req.Protocol), stringField("reason", "渠道密钥不能为空"))
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "渠道密钥不能为空",
 		})
 		return
 	}
 	baseURL := strings.TrimSpace(req.BaseURL)
 	channel := model.Channel{
+		Id:          id,
 		Name:        name,
 		Protocol:    strings.TrimSpace(req.Protocol),
 		Key:         key,
@@ -250,14 +252,14 @@ func CreateChannelDraft(c *gin.Context) {
 		CreatedTime: helper.GetTimestamp(),
 	}
 	if err := channelsvc.Insert(&channel); err != nil {
-		logChannelAdminWarn(c, "create_draft", stringField("name", name), stringField("protocol", channel.GetProtocol()), stringField("reason", err.Error()))
+		logChannelAdminWarn(c, "create_draft", stringField("channel_id", id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	logChannelAdminInfo(c, "create_draft", stringField("channel_id", channel.Id), stringField("name", name), stringField("protocol", channel.GetProtocol()))
+	logChannelAdminInfo(c, "create_draft", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -368,19 +370,20 @@ func UpdateChannel(c *gin.Context) {
 		})
 		return
 	}
+	_, channel.NameProvided = rawFields["name"]
 	_, channel.ModelsProvided = rawFields["models"]
 	_, channel.ModelConfigsProvided = rawFields["model_configs"]
 	channel.NormalizeModelConfigState()
 	err = channelsvc.Update(&channel)
 	if err != nil {
-		logChannelAdminWarn(c, "update", stringField("channel_id", channel.Id), stringField("name", channel.Name), stringField("protocol", channel.GetProtocol()), stringField("reason", err.Error()))
+		logChannelAdminWarn(c, "update", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	logChannelAdminInfo(c, "update", stringField("channel_id", channel.Id), stringField("name", channel.Name), stringField("protocol", channel.GetProtocol()), intField("model_count", len(model.ParseChannelModelCSV(channel.Models))))
+	logChannelAdminInfo(c, "update", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()), intField("model_count", len(model.ParseChannelModelCSV(channel.Models))))
 	sanitizeChannelForResponse(&channel)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

@@ -236,9 +236,9 @@ func SetApiRouter(engine *gin.Engine) {
 			adminGroupRoute.GET("/catalog", group.GetGroupCatalog)
 			adminGroupRoute.POST("/", group.CreateGroup)
 			adminGroupRoute.PUT("/", group.UpdateGroup)
-			adminGroupRoute.DELETE("/:name", group.DeleteGroup)
-			adminGroupRoute.GET("/:name/channels", group.GetGroupChannels)
-			adminGroupRoute.PUT("/:name/channels", group.UpdateGroupChannels)
+			adminGroupRoute.DELETE("/:id", group.DeleteGroup)
+			adminGroupRoute.GET("/:id/channels", group.GetGroupChannels)
+			adminGroupRoute.PUT("/:id/channels", group.UpdateGroupChannels)
 		}
 
 		adminProviderRoute := adminRouter.Group("/provider")

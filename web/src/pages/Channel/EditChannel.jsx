@@ -64,6 +64,26 @@ const normalizeModelIDs = (models) => {
 const normalizeBaseURL = (baseURL) =>
   (baseURL || '').trim().replace(/\/+$/, '');
 
+const CHANNEL_IDENTIFIER_PATTERN = /^[a-z0-9-]+$/;
+const CHANNEL_IDENTIFIER_MAX_LENGTH = 64;
+
+const normalizeChannelIdentifier = (value) =>
+  (value || '').toString().trim().toLowerCase();
+
+const validateChannelIdentifier = (value, t) => {
+  const normalized = normalizeChannelIdentifier(value);
+  if (normalized === '') {
+    return t('channel.edit.messages.identifier_required');
+  }
+  if (
+    normalized.length > CHANNEL_IDENTIFIER_MAX_LENGTH ||
+    !CHANNEL_IDENTIFIER_PATTERN.test(normalized)
+  ) {
+    return t('channel.edit.messages.identifier_invalid');
+  }
+  return '';
+};
+
 const parseJSONObject = (value) => {
   if (typeof value !== 'string') {
     return {};
@@ -365,7 +385,7 @@ const sanitizeDraftConfigForLocalStorage = (config) => {
   };
 };
 
-const CHANNEL_CREATE_DRAFT_KEY = 'router.channel.create.draft.v1';
+const CHANNEL_CREATE_DRAFT_KEY = 'router.channel.create.draft.v2';
 const CREATE_CHANNEL_STEP_MIN = 1;
 const CREATE_CHANNEL_STEP_MAX = 4;
 
@@ -384,6 +404,7 @@ const parseCreateStep = (rawStep) => {
 };
 
 const CHANNEL_ORIGIN_INPUTS = {
+  id: '',
   name: '',
   protocol: 'openai',
   key: '',
@@ -439,17 +460,16 @@ const EditChannel = () => {
   const isEditMode = hasChannelID && !isDetailMode;
   const isCreateMode = !hasChannelID;
   const copyFromId = useMemo(() => {
-    if (hasChannelID) return 0;
+    if (hasChannelID) return '';
     const query = new URLSearchParams(location.search);
-    const id = Number(query.get('copy_from') || 0);
-    return Number.isInteger(id) && id > 0 ? id : 0;
+    return (query.get('copy_from') || '').trim();
   }, [hasChannelID, location.search]);
   const draftIdFromQuery = useMemo(() => {
     if (hasChannelID) return '';
     const query = new URLSearchParams(location.search);
     return (query.get('draft_id') || '').trim();
   }, [hasChannelID, location.search]);
-  const [loading, setLoading] = useState(hasChannelID || copyFromId > 0);
+  const [loading, setLoading] = useState(hasChannelID || copyFromId !== '');
   const [createStep, setCreateStep] = useState(() => {
     const query = new URLSearchParams(location.search);
     return parseCreateStep(query.get('step'));
@@ -572,6 +592,8 @@ const EditChannel = () => {
   const requireVerificationBeforeProceed =
     requiresConnectionVerification && inputs.models.length === 0;
   const fetchModelsButtonText = t('channel.edit.buttons.fetch_models');
+  const identifierReadonlyProps =
+    isDetailMode || isEditMode ? { readOnly: true } : {};
   const inputReadonlyProps = isDetailMode ? { readOnly: true } : {};
   const textAreaReadonlyProps = isDetailMode ? { readOnly: true } : {};
   const visibleModelConfigs = useMemo(
@@ -580,7 +602,9 @@ const EditChannel = () => {
   );
 
   const handleInputChange = (e, { name, value }) => {
-    setInputs((inputs) => ({ ...inputs, [name]: value }));
+    const nextValue =
+      name === 'id' ? normalizeChannelIdentifier(value) : value;
+    setInputs((inputs) => ({ ...inputs, [name]: nextValue }));
   };
 
   const handleConfigChange = (e, { name, value }) => {
@@ -803,6 +827,8 @@ const EditChannel = () => {
     const effectiveKey = buildEffectiveKey();
     const derivedModelState = buildChannelModelState(inputs.model_configs);
     let localInputs = { ...inputs, key: effectiveKey };
+    localInputs.id = normalizeChannelIdentifier(localInputs.id);
+    localInputs.name = (localInputs.name || '').trim();
     if (localInputs.key === 'undefined|undefined|undefined') {
       localInputs.key = '';
     }
@@ -825,6 +851,7 @@ const EditChannel = () => {
   const createDraftChannel = useCallback(async () => {
     const payload = buildChannelPayload();
     const res = await API.post('/api/v1/admin/channel/draft', {
+      id: payload.id,
       name: payload.name,
       protocol: payload.protocol,
       key: payload.key,
@@ -946,11 +973,13 @@ const EditChannel = () => {
 
   const moveToStepTwo = useCallback(async () => {
     const effectiveKey = buildEffectiveKey();
-    if (
-      inputs.name.trim() === '' ||
-      (effectiveKey.trim() === '' && !canReuseStoredKeyForCreate)
-    ) {
-      showInfo(t('channel.edit.messages.name_required'));
+    const identifierError = validateChannelIdentifier(inputs.id, t);
+    if (identifierError) {
+      showInfo(identifierError);
+      return;
+    }
+    if (effectiveKey.trim() === '' && !canReuseStoredKeyForCreate) {
+      showInfo(t('channel.edit.messages.key_required'));
       return;
     }
     if (isCreateMode) {
@@ -965,7 +994,7 @@ const EditChannel = () => {
     canReuseStoredKeyForCreate,
     ensureDraftChannel,
     goToCreateStep,
-    inputs.name,
+    inputs.id,
     isCreateMode,
     t,
   ]);
@@ -1089,6 +1118,7 @@ const EditChannel = () => {
 
         if (forCopy) {
           setInputs({
+            id: '',
             name: data.name || '',
             protocol: normalizedProtocol,
             key: '',
@@ -1418,7 +1448,7 @@ const EditChannel = () => {
       loadChannelById(channelId, false, true, false).then();
       return;
     }
-    if (copyFromId > 0) {
+    if (copyFromId !== '') {
       setLoading(true);
       loadChannelById(copyFromId, true, true, false).then();
       return;
@@ -1598,12 +1628,20 @@ const EditChannel = () => {
   const submit = async () => {
     const effectiveKey = buildEffectiveKey();
     const modelConfigError = validateModelConfigs(visibleModelConfigs, t);
+    const identifierError = validateChannelIdentifier(inputs.id, t);
     if (
       isCreateMode &&
-      (inputs.name.trim() === '' ||
-        (effectiveKey.trim() === '' && !canReuseStoredKeyForCreate))
+      identifierError !== ''
     ) {
-      showInfo(t('channel.edit.messages.name_required'));
+      showInfo(identifierError);
+      return;
+    }
+    if (
+      isCreateMode &&
+      effectiveKey.trim() === '' &&
+      !canReuseStoredKeyForCreate
+    ) {
+      showInfo(t('channel.edit.messages.key_required'));
       return;
     }
     if (requireVerificationBeforeProceed) {
@@ -1680,6 +1718,33 @@ const EditChannel = () => {
               </Button>
             </div>
           )}
+          {isEditMode && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                gap: '8px',
+                flexWrap: 'wrap',
+                marginBottom: 12,
+              }}
+            >
+              <Button type='button' onClick={handleCancel}>
+                {t('channel.edit.buttons.cancel')}
+              </Button>
+              <Button
+                type='button'
+                positive
+                onClick={submit}
+                disabled={
+                  requireVerificationBeforeProceed &&
+                  !isCurrentSignatureVerified
+                }
+              >
+                {t('channel.edit.buttons.submit')}
+              </Button>
+            </div>
+          )}
           <Card.Header className='header'>
             {isDetailMode
               ? t('channel.edit.title_detail')
@@ -1742,15 +1807,28 @@ const EditChannel = () => {
                 <Form.Group widths='equal'>
                   <Form.Field>
                     <Form.Input
+                      label={t('channel.edit.identifier')}
+                      name='id'
+                      placeholder={t('channel.edit.identifier_placeholder')}
+                      onChange={handleInputChange}
+                      value={inputs.id}
+                      required
+                      maxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
+                      {...identifierReadonlyProps}
+                    />
+                  </Form.Field>
+                  <Form.Field>
+                    <Form.Input
                       label={t('channel.edit.name')}
                       name='name'
                       placeholder={t('channel.edit.name_placeholder')}
                       onChange={handleInputChange}
                       value={inputs.name}
                       readOnly={isDetailMode}
-                      required
                     />
                   </Form.Field>
+                </Form.Group>
+                <Form.Group widths='equal'>
                   <Form.Field>
                     {isDetailMode ? (
                       <Form.Input
@@ -2275,24 +2353,7 @@ const EditChannel = () => {
                 />
               </Form.Field>
             )}
-            {isDetailMode ? null : isEditMode ? (
-              <>
-                <Button onClick={handleCancel}>
-                  {t('channel.edit.buttons.cancel')}
-                </Button>
-                <Button
-                  type='button'
-                  positive
-                  onClick={submit}
-                  disabled={
-                    requireVerificationBeforeProceed &&
-                    !isCurrentSignatureVerified
-                  }
-                >
-                  {t('channel.edit.buttons.submit')}
-                </Button>
-              </>
-            ) : (
+            {isDetailMode || isEditMode ? null : (
               <>
                 <Button type='button' onClick={handleCancel}>
                   {t('channel.edit.buttons.cancel')}

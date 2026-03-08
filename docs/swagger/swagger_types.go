@@ -317,10 +317,11 @@ type ChannelModelConfigRequest struct {
 }
 
 type ChannelCreateRequest struct {
+	ID           string                      `json:"id" example:"openai-main"`
 	Protocol     string                      `json:"protocol" example:"openai"`
 	Key          string                      `json:"key" example:"sk-***"`
 	Status       int                         `json:"status,omitempty" example:"1"`
-	Name         string                      `json:"name,omitempty" example:"OpenAI"`
+	Name         string                      `json:"name,omitempty" example:"OpenAI Main"`
 	Weight       int                         `json:"weight,omitempty" example:"0"`
 	BaseURL      string                      `json:"base_url,omitempty" example:"https://api.openai.com/v1"`
 	Models       string                      `json:"models,omitempty" example:"gpt-4o-mini,gpt-4o"`
@@ -332,11 +333,11 @@ type ChannelCreateRequest struct {
 }
 
 type ChannelUpdateRequest struct {
-	ID           string                      `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ID           string                      `json:"id" example:"openai-main"`
 	Protocol     string                      `json:"protocol,omitempty" example:"openai"`
 	Key          string                      `json:"key,omitempty" example:"sk-***"`
 	Status       int                         `json:"status,omitempty" example:"1"`
-	Name         string                      `json:"name,omitempty" example:"OpenAI"`
+	Name         string                      `json:"name,omitempty" example:"OpenAI Main"`
 	Weight       int                         `json:"weight,omitempty" example:"0"`
 	BaseURL      string                      `json:"base_url,omitempty" example:"https://api.openai.com/v1"`
 	Models       string                      `json:"models,omitempty" example:"gpt-4o-mini,gpt-4o"`
@@ -366,7 +367,7 @@ type ChannelPreviewCapabilitiesRequest struct {
 }
 
 type ModelProviderCatalogItem struct {
-	Provider     string                     `json:"provider" example:"openai"`
+	ID           string                     `json:"id" example:"openai"`
 	Name         string                     `json:"name" example:"OpenAI"`
 	Models       []string                   `json:"models"`
 	ModelDetails []ModelProviderModelDetail `json:"model_details,omitempty"`
