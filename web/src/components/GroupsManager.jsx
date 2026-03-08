@@ -555,7 +555,15 @@ const GroupsManager = () => {
         </Table.Header>
         <Table.Body>
           {visibleRows.map((row) => (
-            <Table.Row key={row.id}>
+            <Table.Row
+              key={row.id}
+              onClick={() => {
+                openEditPanel(row).then();
+              }}
+              style={{
+                cursor: submitting || loading ? 'default' : 'pointer',
+              }}
+            >
               <Table.Cell>{row.id}</Table.Cell>
               <Table.Cell>{row.name || '-'}</Table.Cell>
               <Table.Cell>{row.description || '-'}</Table.Cell>
@@ -584,18 +592,12 @@ const GroupsManager = () => {
                 >
                   <Button
                     size='tiny'
-                    disabled={submitting || loading}
-                    onClick={() => {
-                      openEditPanel(row).then();
-                    }}
-                  >
-                    {t('group_manage.buttons.edit')}
-                  </Button>
-                  <Button
-                    size='tiny'
                     color={row.enabled ? 'orange' : 'green'}
                     disabled={submitting || loading}
-                    onClick={() => toggleEnabled(row)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleEnabled(row);
+                    }}
                   >
                     {row.enabled
                       ? t('group_manage.buttons.disable')
@@ -605,7 +607,10 @@ const GroupsManager = () => {
                     size='tiny'
                     negative
                     disabled={submitting || loading}
-                    onClick={() => openDeleteModal(row)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openDeleteModal(row);
+                    }}
                   >
                     {t('group_manage.buttons.delete')}
                   </Button>
