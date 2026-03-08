@@ -877,7 +877,7 @@ const ModelProvidersManager = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Button type='button' disabled={saving || loading} onClick={openCreateModal}>
+          <Button type='button' size='tiny' disabled={saving || loading} onClick={openCreateModal}>
             {t('channel.providers.buttons.add_provider')}
           </Button>
         </div>

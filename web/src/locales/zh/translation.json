@@ -352,6 +352,7 @@
     },
     "buttons": {
       "add": "新增分组",
+      "back": "返回",
       "refresh": "刷新",
       "edit": "编辑",
       "bind_channels": "配置渠道",
@@ -367,6 +368,10 @@
       "delete_title": "确认删除分组",
       "delete_confirm": "确定删除分组 {{id}} 吗？",
       "bind_channels_title": "配置分组 {{id}} 的渠道"
+    },
+    "detail": {
+      "bound_channels": "已绑定渠道",
+      "empty_channels": "暂无绑定渠道"
     },
     "messages": {
       "loading": "加载中...",
