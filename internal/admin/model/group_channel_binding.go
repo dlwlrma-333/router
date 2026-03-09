@@ -24,7 +24,7 @@ func ListGroupChannelBindingCandidates() ([]GroupChannelBindingItem, error) {
 
 func ListGroupChannelBindings(groupID string) ([]GroupChannelBindingItem, error) {
 	if strings.TrimSpace(groupID) == "" {
-		return nil, fmt.Errorf("分组标识不能为空")
+		return nil, fmt.Errorf("分组 ID 不能为空")
 	}
 	return listGroupChannelBindingsWithDB(DB, groupID)
 }
@@ -97,13 +97,14 @@ func replaceGroupChannelBindingsWithDB(db *gorm.DB, groupID string, channelIDs [
 	}
 	groupID = strings.TrimSpace(groupID)
 	if groupID == "" {
-		return fmt.Errorf("分组标识不能为空")
+		return fmt.Errorf("分组 ID 不能为空")
 	}
 
-	groupCatalog := GroupCatalog{}
-	if err := db.Where("id = ?", groupID).First(&groupCatalog).Error; err != nil {
+	groupCatalog, err := getGroupCatalogByIDWithDB(db, groupID)
+	if err != nil {
 		return err
 	}
+	groupID = groupCatalog.Id
 
 	normalizedChannelIDs := normalizeChannelIDList(channelIDs)
 

@@ -42,10 +42,7 @@ const EditUser = () => {
           .filter((group) => group?.enabled)
           .map((group) => ({
             key: group.id,
-            text:
-              group.name && group.name !== group.id
-                ? `${group.name} (${group.id})`
-                : group.id,
+            text: group.name || '-',
             value: group.id,
           }))
       );

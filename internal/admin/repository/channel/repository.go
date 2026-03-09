@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/yeying-community/router/common/config"
@@ -56,9 +57,8 @@ func Search(keyword string) ([]*model.Channel, error) {
 		return channels, nil
 	}
 	normalizedID := model.NormalizeChannelIdentifier(trimmed)
-	likeKeyword := trimmed + "%"
 	err := model.DB.Omit("key").
-		Where("id LIKE ? OR name LIKE ?", normalizedID+"%", likeKeyword).
+		Where("name LIKE ?", normalizedID+"%").
 		Find(&channels).Error
 	if err != nil {
 		return nil, err
@@ -92,6 +92,7 @@ func prepareChannelForCreate(channel *model.Channel) error {
 		return gorm.ErrInvalidData
 	}
 	channel.NormalizeIdentity()
+	channel.EnsureID()
 	if err := channel.ValidateIdentifier(); err != nil {
 		return err
 	}
@@ -103,11 +104,35 @@ func prepareChannelForCreate(channel *model.Channel) error {
 	return nil
 }
 
+func ensureChannelIdentifierUniqueWithDB(db *gorm.DB, channel *model.Channel) error {
+	if db == nil || channel == nil {
+		return nil
+	}
+	identifier := model.NormalizeChannelIdentifier(channel.Name)
+	if identifier == "" {
+		return nil
+	}
+	existing := model.Channel{}
+	if err := db.Select("id", "name").Where("name = ?", identifier).First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if strings.TrimSpace(existing.Id) == strings.TrimSpace(channel.Id) {
+		return nil
+	}
+	return errors.New("渠道标识已存在")
+}
+
 func Insert(channel *model.Channel) error {
 	if err := prepareChannelForCreate(channel); err != nil {
 		return err
 	}
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := ensureChannelIdentifierUniqueWithDB(tx, channel); err != nil {
+			return err
+		}
 		if err := tx.Create(channel).Error; err != nil {
 			return err
 		}
@@ -202,8 +227,9 @@ func shouldResetCapabilityResults(existing *model.Channel, incoming *model.Chann
 
 func Update(channel *model.Channel) error {
 	channel.NormalizeIdentity()
-	if err := channel.ValidateIdentifier(); err != nil {
-		return err
+	channel.Id = strings.TrimSpace(channel.Id)
+	if channel.Id == "" {
+		return errors.New("渠道 ID 不能为空")
 	}
 	if strings.TrimSpace(channel.Protocol) != "" {
 		channel.NormalizeProtocol()
@@ -217,9 +243,18 @@ func Update(channel *model.Channel) error {
 		if err := model.HydrateChannelWithModels(tx, &existing); err != nil {
 			return err
 		}
+		if !channel.NameProvided || strings.TrimSpace(channel.Name) == "" {
+			channel.Name = existing.Name
+		}
+		if err := channel.ValidateIdentifier(); err != nil {
+			return err
+		}
+		if err := ensureChannelIdentifierUniqueWithDB(tx, channel); err != nil {
+			return err
+		}
 		resetCapabilityResults := shouldResetCapabilityResults(&existing, channel)
 		if channel.NameProvided {
-			if err := tx.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("name", strings.TrimSpace(channel.Name)).Error; err != nil {
+			if err := tx.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("name", model.NormalizeChannelIdentifier(channel.Name)).Error; err != nil {
 				return err
 			}
 		}

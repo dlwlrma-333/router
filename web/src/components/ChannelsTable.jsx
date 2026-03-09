@@ -74,23 +74,12 @@ function getChannelDisplayName(channel) {
   if (name !== '') {
     return name;
   }
-  return (channel?.id || '').toString().trim();
+  return '-';
 }
 
 function renderChannelName(channel, t) {
   const displayName = getChannelDisplayName(channel);
-  const identifier = (channel?.id || '').toString().trim();
-  const showIdentifier = identifier !== '' && displayName !== identifier;
-  return (
-    <div className='router-compact-stack'>
-      <span>{displayName || t('channel.table.no_name')}</span>
-      {showIdentifier && (
-        <span className='router-subtext'>
-          {t('channel.table.identifier', { id: identifier })}
-        </span>
-      )}
-    </div>
-  );
+  return <span>{displayName || t('channel.table.no_name')}</span>;
 }
 
 function renderBalance(protocol, balance, t) {
@@ -955,7 +944,7 @@ const ChannelsTable = () => {
                 sortChannel('name');
               }}
             >
-              {t('channel.table.name')}
+              {t('channel.table.id')}
             </Table.HeaderCell>
             <Table.HeaderCell
               className='router-sortable-header'

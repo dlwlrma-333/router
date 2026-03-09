@@ -45,11 +45,10 @@
       "channels": "渠道管理",
       "providers": "供应商"
     },
-  "search": "搜索渠道标识或显示名称...",
+  "search": "搜索渠道标识...",
   "table": {
-    "id": "ID",
+    "id": "渠道标识",
     "name": "渠道",
-    "identifier": "标识：{{id}}",
       "group": "分组",
       "type": "协议类型",
       "status": "状态",
@@ -201,8 +200,8 @@
     "identifier": "渠道标识",
     "identifier_placeholder": "例如：openai-main",
     "type": "协议类型",
-    "name": "显示名称",
-    "name_placeholder": "可选，留空时直接显示渠道标识",
+    "name": "渠道标识",
+    "name_placeholder": "例如：openai-main",
       "group": "分组",
       "group_placeholder": "请选择可以使用该渠道的分组",
       "group_addition": "可在分组管理页面新增分组：",
@@ -361,10 +360,10 @@
   },
   "group_manage": {
     "title": "分组管理",
-    "search": "搜索分组标识、名称或描述",
+    "search": "搜索分组标识或描述",
     "table": {
       "id": "分组标识",
-      "name": "展示名称",
+      "name": "分组",
       "description": "描述",
       "channels": "渠道",
       "billing_ratio": "业务倍率",
@@ -381,8 +380,8 @@
     "form": {
       "id": "分组标识",
       "id_placeholder": "例如：enterprise",
-      "name": "展示名称",
-      "name_placeholder": "例如：企业版",
+      "name": "分组标识",
+      "name_placeholder": "例如：enterprise",
       "description": "描述",
       "description_placeholder": "可选，用于说明该分组用途",
       "billing_ratio": "业务倍率",

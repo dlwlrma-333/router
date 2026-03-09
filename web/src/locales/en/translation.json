@@ -45,11 +45,10 @@
       "channels": "Channels",
       "providers": "Providers"
     },
-  "search": "Search channels by identifier or display name...",
+  "search": "Search channels by identifier...",
   "table": {
-    "id": "ID",
+    "id": "Channel Identifier",
     "name": "Channel",
-    "identifier": "Identifier: {{id}}",
       "group": "Group",
       "type": "Protocol Type",
       "status": "Status",
@@ -201,8 +200,8 @@
     "identifier": "Channel Identifier",
     "identifier_placeholder": "e.g. openai-main",
     "type": "Protocol Type",
-    "name": "Display Name",
-    "name_placeholder": "Optional, falls back to the channel identifier",
+    "name": "Channel Identifier",
+    "name_placeholder": "e.g. openai-main",
       "group": "Group",
       "group_placeholder": "Please select groups that can use this channel",
       "group_addition": "You can add a group in Group Management:",
@@ -361,10 +360,10 @@
   },
   "group_manage": {
     "title": "Group Management",
-    "search": "Search group ID, name, or description",
+    "search": "Search group ID or description",
     "table": {
       "id": "Group ID",
-      "name": "Display Name",
+      "name": "Group",
       "description": "Description",
       "channels": "Channels",
       "billing_ratio": "Billing Ratio",
@@ -381,8 +380,8 @@
     "form": {
       "id": "Group ID",
       "id_placeholder": "e.g. enterprise",
-      "name": "Display Name",
-      "name_placeholder": "e.g. Enterprise",
+      "name": "Group ID",
+      "name_placeholder": "e.g. enterprise",
       "description": "Description",
       "description_placeholder": "Optional description for this group",
       "billing_ratio": "Billing Ratio",

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/yeying-community/router/common/random"
 	relaychannel "github.com/yeying-community/router/internal/relay/channel"
 )
 
@@ -22,11 +23,11 @@ const (
 var channelIdentifierPattern = regexp.MustCompile(`^[a-z0-9-]+$`)
 
 type Channel struct {
-	Id                     string                    `json:"id" gorm:"type:varchar(64);primaryKey"`
+	Id                     string                    `json:"id" gorm:"type:char(36);primaryKey"`
 	Protocol               string                    `json:"protocol" gorm:"type:varchar(64);default:'openai';index"`
 	Key                    string                    `json:"key" gorm:"type:text"`
 	Status                 int                       `json:"status" gorm:"default:1"`
-	Name                   string                    `json:"name" gorm:"index"`
+	Name                   string                    `json:"name" gorm:"type:varchar(64);not null;uniqueIndex"`
 	Weight                 *uint                     `json:"weight" gorm:"default:0"`
 	CreatedTime            int64                     `json:"created_time" gorm:"bigint"`
 	TestTime               int64                     `json:"test_time" gorm:"bigint"`
@@ -97,26 +98,34 @@ func (channel *Channel) NormalizeIdentity() {
 	if channel == nil {
 		return
 	}
-	channel.Id = NormalizeChannelIdentifier(channel.Id)
-	channel.Name = strings.TrimSpace(channel.Name)
+	channel.Id = strings.TrimSpace(channel.Id)
+	channel.Name = NormalizeChannelIdentifier(channel.Name)
 }
 
 func (channel *Channel) ValidateIdentifier() error {
 	if channel == nil {
 		return fmt.Errorf("渠道不能为空")
 	}
-	return ValidateChannelIdentifier(channel.Id)
+	return ValidateChannelIdentifier(channel.Name)
 }
 
 func (channel *Channel) DisplayName() string {
 	if channel == nil {
 		return ""
 	}
-	name := strings.TrimSpace(channel.Name)
-	if name != "" {
+	if name := NormalizeChannelIdentifier(channel.Name); name != "" {
 		return name
 	}
-	return NormalizeChannelIdentifier(channel.Id)
+	return strings.TrimSpace(channel.Id)
+}
+
+func (channel *Channel) EnsureID() {
+	if channel == nil {
+		return
+	}
+	if strings.TrimSpace(channel.Id) == "" {
+		channel.Id = random.GetUUID()
+	}
 }
 
 func (channel *Channel) GetProtocol() string {

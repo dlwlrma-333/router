@@ -29,7 +29,7 @@ const sortCatalogRows = (items) =>
     if (aOrder !== bOrder) {
       return aOrder - bOrder;
     }
-    return (a.id || '').localeCompare(b.id || '');
+    return (a.name || '').localeCompare(b.name || '');
   });
 
 const buildFormFromRow = (row) => ({
@@ -369,8 +369,8 @@ const GroupsManager = () => {
   };
 
   const submitCreate = async () => {
-    const id = (form.id || '').trim();
-    if (id === '') {
+    const name = (form.name || '').trim();
+    if (name === '') {
       showInfo(t('group_manage.messages.id_required'));
       return;
     }
@@ -382,8 +382,7 @@ const GroupsManager = () => {
     setSubmitting(true);
     try {
       const res = await API.post('/api/v1/admin/group/', {
-        id,
-        name: (form.name || '').trim(),
+        name,
         description: (form.description || '').trim(),
         billing_ratio: billingRatio,
         channel_ids: formChannelIDs,
@@ -405,7 +404,8 @@ const GroupsManager = () => {
 
   const submitEdit = async () => {
     const id = (form.id || '').trim();
-    if (id === '') {
+    const name = (form.name || '').trim();
+    if (id === '' || name === '') {
       showInfo(t('group_manage.messages.id_required'));
       return;
     }
@@ -447,7 +447,7 @@ const GroupsManager = () => {
     try {
       const res = await API.put('/api/v1/admin/group/', {
         id,
-        name: (form.name || '').trim(),
+        name,
         description: (form.description || '').trim(),
         billing_ratio: billingRatio,
         sort_order: Number(form.sort_order || 0),
@@ -606,7 +606,6 @@ const GroupsManager = () => {
         <Table.Header>
           <Table.Row>
             <Table.HeaderCell>{t('group_manage.table.id')}</Table.HeaderCell>
-            <Table.HeaderCell>{t('group_manage.table.name')}</Table.HeaderCell>
             <Table.HeaderCell>{t('group_manage.table.description')}</Table.HeaderCell>
             <Table.HeaderCell>{t('group_manage.table.channels')}</Table.HeaderCell>
             <Table.HeaderCell>{t('group_manage.table.billing_ratio')}</Table.HeaderCell>
@@ -620,7 +619,7 @@ const GroupsManager = () => {
         <Table.Body>
           {visibleRows.length === 0 ? (
             <Table.Row>
-              <Table.Cell className='router-empty-cell' colSpan={8} textAlign='center'>
+              <Table.Cell className='router-empty-cell' colSpan={7} textAlign='center'>
                 {loading
                   ? t('group_manage.messages.loading')
                   : t('group_manage.messages.empty')}
@@ -633,7 +632,6 @@ const GroupsManager = () => {
                 onClick={() => openViewPanel(row)}
                 className={submitting || loading ? undefined : 'router-row-clickable'}
               >
-                <Table.Cell>{row.id}</Table.Cell>
                 <Table.Cell>{row.name || '-'}</Table.Cell>
                 <Table.Cell>{row.description || '-'}</Table.Cell>
                 <Table.Cell>
@@ -697,7 +695,6 @@ const GroupsManager = () => {
         <Table.Header>
           <Table.Row>
             <Table.HeaderCell>{t('channel.table.id')}</Table.HeaderCell>
-            <Table.HeaderCell>{t('channel.table.name')}</Table.HeaderCell>
             <Table.HeaderCell>{t('channel.table.type')}</Table.HeaderCell>
             <Table.HeaderCell>{t('channel.table.status')}</Table.HeaderCell>
           </Table.Row>
@@ -705,20 +702,19 @@ const GroupsManager = () => {
         <Table.Body>
           {loadingState ? (
             <Table.Row>
-              <Table.Cell className='router-empty-cell' colSpan={4} textAlign='center'>
+              <Table.Cell className='router-empty-cell' colSpan={3} textAlign='center'>
                 {t('group_manage.messages.loading')}
               </Table.Cell>
             </Table.Row>
           ) : items.length === 0 ? (
             <Table.Row>
-              <Table.Cell className='router-empty-cell' colSpan={4} textAlign='center'>
+              <Table.Cell className='router-empty-cell' colSpan={3} textAlign='center'>
                 {t('group_manage.detail.empty_channels')}
               </Table.Cell>
             </Table.Row>
           ) : (
             items.map((item) => (
               <Table.Row key={item.id}>
-                <Table.Cell>{item.id}</Table.Cell>
                 <Table.Cell>{item.name || '-'}</Table.Cell>
                 <Table.Cell>{item.protocol || '-'}</Table.Cell>
                 <Table.Cell>{renderChannelStatus(item.status)}</Table.Cell>
@@ -1054,20 +1050,12 @@ const GroupsManager = () => {
           </Button>
         </div>
         <Form>
-          <Form.Group widths='equal'>
-            <Form.Input
-              className='router-section-input'
-              label={t('group_manage.form.id')}
-              value={activeGroup.id || ''}
-              readOnly
-            />
-            <Form.Input
-              className='router-section-input'
-              label={t('group_manage.form.name')}
-              value={activeGroup.name || ''}
-              readOnly
-            />
-          </Form.Group>
+          <Form.Input
+            className='router-section-input'
+            label={t('group_manage.form.id')}
+            value={activeGroup.name || ''}
+            readOnly
+          />
           <Form.TextArea
             className='router-section-textarea'
             label={t('group_manage.form.description')}
@@ -1125,23 +1113,15 @@ const GroupsManager = () => {
         </Button>
       </div>
       <Form>
-        <Form.Group widths='equal'>
-          <Form.Input
-            className='router-section-input'
-            label={t('group_manage.form.id')}
-            value={form.id}
-            readOnly
-          />
-          <Form.Input
-            className='router-section-input'
-            label={t('group_manage.form.name')}
-            placeholder={t('group_manage.form.name_placeholder')}
-            value={form.name}
-            onChange={(e, { value }) =>
-              setForm((prev) => ({ ...prev, name: value || '' }))
-            }
-          />
-        </Form.Group>
+        <Form.Input
+          className='router-section-input'
+          label={t('group_manage.form.id')}
+          placeholder={t('group_manage.form.id_placeholder')}
+          value={form.name}
+          onChange={(e, { value }) =>
+            setForm((prev) => ({ ...prev, name: value || '' }))
+          }
+        />
         <Form.TextArea
           className='router-section-textarea'
           label={t('group_manage.form.description')}
@@ -1216,27 +1196,16 @@ const GroupsManager = () => {
         </Button>
       </div>
       <Form>
-        <Form.Group widths='equal'>
-          <Form.Input
-            className='router-section-input'
-            required
-            label={t('group_manage.form.id')}
-            placeholder={t('group_manage.form.id_placeholder')}
-            value={form.id}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, id: e.target.value }))
-            }
-          />
-          <Form.Input
-            className='router-section-input'
-            label={t('group_manage.form.name')}
-            placeholder={t('group_manage.form.name_placeholder')}
-            value={form.name}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, name: e.target.value }))
-            }
-          />
-        </Form.Group>
+        <Form.Input
+          className='router-section-input'
+          required
+          label={t('group_manage.form.id')}
+          placeholder={t('group_manage.form.id_placeholder')}
+          value={form.name}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, name: e.target.value }))
+          }
+        />
         <Form.TextArea
           className='router-section-textarea'
           label={t('group_manage.form.description')}

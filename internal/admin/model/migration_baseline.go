@@ -13,10 +13,6 @@ func runMainBaselineMigrationWithDB(tx *gorm.DB) error {
 		return fmt.Errorf("database handle is nil")
 	}
 
-	if err := syncRedemptionCodeColumnWithDB(tx); err != nil {
-		return err
-	}
-
 	if err := tx.AutoMigrate(
 		&User{},
 		&Channel{},
@@ -44,9 +40,6 @@ func runMainBaselineMigrationWithDB(tx *gorm.DB) error {
 	if err := syncProviderCatalogWithDB(tx); err != nil {
 		return err
 	}
-	if err := syncCanonicalProviderModelNamesWithDB(tx); err != nil {
-		return err
-	}
 	if err := syncChannelModelTypesWithDB(tx); err != nil {
 		return err
 	}
@@ -54,48 +47,6 @@ func runMainBaselineMigrationWithDB(tx *gorm.DB) error {
 		return err
 	}
 	return syncChannelTestModelsWithDB(tx)
-}
-
-func syncRedemptionCodeColumnWithDB(tx *gorm.DB) error {
-	if tx == nil || !tx.Migrator().HasTable(&Redemption{}) {
-		return nil
-	}
-
-	hasKey, err := hasTableColumn(tx, "redemptions", "key")
-	if err != nil {
-		return err
-	}
-	hasCode, err := hasTableColumn(tx, "redemptions", "code")
-	if err != nil {
-		return err
-	}
-
-	switch {
-	case hasKey && !hasCode:
-		return tx.Exec(`ALTER TABLE redemptions RENAME COLUMN "key" TO code`).Error
-	case hasKey && hasCode:
-		if err := tx.Exec(`UPDATE redemptions SET code = "key" WHERE COALESCE(code, '') = ''`).Error; err != nil {
-			return err
-		}
-		return tx.Exec(`ALTER TABLE redemptions DROP COLUMN "key"`).Error
-	default:
-		return nil
-	}
-}
-
-func hasTableColumn(tx *gorm.DB, tableName string, columnName string) (bool, error) {
-	type result struct {
-		Count int64
-	}
-	row := result{}
-	if err := tx.Raw(
-		`SELECT COUNT(*) AS count FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?`,
-		tableName,
-		columnName,
-	).Scan(&row).Error; err != nil {
-		return false, err
-	}
-	return row.Count > 0, nil
 }
 
 func runLogBaselineMigrationWithDB(tx *gorm.DB) error {

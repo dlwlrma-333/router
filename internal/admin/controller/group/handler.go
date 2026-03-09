@@ -210,7 +210,7 @@ func DeleteGroup(c *gin.Context) {
 	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "分组标识不能为空",
+			"message": "分组 ID 不能为空",
 		})
 		return
 	}
@@ -261,7 +261,7 @@ func GetGroupChannels(c *gin.Context) {
 	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "分组标识不能为空",
+			"message": "分组 ID 不能为空",
 		})
 		return
 	}
@@ -294,7 +294,7 @@ func GetGroupModels(c *gin.Context) {
 	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "分组标识不能为空",
+			"message": "分组 ID 不能为空",
 		})
 		return
 	}
@@ -327,7 +327,7 @@ func GetGroupModelConfigs(c *gin.Context) {
 	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "分组标识不能为空",
+			"message": "分组 ID 不能为空",
 		})
 		return
 	}
@@ -366,7 +366,7 @@ func UpdateGroupModelConfigs(c *gin.Context) {
 	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "分组标识不能为空",
+			"message": "分组 ID 不能为空",
 		})
 		return
 	}
@@ -407,7 +407,7 @@ func UpdateGroupChannels(c *gin.Context) {
 	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "分组标识不能为空",
+			"message": "分组 ID 不能为空",
 		})
 		return
 	}

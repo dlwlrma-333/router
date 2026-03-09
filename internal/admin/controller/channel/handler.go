@@ -20,7 +20,6 @@ type updateChannelTestModelRequest struct {
 }
 
 type createChannelDraftRequest struct {
-	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Protocol string `json:"protocol"`
 	Key      string `json:"key"`
@@ -220,11 +219,10 @@ func CreateChannelDraft(c *gin.Context) {
 		})
 		return
 	}
-	id := model.NormalizeChannelIdentifier(req.ID)
-	name := strings.TrimSpace(req.Name)
+	name := model.NormalizeChannelIdentifier(req.Name)
 	key := strings.TrimSpace(req.Key)
-	if err := model.ValidateChannelIdentifier(id); err != nil {
-		logChannelAdminWarn(c, "create_draft", stringField("channel_id", id), stringField("protocol", req.Protocol), stringField("reason", err.Error()))
+	if err := model.ValidateChannelIdentifier(name); err != nil {
+		logChannelAdminWarn(c, "create_draft", stringField("name", name), stringField("protocol", req.Protocol), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -232,7 +230,7 @@ func CreateChannelDraft(c *gin.Context) {
 		return
 	}
 	if key == "" {
-		logChannelAdminWarn(c, "create_draft", stringField("channel_id", id), stringField("protocol", req.Protocol), stringField("reason", "渠道密钥不能为空"))
+		logChannelAdminWarn(c, "create_draft", stringField("name", name), stringField("protocol", req.Protocol), stringField("reason", "渠道密钥不能为空"))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "渠道密钥不能为空",
@@ -241,7 +239,6 @@ func CreateChannelDraft(c *gin.Context) {
 	}
 	baseURL := strings.TrimSpace(req.BaseURL)
 	channel := model.Channel{
-		Id:          id,
 		Name:        name,
 		Protocol:    strings.TrimSpace(req.Protocol),
 		Key:         key,
@@ -252,7 +249,7 @@ func CreateChannelDraft(c *gin.Context) {
 		CreatedTime: helper.GetTimestamp(),
 	}
 	if err := channelsvc.Insert(&channel); err != nil {
-		logChannelAdminWarn(c, "create_draft", stringField("channel_id", id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()), stringField("reason", err.Error()))
+		logChannelAdminWarn(c, "create_draft", stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),

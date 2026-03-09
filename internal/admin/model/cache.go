@@ -289,8 +289,14 @@ func CacheGetGroupModelMapping(group string, modelName string, channelID string)
 }
 
 func RefreshAbilityCachesForGroups(groupIDs ...string) {
+	if !common.RedisEnabled || common.RDB == nil {
+		if config.MemoryCacheEnabled {
+			InitChannelCache()
+		}
+		return
+	}
 	for _, groupID := range normalizeTrimmedValuesPreserveOrder(groupIDs) {
-		if groupID == "" || !common.RedisEnabled {
+		if groupID == "" {
 			continue
 		}
 		if err := common.RedisDel(fmt.Sprintf("group_models:%s", groupID)); err != nil {
@@ -299,6 +305,20 @@ func RefreshAbilityCachesForGroups(groupIDs ...string) {
 	}
 	if config.MemoryCacheEnabled {
 		InitChannelCache()
+	}
+}
+
+func RefreshUserGroupCaches(userIDs ...string) {
+	if !common.RedisEnabled || common.RDB == nil {
+		return
+	}
+	for _, userID := range normalizeTrimmedValuesPreserveOrder(userIDs) {
+		if userID == "" {
+			continue
+		}
+		if err := common.RedisDel(fmt.Sprintf("user_group:%s", userID)); err != nil {
+			logger.SysError("Redis delete user group error: " + err.Error())
+		}
 	}
 }
 

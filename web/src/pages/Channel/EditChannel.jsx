@@ -862,8 +862,6 @@ const EditChannel = () => {
   const requireVerificationBeforeProceed =
     requiresConnectionVerification && inputs.models.length === 0;
   const fetchModelsButtonText = t('channel.edit.buttons.fetch_models');
-  const identifierReadonlyProps =
-    isDetailMode || isEditMode ? { readOnly: true } : {};
   const inputReadonlyProps = isDetailMode ? { readOnly: true } : {};
   const textAreaReadonlyProps = isDetailMode ? { readOnly: true } : {};
   const visibleModelConfigs = useMemo(
@@ -1232,8 +1230,8 @@ const EditChannel = () => {
     const effectiveKey = buildEffectiveKey();
     const derivedModelState = buildChannelModelState(inputs.model_configs);
     let localInputs = { ...inputs, key: effectiveKey };
-    localInputs.id = normalizeChannelIdentifier(localInputs.id);
-    localInputs.name = (localInputs.name || '').trim();
+    localInputs.id = (localInputs.id || '').toString().trim();
+    localInputs.name = normalizeChannelIdentifier(localInputs.name);
     if (localInputs.key === 'undefined|undefined|undefined') {
       localInputs.key = '';
     }
@@ -1256,7 +1254,6 @@ const EditChannel = () => {
   const createDraftChannel = useCallback(async () => {
     const payload = buildChannelPayload();
     const res = await API.post('/api/v1/admin/channel/draft', {
-      id: payload.id,
       name: payload.name,
       protocol: payload.protocol,
       key: payload.key,
@@ -1378,7 +1375,7 @@ const EditChannel = () => {
 
   const moveToStepTwo = useCallback(async () => {
     const effectiveKey = buildEffectiveKey();
-    const identifierError = validateChannelIdentifier(inputs.id, t);
+    const identifierError = validateChannelIdentifier(inputs.name, t);
     if (identifierError) {
       showInfo(identifierError);
       return;
@@ -1399,7 +1396,7 @@ const EditChannel = () => {
     canReuseStoredKeyForCreate,
     ensureDraftChannel,
     goToCreateStep,
-    inputs.id,
+    inputs.name,
     isCreateMode,
     t,
   ]);
@@ -1525,7 +1522,7 @@ const EditChannel = () => {
         if (forCopy) {
           setInputs({
             id: '',
-            name: data.name || '',
+            name: '',
             protocol: normalizedProtocol,
             key: '',
             base_url: data.base_url || '',
@@ -2259,11 +2256,8 @@ const EditChannel = () => {
   const submit = async () => {
     const effectiveKey = buildEffectiveKey();
     const modelConfigError = validateModelConfigs(visibleModelConfigs, t);
-    const identifierError = validateChannelIdentifier(inputs.id, t);
-    if (
-      isCreateMode &&
-      identifierError !== ''
-    ) {
+    const identifierError = validateChannelIdentifier(inputs.name, t);
+    if (!isDetailMode && identifierError !== '') {
       showInfo(identifierError);
       return;
     }
@@ -2485,32 +2479,17 @@ const EditChannel = () => {
             )}
             {showStepOne && (
               <>
-                <Form.Group widths='equal'>
-                  <Form.Field>
-                    <Form.Input
-                      className='router-section-input'
-                      label={t('channel.edit.identifier')}
-                      name='id'
-                      placeholder={t('channel.edit.identifier_placeholder')}
-                      onChange={handleInputChange}
-                      value={inputs.id}
-                      required
-                      maxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
-                      {...identifierReadonlyProps}
-                    />
-                  </Form.Field>
-                  <Form.Field>
-                    <Form.Input
-                      className='router-section-input'
-                      label={t('channel.edit.name')}
-                      name='name'
-                      placeholder={t('channel.edit.name_placeholder')}
-                      onChange={handleInputChange}
-                      value={inputs.name}
-                      readOnly={isDetailMode}
-                    />
-                  </Form.Field>
-                </Form.Group>
+                <Form.Input
+                  className='router-section-input'
+                  label={t('channel.edit.identifier')}
+                  name='name'
+                  placeholder={t('channel.edit.identifier_placeholder')}
+                  onChange={handleInputChange}
+                  value={inputs.name}
+                  required
+                  maxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
+                  readOnly={isDetailMode}
+                />
                 <Form.Group widths='equal'>
                   <Form.Field>
                     {isDetailMode ? (

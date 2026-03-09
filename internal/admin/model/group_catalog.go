@@ -7,12 +7,13 @@ import (
 	"strings"
 
 	"github.com/yeying-community/router/common/helper"
+	"github.com/yeying-community/router/common/random"
 	"gorm.io/gorm"
 )
 
 type GroupCatalog struct {
-	Id           string                    `json:"id" gorm:"primaryKey;type:varchar(64)"`
-	Name         string                    `json:"name" gorm:"type:varchar(64);default:''"`
+	Id           string                    `json:"id" gorm:"primaryKey;type:char(36)"`
+	Name         string                    `json:"name" gorm:"type:varchar(64);not null;uniqueIndex"`
 	Description  string                    `json:"description" gorm:"type:varchar(255);default:''"`
 	Source       string                    `json:"source" gorm:"type:varchar(32);default:'system'"`
 	BillingRatio float64                   `json:"billing_ratio" gorm:"type:numeric(12,6);not null;default:1"`
@@ -24,6 +25,30 @@ type GroupCatalog struct {
 
 func (GroupCatalog) TableName() string {
 	return "groups"
+}
+
+func (item *GroupCatalog) NormalizeIdentity() {
+	if item == nil {
+		return
+	}
+	item.Id = strings.TrimSpace(item.Id)
+	item.Name = strings.TrimSpace(item.Name)
+}
+
+func (item *GroupCatalog) EnsureID() {
+	if item == nil {
+		return
+	}
+	if strings.TrimSpace(item.Id) == "" {
+		item.Id = random.GetUUID()
+	}
+}
+
+func (item *GroupCatalog) Identifier() string {
+	if item == nil {
+		return ""
+	}
+	return strings.TrimSpace(item.Name)
 }
 
 func ListGroupCatalog() ([]GroupCatalog, error) {
@@ -101,10 +126,11 @@ func UpdateGroupCatalogWithChannelBindings(item GroupCatalog, channelIDs []strin
 }
 
 func DeleteGroupCatalog(id string) error {
-	if err := deleteGroupCatalogWithDB(DB, id); err != nil {
+	groupID, err := deleteGroupCatalogWithDB(DB, id)
+	if err != nil {
 		return err
 	}
-	RefreshAbilityCachesForGroups(id)
+	RefreshAbilityCachesForGroups(groupID)
 	return syncGroupBillingRatiosRuntimeWithDB(DB)
 }
 
@@ -164,7 +190,7 @@ func UpdateGroupCatalogWithConfig(item GroupCatalog, channelIDs []string, modelC
 
 func listGroupCatalogWithDB(db *gorm.DB) ([]GroupCatalog, error) {
 	rows := make([]GroupCatalog, 0)
-	if err := db.Order("sort_order asc, id asc").Find(&rows).Error; err != nil {
+	if err := db.Order("sort_order asc, name asc").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	if err := hydrateGroupCatalogChannelsWithDB(db, rows); err != nil {
@@ -270,16 +296,23 @@ func getGroupCatalogByIDWithDB(db *gorm.DB, id string) (GroupCatalog, error) {
 	return row, nil
 }
 
+func getGroupCatalogByNameWithDB(db *gorm.DB, name string) (GroupCatalog, error) {
+	row := GroupCatalog{}
+	if err := db.Where("name = ?", strings.TrimSpace(name)).First(&row).Error; err != nil {
+		return GroupCatalog{}, err
+	}
+	return row, nil
+}
+
 func createGroupCatalogWithDB(db *gorm.DB, item GroupCatalog) (GroupCatalog, error) {
-	id := strings.TrimSpace(item.Id)
-	if id == "" {
+	item.NormalizeIdentity()
+	if item.Identifier() == "" {
 		return GroupCatalog{}, fmt.Errorf("分组标识不能为空")
 	}
-	if len(id) > 64 {
+	if len(item.Identifier()) > 64 {
 		return GroupCatalog{}, fmt.Errorf("分组标识长度不能超过 64")
 	}
-	existing := GroupCatalog{}
-	if err := db.Where("id = ?", id).First(&existing).Error; err == nil {
+	if _, err := getGroupCatalogByNameWithDB(db, item.Identifier()); err == nil {
 		return GroupCatalog{}, fmt.Errorf("分组已存在")
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return GroupCatalog{}, err
@@ -291,8 +324,8 @@ func createGroupCatalogWithDB(db *gorm.DB, item GroupCatalog) (GroupCatalog, err
 	}
 	now := helper.GetTimestamp()
 	row := GroupCatalog{
-		Id:           id,
-		Name:         strings.TrimSpace(item.Name),
+		Id:           strings.TrimSpace(item.Id),
+		Name:         item.Identifier(),
 		Description:  strings.TrimSpace(item.Description),
 		Source:       strings.TrimSpace(item.Source),
 		BillingRatio: normalizeGroupBillingRatio(item.BillingRatio),
@@ -300,6 +333,7 @@ func createGroupCatalogWithDB(db *gorm.DB, item GroupCatalog) (GroupCatalog, err
 		SortOrder:    maxSortOrder + 1,
 		UpdatedAt:    now,
 	}
+	row.EnsureID()
 	if row.Source == "" {
 		row.Source = "manual"
 	}
@@ -310,15 +344,35 @@ func createGroupCatalogWithDB(db *gorm.DB, item GroupCatalog) (GroupCatalog, err
 }
 
 func updateGroupCatalogWithDB(db *gorm.DB, item GroupCatalog) (GroupCatalog, error) {
-	id := strings.TrimSpace(item.Id)
-	if id == "" {
-		return GroupCatalog{}, fmt.Errorf("分组标识不能为空")
+	item.NormalizeIdentity()
+	if strings.TrimSpace(item.Id) == "" {
+		return GroupCatalog{}, fmt.Errorf("分组 ID 不能为空")
 	}
 	row := GroupCatalog{}
-	if err := db.Where("id = ?", id).First(&row).Error; err != nil {
+	if err := db.Where("id = ?", item.Id).First(&row).Error; err != nil {
 		return GroupCatalog{}, err
 	}
-	row.Name = strings.TrimSpace(item.Name)
+	nextName := row.Identifier()
+	if item.Identifier() != "" {
+		if len(item.Identifier()) > 64 {
+			return GroupCatalog{}, fmt.Errorf("分组标识长度不能超过 64")
+		}
+		nextName = item.Identifier()
+	}
+	if nextName == "" {
+		return GroupCatalog{}, fmt.Errorf("分组标识不能为空")
+	}
+	if nextName != row.Identifier() {
+		existing, err := getGroupCatalogByNameWithDB(db, nextName)
+		if err == nil && existing.Id != row.Id {
+			return GroupCatalog{}, fmt.Errorf("分组已存在")
+		}
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return GroupCatalog{}, err
+		}
+	}
+
+	row.Name = nextName
 	row.Description = strings.TrimSpace(item.Description)
 	row.BillingRatio = normalizeGroupBillingRatio(item.BillingRatio)
 	row.Enabled = item.Enabled
@@ -332,29 +386,33 @@ func updateGroupCatalogWithDB(db *gorm.DB, item GroupCatalog) (GroupCatalog, err
 	return row, nil
 }
 
-func deleteGroupCatalogWithDB(db *gorm.DB, id string) error {
+func deleteGroupCatalogWithDB(db *gorm.DB, id string) (string, error) {
 	groupID := strings.TrimSpace(id)
 	if groupID == "" {
-		return fmt.Errorf("分组标识不能为空")
+		return "", fmt.Errorf("分组 ID 不能为空")
 	}
-	inUse, err := isGroupInUseWithDB(db, groupID)
+	row, err := getGroupCatalogByIDWithDB(db, groupID)
 	if err != nil {
-		return err
+		return "", err
+	}
+	inUse, err := isGroupInUseWithDB(db, row.Id)
+	if err != nil {
+		return "", err
 	}
 	if inUse {
-		return fmt.Errorf("分组正在被用户或渠道使用，无法删除")
+		return "", fmt.Errorf("分组正在被用户或渠道使用，无法删除")
 	}
-	return db.Where("id = ?", groupID).Delete(&GroupCatalog{}).Error
+	return row.Id, db.Where("id = ?", groupID).Delete(&GroupCatalog{}).Error
 }
 
-func isGroupInUseWithDB(db *gorm.DB, id string) (bool, error) {
+func isGroupInUseWithDB(db *gorm.DB, groupID string) (bool, error) {
 	users := make([]User, 0)
 	if err := db.Select("group").Find(&users).Error; err != nil {
 		return false, err
 	}
 	for _, user := range users {
-		for _, groupID := range parseGroupNamesFromCSV(user.Group) {
-			if groupID == id {
+		for _, userGroupID := range parseGroupNamesFromCSV(user.Group) {
+			if userGroupID == groupID {
 				return true, nil
 			}
 		}
@@ -365,7 +423,7 @@ func isGroupInUseWithDB(db *gorm.DB, id string) (bool, error) {
 		return false, err
 	}
 	for _, ability := range abilities {
-		if strings.TrimSpace(ability.Group) == id {
+		if strings.TrimSpace(ability.Group) == groupID {
 			return true, nil
 		}
 	}

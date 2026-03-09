@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -12,6 +13,16 @@ import (
 
 var RDB redis.Cmdable
 var RedisEnabled = true
+
+func ensureRedisClient() error {
+	if !RedisEnabled {
+		return errors.New("redis is disabled")
+	}
+	if RDB == nil {
+		return errors.New("redis client is not initialized")
+	}
+	return nil
+}
 
 // InitRedisClient This function is called after init()
 func InitRedisClient() (err error) {
@@ -61,21 +72,33 @@ func ParseRedisOption() *redis.Options {
 }
 
 func RedisSet(key string, value string, expiration time.Duration) error {
+	if err := ensureRedisClient(); err != nil {
+		return err
+	}
 	ctx := context.Background()
 	return RDB.Set(ctx, key, value, expiration).Err()
 }
 
 func RedisGet(key string) (string, error) {
+	if err := ensureRedisClient(); err != nil {
+		return "", err
+	}
 	ctx := context.Background()
 	return RDB.Get(ctx, key).Result()
 }
 
 func RedisDel(key string) error {
+	if err := ensureRedisClient(); err != nil {
+		return err
+	}
 	ctx := context.Background()
 	return RDB.Del(ctx, key).Err()
 }
 
 func RedisDecrease(key string, value int64) error {
+	if err := ensureRedisClient(); err != nil {
+		return err
+	}
 	ctx := context.Background()
 	return RDB.DecrBy(ctx, key, value).Err()
 }

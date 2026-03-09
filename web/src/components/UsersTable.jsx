@@ -50,6 +50,7 @@ const maskWalletAddress = (walletAddress) => {
 const UsersTable = () => {
   const { t } = useTranslation();
   const [users, setUsers] = useState([]);
+  const [groupMap, setGroupMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState(1);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -72,6 +73,24 @@ const UsersTable = () => {
     setLoading(false);
   }, [orderBy]);
 
+  const loadGroups = useCallback(async () => {
+    try {
+      const res = await API.get('/api/v1/admin/group/catalog');
+      const rows = Array.isArray(res?.data?.data) ? res.data.data : [];
+      const nextMap = {};
+      rows.forEach((group) => {
+        const id = (group?.id || '').toString().trim();
+        if (id === '') {
+          return;
+        }
+        nextMap[id] = (group?.name || '').toString().trim() || id;
+      });
+      setGroupMap(nextMap);
+    } catch (error) {
+      showError(error?.message || error);
+    }
+  }, []);
+
   const onPaginationChange = (e, { activePage }) => {
     (async () => {
       if (activePage === Math.ceil(users.length / ITEMS_PER_PAGE) + 1) {
@@ -88,7 +107,25 @@ const UsersTable = () => {
       .catch((reason) => {
         showError(reason);
       });
-  }, [loadUsers]);
+    loadGroups().then();
+  }, [loadGroups, loadUsers]);
+
+  const renderUserGroup = useCallback(
+    (value) => {
+      const raw = (value || '').toString().trim();
+      if (raw === '') {
+        return renderGroup(raw);
+      }
+      const mapped = raw
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item !== '')
+        .map((item) => groupMap[item] || item)
+        .join(',');
+      return renderGroup(mapped);
+    },
+    [groupMap],
+  );
 
   const manageUser = async (username, action, idx) => {
     const res = await API.post('/api/v1/admin/user/manage', {
@@ -409,7 +446,7 @@ const UsersTable = () => {
                       '-'
                     )}
                   </Table.Cell>
-                  <Table.Cell>{renderGroup(user.group)}</Table.Cell>
+                  <Table.Cell>{renderUserGroup(user.group)}</Table.Cell>
                   {/*<Table.Cell>*/}
                   {/*  {user.email ? <Popup hoverable content={user.email} trigger={<span>{renderText(user.email, 24)}</span>} /> : '无'}*/}
                   {/*</Table.Cell>*/}

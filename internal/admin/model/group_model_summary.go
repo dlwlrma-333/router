@@ -21,13 +21,17 @@ type GroupModelSummaryItem struct {
 func ListGroupModelSummaries(groupID string) ([]GroupModelSummaryItem, error) {
 	groupID = strings.TrimSpace(groupID)
 	if groupID == "" {
-		return nil, fmt.Errorf("分组标识不能为空")
+		return nil, fmt.Errorf("分组 ID 不能为空")
+	}
+	groupCatalog, err := getGroupCatalogByIDWithDB(DB, groupID)
+	if err != nil {
+		return nil, err
 	}
 
 	abilities := make([]Ability, 0)
 	groupCol := `"group"`
 	if err := DB.
-		Where(groupCol+" = ?", groupID).
+		Where(groupCol+" = ?", groupCatalog.Id).
 		Order("model asc, priority desc, channel_id asc").
 		Find(&abilities).Error; err != nil {
 		return nil, err

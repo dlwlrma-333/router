@@ -40,7 +40,7 @@ type GroupModelConfigPayload struct {
 func ListGroupModelConfigPayload(groupID string) (GroupModelConfigPayload, error) {
 	groupID = strings.TrimSpace(groupID)
 	if groupID == "" {
-		return GroupModelConfigPayload{}, fmt.Errorf("分组标识不能为空")
+		return GroupModelConfigPayload{}, fmt.Errorf("分组 ID 不能为空")
 	}
 	items, err := listGroupModelConfigItemsWithDB(DB, groupID)
 	if err != nil {
@@ -57,12 +57,16 @@ func ListGroupModelConfigPayload(groupID string) (GroupModelConfigPayload, error
 }
 
 func ReplaceGroupModelConfigs(groupID string, channelIDs []string, items []GroupModelConfigItem, explicitChannels bool) error {
+	groupCatalog, err := getGroupCatalogByIDWithDB(DB, groupID)
+	if err != nil {
+		return err
+	}
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		return replaceGroupModelConfigsWithDB(tx, groupID, channelIDs, items, explicitChannels)
 	}); err != nil {
 		return err
 	}
-	RefreshAbilityCachesForGroups(groupID)
+	RefreshAbilityCachesForGroups(groupCatalog.Id)
 	return nil
 }
 
@@ -70,10 +74,14 @@ func listGroupModelConfigItemsWithDB(db *gorm.DB, groupID string) ([]GroupModelC
 	if db == nil {
 		return nil, fmt.Errorf("database handle is nil")
 	}
+	groupCatalog, err := getGroupCatalogByIDWithDB(db, groupID)
+	if err != nil {
+		return nil, err
+	}
 	abilities := make([]Ability, 0)
 	groupCol := `"group"`
 	if err := db.
-		Where(groupCol+" = ?", groupID).
+		Where(groupCol+" = ?", groupCatalog.Id).
 		Order("model asc, channel_id asc").
 		Find(&abilities).Error; err != nil {
 		return nil, err
@@ -192,12 +200,13 @@ func replaceGroupModelConfigsWithDB(db *gorm.DB, groupID string, channelIDs []st
 	}
 	groupID = strings.TrimSpace(groupID)
 	if groupID == "" {
-		return fmt.Errorf("分组标识不能为空")
+		return fmt.Errorf("分组 ID 不能为空")
 	}
-	groupCatalog := GroupCatalog{}
-	if err := db.Where("id = ?", groupID).First(&groupCatalog).Error; err != nil {
+	groupCatalog, err := getGroupCatalogByIDWithDB(db, groupID)
+	if err != nil {
 		return err
 	}
+	groupID = groupCatalog.Id
 
 	normalizedItems, err := normalizeGroupModelConfigItems(items)
 	if err != nil {
@@ -276,11 +285,15 @@ func listGroupBoundChannelIDsWithDB(db *gorm.DB, groupID string) ([]string, erro
 	if db == nil {
 		return nil, fmt.Errorf("database handle is nil")
 	}
+	groupCatalog, err := getGroupCatalogByIDWithDB(db, groupID)
+	if err != nil {
+		return nil, err
+	}
 	boundIDs := make([]string, 0)
 	groupCol := `"group"`
 	if err := db.Model(&Ability{}).
 		Distinct("channel_id").
-		Where(groupCol+" = ?", strings.TrimSpace(groupID)).
+		Where(groupCol+" = ?", groupCatalog.Id).
 		Pluck("channel_id", &boundIDs).Error; err != nil {
 		return nil, err
 	}
