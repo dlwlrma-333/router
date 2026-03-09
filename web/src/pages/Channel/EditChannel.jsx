@@ -343,7 +343,7 @@ const resolveProviderIdentifierFromModelName = (modelName) => {
   if (lower.startsWith('command-r') || lower.startsWith('cohere-')) return 'cohere';
   if (lower.startsWith('deepseek-')) return 'deepseek';
   if (
-    lower.startsWith('qwen-') ||
+    lower.startsWith('qwen') ||
     lower.startsWith('qwq-') ||
     lower.startsWith('qvq-')
   ) {
