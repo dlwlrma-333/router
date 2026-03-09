@@ -56,7 +56,7 @@
       "response_time": "Response Time",
       "balance": "Balance",
       "priority": "Priority",
-      "test_model": "Test Model",
+      "test_model": "Single Model",
       "actions": "Actions",
       "no_name": "None",
       "status_enabled": "Enabled",
@@ -68,13 +68,15 @@
       "status_unknown": "Unknown Status",
       "not_tested": "Not Tested",
       "priority_tip": "Channel selection priority, higher is preferred",
-      "select_test_model": "Please select test model",
+      "select_test_model": "Please select a single test model",
       "click_to_update": "Click to update",
       "balance_not_supported": "-"
     },
     "buttons": {
       "test": "Test",
-      "test_channel": "Test Channels",
+      "test_capability": "Test Capability",
+      "test_model": "Test Model",
+      "test_channel": "Test Capability",
       "disable_channel": "Disable Channels",
       "delete_channel": "Delete Channels",
       "delete": "Delete",
@@ -90,10 +92,12 @@
       "refresh": "Refresh"
     },
     "messages": {
-      "test_success": "Channel {{name}} test successful, model {{model}}, time {{time}}s, result: {{message}}",
+      "test_capability_success": "Channel {{name}} capability test successful, time {{time}}s, result: {{message}}",
+      "test_model_success": "Channel {{name}} model test successful, model {{model}}, time {{time}}s, result: {{message}}",
       "test_all_started": "Channel testing started successfully, please refresh page to see results.",
       "batch_test_select_required": "Please select at least one channel first.",
-      "batch_test_done": "Batch testing finished: {{success}} succeeded, {{failed}} failed.",
+      "batch_test_done": "Batch capability testing finished: {{success}} succeeded, {{failed}} failed.",
+      "select_model_test_required": "Please select a model to test first.",
       "batch_disable_select_required": "Please select at least one channel to disable.",
       "batch_disable_done": "Batch disable finished: {{success}} succeeded, {{failed}} failed.",
       "batch_delete_select_required": "Please select at least one channel to delete.",
@@ -101,6 +105,11 @@
       "balance_update_success": "Channel {{name}} balance updated successfully!",
       "all_balance_updated": "All enabled channel balances have been updated!",
       "operation_success": "Operation completed successfully!"
+    },
+    "model_types": {
+      "text": "Text",
+      "image": "Image",
+      "audio": "Audio"
     },
     "providers": {
       "title": "Model Provider Catalog",
@@ -227,6 +236,7 @@
           "selected": "Enabled",
           "name": "Name",
           "alias": "Alias",
+          "type": "Type",
           "price_unit": "Price Unit",
           "input_price": "Input Override",
           "output_price": "Output Override"
@@ -249,9 +259,9 @@
       },
       "capability_tester": {
         "title": "Capability Test",
-        "hint": "Run real probes against the current draft channel and selected models. Image or audio checks are skipped automatically when no matching model is selected.",
+        "hint": "Run real probes against the current draft channel and selected models. The system automatically picks text / image / audio models by type for the corresponding capability checks, and skips a capability when no matching type is selected.",
         "button": "Run Tests",
-        "empty": "No test result yet. Click \"Run Tests\" to probe chat, responses, images, and audio one by one.",
+        "empty": "No test result yet. Click \"Run Tests\" to probe chat, responses, images, and audio by model type.",
         "last_tested": "Last tested at: {{time}}",
         "test_success": "Capability tests completed",
         "test_failed": "Capability test failed",

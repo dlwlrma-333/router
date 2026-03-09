@@ -124,6 +124,17 @@ const normalizeCurrencyValue = (value) => {
   return normalized || 'USD';
 };
 
+const normalizeChannelModelType = (value) => {
+  const normalized = (value || '').toString().trim().toLowerCase();
+  switch (normalized) {
+    case 'image':
+    case 'audio':
+      return normalized;
+    default:
+      return 'text';
+  }
+};
+
 const normalizeChannelModelConfigRow = (row) => {
   if (!row || typeof row !== 'object') {
     return null;
@@ -147,6 +158,7 @@ const normalizeChannelModelConfigRow = (row) => {
   return {
     model,
     upstream_model: upstreamModel || model,
+    type: normalizeChannelModelType(row.type),
     selected: row.selected !== false,
     input_price: normalizePriceOverrideValue(row.input_price),
     output_price: normalizePriceOverrideValue(row.output_price),
@@ -215,6 +227,7 @@ const buildModelConfigsFromLegacyFields = ({
     model: modelId,
     upstream_model:
       (modelMappingMap[modelId] || '').toString().trim() || modelId,
+    type: 'text',
     selected: selectedSet.has(modelId),
     input_price: normalizePriceOverrideValue(inputPriceMap[modelId]),
     output_price: normalizePriceOverrideValue(outputPriceMap[modelId]),
@@ -268,6 +281,7 @@ const buildFetchedModelConfigs = (
     return {
       model: modelId,
       upstream_model: modelId,
+      type: 'text',
       selected: selectAll,
       input_price: null,
       output_price: null,
@@ -334,13 +348,19 @@ const buildChannelCapabilitySignature = ({
   baseURL,
   draftID,
   models,
+  modelConfigs,
 }) =>
   `${buildChannelConnectionSignature({
     protocol,
     key,
     baseURL,
     draftID,
-  })}|${normalizeModelIDs(models).join(',')}`;
+  })}|${normalizeModelIDs(models).join(',')}|${normalizeChannelModelConfigs(
+    modelConfigs,
+  )
+    .filter((row) => row.selected)
+    .map((row) => `${row.model}:${row.type}`)
+    .join(',')}`;
 
 const normalizeCapabilityResults = (results) => {
   if (!Array.isArray(results)) {
@@ -569,10 +589,12 @@ const EditChannel = () => {
         baseURL: inputs.base_url,
         draftID: previewChannelID,
         models: inputs.models,
+        modelConfigs: inputs.model_configs,
       }),
     [
       effectivePreviewKey,
       inputs.base_url,
+      inputs.model_configs,
       inputs.models,
       inputs.protocol,
       previewChannelID,
@@ -600,6 +622,22 @@ const EditChannel = () => {
     () => normalizeChannelModelConfigs(inputs.model_configs),
     [inputs.model_configs],
   );
+  const capabilityModelSummary = useMemo(() => {
+    const summary = {
+      text: '',
+      image: '',
+      audio: '',
+    };
+    visibleModelConfigs
+      .filter((row) => row.selected)
+      .forEach((row) => {
+        const type = normalizeChannelModelType(row.type);
+        if (summary[type] === '') {
+          summary[type] = row.model;
+        }
+      });
+    return summary;
+  }, [visibleModelConfigs]);
 
   const handleInputChange = (e, { name, value }) => {
     const nextValue =
@@ -1114,6 +1152,7 @@ const EditChannel = () => {
           baseURL: data.base_url || '',
           draftID: data.id || targetId,
           models: modelState.selectedModels,
+          modelConfigs: modelState.modelConfigs,
         });
 
         if (forCopy) {
@@ -2014,6 +2053,9 @@ const EditChannel = () => {
                       <Table.HeaderCell width={5}>
                         {t('channel.edit.model_selector.table.name')}
                       </Table.HeaderCell>
+                      <Table.HeaderCell width={2}>
+                        {t('channel.edit.model_selector.table.type')}
+                      </Table.HeaderCell>
                       <Table.HeaderCell width={5}>
                         {t('channel.edit.model_selector.table.alias')}
                       </Table.HeaderCell>
@@ -2031,7 +2073,7 @@ const EditChannel = () => {
                   <Table.Body>
                     {visibleModelConfigs.length === 0 ? (
                       <Table.Row>
-                        <Table.Cell colSpan='6'>
+                        <Table.Cell colSpan='7'>
                           {t('channel.edit.model_selector.empty')}
                         </Table.Cell>
                       </Table.Row>
@@ -2051,6 +2093,13 @@ const EditChannel = () => {
                             />
                           </Table.Cell>
                           <Table.Cell>{row.upstream_model}</Table.Cell>
+                          <Table.Cell>
+                            {t(
+                              `channel.model_types.${normalizeChannelModelType(
+                                row.type,
+                              )}`,
+                            )}
+                          </Table.Cell>
                           <Table.Cell>
                             {isDetailMode ? (
                               row.model
@@ -2140,6 +2189,30 @@ const EditChannel = () => {
                 <Message info>
                   {t('channel.edit.capability_tester.hint')}
                 </Message>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '8px',
+                    flexWrap: 'wrap',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <Label basic>
+                    {t('channel.model_types.text')}:
+                    {' '}
+                    {capabilityModelSummary.text || '-'}
+                  </Label>
+                  <Label basic>
+                    {t('channel.model_types.image')}:
+                    {' '}
+                    {capabilityModelSummary.image || '-'}
+                  </Label>
+                  <Label basic>
+                    {t('channel.model_types.audio')}:
+                    {' '}
+                    {capabilityModelSummary.audio || '-'}
+                  </Label>
+                </div>
                 <div
                   style={{
                     display: 'flex',

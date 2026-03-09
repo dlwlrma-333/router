@@ -58,6 +58,17 @@ function renderProtocol(protocol, protocolMap) {
   );
 }
 
+function normalizeChannelModelType(type) {
+  const normalized = (type || '').toString().trim().toLowerCase();
+  switch (normalized) {
+    case 'image':
+    case 'audio':
+      return normalized;
+    default:
+      return 'text';
+  }
+}
+
 function getChannelDisplayName(channel) {
   const name = (channel?.name || '').toString().trim();
   if (name !== '') {
@@ -143,11 +154,31 @@ const ChannelsTable = () => {
     if (next.protocol === '') {
       next.protocol = 'openai';
     }
-    const models = (next.models || '')
-      .split(',')
-      .map((model) => model.trim())
+    const modelConfigs = Array.isArray(next.model_configs) ? next.model_configs : [];
+    const selectedModelConfigs =
+      modelConfigs.length > 0
+        ? modelConfigs.filter((row) => row && row.selected !== false)
+        : [];
+    const selectedModelsFromConfigs = selectedModelConfigs
+      .map((row) => (row?.model || '').toString().trim())
       .filter((model) => model !== '');
+    const models =
+      selectedModelsFromConfigs.length > 0
+        ? selectedModelsFromConfigs
+        : (next.models || '')
+            .split(',')
+            .map((model) => model.trim())
+            .filter((model) => model !== '');
     next.models = Array.from(new Set(models));
+    const modelTypeByName = {};
+    selectedModelConfigs.forEach((row) => {
+      const modelName = (row?.model || '').toString().trim();
+      if (modelName === '') {
+        return;
+      }
+      modelTypeByName[modelName] = normalizeChannelModelType(row?.type);
+    });
+    next.model_type_map = modelTypeByName;
     const currentTestModel = (next.test_model || '').toString().trim();
     if (next.models.length > 0) {
       next.test_model = next.models.includes(currentTestModel)
@@ -156,13 +187,16 @@ const ChannelsTable = () => {
     } else {
       next.test_model = '';
     }
-    next.model_options = next.models.map((model) => ({
-      key: model,
-      text: model,
-      value: model,
-    }));
+    next.model_options = next.models.map((model) => {
+      const modelType = normalizeChannelModelType(modelTypeByName[model]);
+      return {
+        key: model,
+        text: `${model} [${t(`channel.model_types.${modelType}`)}]`,
+        value: model,
+      };
+    });
     return next;
-  }, []);
+  }, [t]);
 
   const loadChannels = useCallback(async (startIdx) => {
     const res = await API.get(`/api/v1/admin/channel/?p=${startIdx}`);
@@ -421,7 +455,12 @@ const ChannelsTable = () => {
     }
   };
 
-  const runChannelTest = async (channel, absoluteIndex, silent = false) => {
+  const runChannelTest = async (
+    channel,
+    absoluteIndex,
+    silent = false,
+    mode = 'capability',
+  ) => {
     if (!channel || absoluteIndex < 0) {
       return false;
     }
@@ -445,9 +484,16 @@ const ChannelsTable = () => {
         }
         return false;
       }
+      const testMode = mode === 'model' ? 'model' : 'capability';
       const modelName = (channel.test_model || '').toString().trim();
+      if (testMode === 'model' && modelName === '') {
+        if (!silent) {
+          showError(t('channel.messages.select_model_test_required'));
+        }
+        return false;
+      }
       const res = await API.get(
-        `/api/v1/admin/channel/test/${encodeURIComponent(channelId)}?model=${encodeURIComponent(modelName)}`
+        `/api/v1/admin/channel/test/${encodeURIComponent(channelId)}?mode=${encodeURIComponent(testMode)}&model=${encodeURIComponent(modelName)}`
       );
       const { success: ok, message, time, modelName: testedModelName } =
         res.data || {};
@@ -456,12 +502,17 @@ const ChannelsTable = () => {
       if (success) {
         if (!silent) {
           showSuccess(
-            t('channel.messages.test_success', {
+            t(
+              testMode === 'model'
+                ? 'channel.messages.test_model_success'
+                : 'channel.messages.test_capability_success',
+              {
               name: getChannelDisplayName(channel),
               model: testedModelName || channel.test_model || '-',
               time,
               message,
-            })
+              }
+            )
           );
         }
       } else if (!silent) {
@@ -489,7 +540,12 @@ const ChannelsTable = () => {
 
   const testChannel = async (channel, idx) => {
     const absoluteIndex = (activePage - 1) * ITEMS_PER_PAGE + idx;
-    await runChannelTest(channel, absoluteIndex, false);
+    await runChannelTest(channel, absoluteIndex, false, 'capability');
+  };
+
+  const testChannelModel = async (channel, idx) => {
+    const absoluteIndex = (activePage - 1) * ITEMS_PER_PAGE + idx;
+    await runChannelTest(channel, absoluteIndex, false, 'model');
   };
 
   const updateChannelBalance = async (id, name, idx) => {
@@ -1067,7 +1123,16 @@ const ChannelsTable = () => {
                           testChannel(channel, idx);
                         }}
                       >
-                        {t('channel.buttons.test')}
+                        {t('channel.buttons.test_capability')}
+                      </Button>
+                      <Button
+                        size={'tiny'}
+                        onClick={() => {
+                          testChannelModel(channel, idx);
+                        }}
+                        disabled={!channel.test_model}
+                      >
+                        {t('channel.buttons.test_model')}
                       </Button>
                       <Button
                         size={'tiny'}

@@ -71,7 +71,20 @@ const (
 	previewCapabilityStatusSupported   = "supported"
 	previewCapabilityStatusUnsupported = "unsupported"
 	previewCapabilityStatusSkipped     = "skipped"
+
+	previewCapabilityTestModeCapability = "capability"
+	previewCapabilityTestModeModel      = "model"
 )
+
+type channelCapabilityModelSelection struct {
+	TextModel    string
+	ImageModel   string
+	AudioModel   string
+	RunChat      bool
+	RunResponses bool
+	RunImages    bool
+	RunAudio     bool
+}
 
 func persistPreviewCapabilityResults(channelID string, results []previewCapabilityResult) error {
 	normalizedChannelID := strings.TrimSpace(channelID)
@@ -251,117 +264,186 @@ func loadPreviewChannel(protocol string, key string, baseURL string, draftID str
 	return previewChannel, keySource, nil
 }
 
-func runChannelCapabilityTests(channel *model.Channel) ([]previewCapabilityResult, error) {
-	textModel, imageModel, audioModel := pickCapabilityModels(channel)
+func normalizePreviewCapabilityTestMode(raw string) string {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case previewCapabilityTestModeModel:
+		return previewCapabilityTestModeModel
+	default:
+		return previewCapabilityTestModeCapability
+	}
+}
+
+func selectedChannelModelConfigs(channel *model.Channel) []model.ChannelModel {
+	if channel == nil {
+		return nil
+	}
+	rows := channel.GetModelConfigs()
+	if len(rows) == 0 {
+		return nil
+	}
+	selected := make([]model.ChannelModel, 0, len(rows))
+	for _, row := range rows {
+		if !row.Selected {
+			continue
+		}
+		selected = append(selected, row)
+	}
+	return selected
+}
+
+func pickCapabilityModels(channel *model.Channel, mode string, requestedModel string) channelCapabilityModelSelection {
+	selection := channelCapabilityModelSelection{}
+	normalizedMode := normalizePreviewCapabilityTestMode(mode)
+	selectedRows := selectedChannelModelConfigs(channel)
+	if normalizedMode == previewCapabilityTestModeModel {
+		targetModel := strings.TrimSpace(requestedModel)
+		if targetModel == "" && channel != nil {
+			targetModel = strings.TrimSpace(channel.TestModel)
+		}
+		if targetModel == "" && len(selectedRows) > 0 {
+			targetModel = selectedRows[0].Model
+		}
+		if targetModel == "" {
+			return selection
+		}
+		targetType := model.InferModelType(targetModel)
+		for _, row := range selectedRows {
+			if row.Model != targetModel && row.UpstreamModel != targetModel {
+				continue
+			}
+			targetModel = row.Model
+			targetType = row.Type
+			break
+		}
+		switch targetType {
+		case model.ModelProviderModelTypeImage:
+			selection.ImageModel = targetModel
+			selection.RunImages = true
+		case model.ModelProviderModelTypeAudio:
+			selection.AudioModel = targetModel
+			selection.RunAudio = true
+		default:
+			selection.TextModel = targetModel
+			selection.RunChat = true
+			selection.RunResponses = true
+		}
+		return selection
+	}
+
+	selection.RunChat = true
+	selection.RunResponses = true
+	selection.RunImages = true
+	selection.RunAudio = true
+	for _, row := range selectedRows {
+		switch row.Type {
+		case model.ModelProviderModelTypeImage:
+			if selection.ImageModel == "" {
+				selection.ImageModel = row.Model
+			}
+		case model.ModelProviderModelTypeAudio:
+			if selection.AudioModel == "" {
+				selection.AudioModel = row.Model
+			}
+		default:
+			if selection.TextModel == "" {
+				selection.TextModel = row.Model
+			}
+		}
+	}
+	return selection
+}
+
+func runChannelCapabilityTests(channel *model.Channel, mode string, requestedModel string) ([]previewCapabilityResult, error) {
+	normalizedMode := normalizePreviewCapabilityTestMode(mode)
+	selection := pickCapabilityModels(channel, normalizedMode, requestedModel)
 	results := make([]previewCapabilityResult, 0, 4)
 
-	if strings.TrimSpace(textModel) == "" {
-		results = append(results, previewCapabilityResult{
-			Capability: "chat",
-			Label:      "Chat",
-			Endpoint:   "/v1/chat/completions",
-			Status:     previewCapabilityStatusSkipped,
-			Message:    "未找到可用于文本能力测试的模型",
-		})
-		results = append(results, previewCapabilityResult{
-			Capability: "responses",
-			Label:      "Responses",
-			Endpoint:   "/v1/responses",
-			Status:     previewCapabilityStatusSkipped,
-			Message:    "未找到可用于文本能力测试的模型",
-		})
-	} else {
-		latencyMs, message, execErr := executePreviewTextCapability(channel, "/v1/chat/completions", &relaymodel.GeneralOpenAIRequest{
-			Model: textModel,
-			Messages: []relaymodel.Message{{
-				Role:    "user",
-				Content: config.TestPrompt,
-			}},
-		})
-		results = append(results, buildPreviewCapabilityResult("chat", "Chat", "/v1/chat/completions", textModel, latencyMs, message, execErr))
-
-		latencyMs, message, execErr = executePreviewTextCapability(channel, "/v1/responses", &relaymodel.GeneralOpenAIRequest{
-			Model: textModel,
-			Input: []relaymodel.Message{{
-				Role:    "user",
-				Content: config.TestPrompt,
-			}},
-		})
-		results = append(results, buildPreviewCapabilityResult("responses", "Responses", "/v1/responses", textModel, latencyMs, message, execErr))
+	if normalizedMode == previewCapabilityTestModeModel &&
+		!selection.RunChat &&
+		!selection.RunResponses &&
+		!selection.RunImages &&
+		!selection.RunAudio {
+		return nil, fmt.Errorf("未找到可用于模型测试的模型")
 	}
 
-	if strings.TrimSpace(imageModel) == "" {
-		results = append(results, previewCapabilityResult{
-			Capability: "images",
-			Label:      "Images",
-			Endpoint:   "/v1/images/generations",
-			Status:     previewCapabilityStatusSkipped,
-			Message:    "未选择图片模型，已跳过图片能力测试",
-		})
-	} else {
-		latencyMs, message, execErr := executePreviewImageCapability(channel, imageModel)
-		results = append(results, buildPreviewCapabilityResult("images", "Images", "/v1/images/generations", imageModel, latencyMs, message, execErr))
-	}
-
-	if strings.TrimSpace(audioModel) == "" {
-		results = append(results, previewCapabilityResult{
-			Capability: "audio",
-			Label:      "Audio",
-			Endpoint:   "/v1/audio/speech",
-			Status:     previewCapabilityStatusSkipped,
-			Message:    "未选择音频模型，已跳过音频能力测试",
-		})
-	} else {
-		latencyMs, message, execErr := executePreviewAudioCapability(channel, audioModel)
-		result := buildPreviewCapabilityResult("audio", "Audio", "/v1/audio/speech", audioModel, latencyMs, message, execErr)
-		if execErr != nil && strings.Contains(strings.ToLower(execErr.Error()), "暂不自动探测") {
-			result.Status = previewCapabilityStatusSkipped
-			result.Message = execErr.Error()
+	if selection.RunChat {
+		if strings.TrimSpace(selection.TextModel) == "" {
+			results = append(results, previewCapabilityResult{
+				Capability: "chat",
+				Label:      "Chat",
+				Endpoint:   "/v1/chat/completions",
+				Status:     previewCapabilityStatusSkipped,
+				Message:    "未找到可用于文本能力测试的模型",
+			})
+		} else {
+			latencyMs, message, execErr := executePreviewTextCapability(channel, "/v1/chat/completions", &relaymodel.GeneralOpenAIRequest{
+				Model: selection.TextModel,
+				Messages: []relaymodel.Message{{
+					Role:    "user",
+					Content: config.TestPrompt,
+				}},
+			})
+			results = append(results, buildPreviewCapabilityResult("chat", "Chat", "/v1/chat/completions", selection.TextModel, latencyMs, message, execErr))
 		}
-		results = append(results, result)
+	}
+
+	if selection.RunResponses {
+		if strings.TrimSpace(selection.TextModel) == "" {
+			results = append(results, previewCapabilityResult{
+				Capability: "responses",
+				Label:      "Responses",
+				Endpoint:   "/v1/responses",
+				Status:     previewCapabilityStatusSkipped,
+				Message:    "未找到可用于文本能力测试的模型",
+			})
+		} else {
+			latencyMs, message, execErr := executePreviewTextCapability(channel, "/v1/responses", &relaymodel.GeneralOpenAIRequest{
+				Model: selection.TextModel,
+				Input: []relaymodel.Message{{
+					Role:    "user",
+					Content: config.TestPrompt,
+				}},
+			})
+			results = append(results, buildPreviewCapabilityResult("responses", "Responses", "/v1/responses", selection.TextModel, latencyMs, message, execErr))
+		}
+	}
+
+	if selection.RunImages {
+		if strings.TrimSpace(selection.ImageModel) == "" {
+			results = append(results, previewCapabilityResult{
+				Capability: "images",
+				Label:      "Images",
+				Endpoint:   "/v1/images/generations",
+				Status:     previewCapabilityStatusSkipped,
+				Message:    "未选择图片模型，已跳过图片能力测试",
+			})
+		} else {
+			latencyMs, message, execErr := executePreviewImageCapability(channel, selection.ImageModel)
+			results = append(results, buildPreviewCapabilityResult("images", "Images", "/v1/images/generations", selection.ImageModel, latencyMs, message, execErr))
+		}
+	}
+
+	if selection.RunAudio {
+		if strings.TrimSpace(selection.AudioModel) == "" {
+			results = append(results, previewCapabilityResult{
+				Capability: "audio",
+				Label:      "Audio",
+				Endpoint:   "/v1/audio/speech",
+				Status:     previewCapabilityStatusSkipped,
+				Message:    "未选择音频模型，已跳过音频能力测试",
+			})
+		} else {
+			latencyMs, message, execErr := executePreviewAudioCapability(channel, selection.AudioModel)
+			result := buildPreviewCapabilityResult("audio", "Audio", "/v1/audio/speech", selection.AudioModel, latencyMs, message, execErr)
+			if execErr != nil && strings.Contains(strings.ToLower(execErr.Error()), "暂不自动探测") {
+				result.Status = previewCapabilityStatusSkipped
+				result.Message = execErr.Error()
+			}
+			results = append(results, result)
+		}
 	}
 
 	return results, nil
-}
-
-func pickCapabilityModels(channel *model.Channel) (string, string, string) {
-	if channel == nil {
-		return "", "", ""
-	}
-	selectedModels := channel.SelectedModelIDs()
-	textModel := strings.TrimSpace(channel.TestModel)
-	imageModel := ""
-	audioModel := ""
-	if textModel != "" {
-		switch model.InferModelType(textModel) {
-		case model.ModelProviderModelTypeImage:
-			imageModel = textModel
-			textModel = ""
-		case model.ModelProviderModelTypeAudio:
-			audioModel = textModel
-			textModel = ""
-		}
-	}
-	for _, modelName := range selectedModels {
-		switch model.InferModelType(modelName) {
-		case model.ModelProviderModelTypeImage:
-			if imageModel == "" {
-				imageModel = modelName
-			}
-		case model.ModelProviderModelTypeAudio:
-			if audioModel == "" {
-				audioModel = modelName
-			}
-		default:
-			if textModel == "" {
-				textModel = modelName
-			}
-		}
-	}
-	if textModel == "" && len(selectedModels) > 0 {
-		textModel = selectedModels[0]
-	}
-	return textModel, imageModel, audioModel
 }
 
 func resolvePreviewModelName(channel *model.Channel, requestedModel string) string {
@@ -725,7 +807,7 @@ func PreviewChannelCapabilities(c *gin.Context) {
 		return
 	}
 
-	results, err := runChannelCapabilityTests(previewChannel)
+	results, err := runChannelCapabilityTests(previewChannel, previewCapabilityTestModeCapability, "")
 	if err != nil {
 		logChannelAdminWarn(c, "preview_capabilities", stringField("source", keySource), stringField("draft_id", strings.TrimSpace(req.DraftID)), stringField("base_url", previewChannel.GetBaseURL()), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{

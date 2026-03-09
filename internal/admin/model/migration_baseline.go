@@ -44,6 +44,9 @@ func runMainBaselineMigrationWithDB(tx *gorm.DB) error {
 	if err := syncModelProviderCatalogWithDB(tx); err != nil {
 		return err
 	}
+	if err := syncChannelModelTypesWithDB(tx); err != nil {
+		return err
+	}
 	if err := syncAbilityUpstreamModelsWithDB(tx); err != nil {
 		return err
 	}
@@ -131,6 +134,37 @@ func syncChannelTestModelsWithDB(db *gorm.DB) error {
 
 	for _, channel := range channels {
 		if err := EnsureChannelTestModelWithDB(db, channel.Id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func syncChannelModelTypesWithDB(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&ChannelModel{}) {
+		return nil
+	}
+
+	rows := make([]ChannelModel, 0)
+	if err := db.Find(&rows).Error; err != nil {
+		return err
+	}
+
+	for _, row := range rows {
+		normalizedType := normalizeChannelModelType(row.Type, row.UpstreamModel, row.Model)
+		normalizedPriceUnit := normalizeChannelModelPriceUnit(row.PriceUnit, normalizedType, row.UpstreamModel, row.Model)
+		currentType := strings.TrimSpace(strings.ToLower(row.Type))
+		currentPriceUnit := strings.TrimSpace(strings.ToLower(row.PriceUnit))
+		if currentType == normalizedType && currentPriceUnit == normalizedPriceUnit {
+			continue
+		}
+		updates := map[string]any{
+			"type":       normalizedType,
+			"price_unit": normalizedPriceUnit,
+		}
+		if err := db.Model(&ChannelModel{}).
+			Where("channel_id = ? AND model = ?", row.ChannelId, row.Model).
+			Updates(updates).Error; err != nil {
 			return err
 		}
 	}

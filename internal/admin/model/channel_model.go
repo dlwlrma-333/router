@@ -16,6 +16,7 @@ type ChannelModel struct {
 	ChannelId     string   `json:"channel_id" gorm:"primaryKey;type:varchar(64);index"`
 	Model         string   `json:"model" gorm:"primaryKey;type:varchar(255)"`
 	UpstreamModel string   `json:"upstream_model" gorm:"type:varchar(255);default:'';index"`
+	Type          string   `json:"type" gorm:"type:varchar(32);default:'text'"`
 	Selected      bool     `json:"selected" gorm:"default:true;index"`
 	InputPrice    *float64 `json:"input_price,omitempty" gorm:"type:double precision"`
 	OutputPrice   *float64 `json:"output_price,omitempty" gorm:"type:double precision"`
@@ -355,16 +356,17 @@ func normalizeChannelModelRow(row *ChannelModel) {
 	row.ChannelId = strings.TrimSpace(row.ChannelId)
 	row.Model = strings.TrimSpace(row.Model)
 	row.UpstreamModel = strings.TrimSpace(row.UpstreamModel)
-	row.PriceUnit = normalizeChannelModelPriceUnit(row.PriceUnit, row.UpstreamModel, row.Model)
-	row.Currency = normalizeChannelModelCurrency(row.Currency)
-	row.InputPrice = cloneNormalizedChannelModelPrice(row.InputPrice)
-	row.OutputPrice = cloneNormalizedChannelModelPrice(row.OutputPrice)
 	if row.Model == "" && row.UpstreamModel != "" {
 		row.Model = row.UpstreamModel
 	}
 	if row.UpstreamModel == "" {
 		row.UpstreamModel = row.Model
 	}
+	row.Type = normalizeChannelModelType(row.Type, row.UpstreamModel, row.Model)
+	row.PriceUnit = normalizeChannelModelPriceUnit(row.PriceUnit, row.Type, row.UpstreamModel, row.Model)
+	row.Currency = normalizeChannelModelCurrency(row.Currency)
+	row.InputPrice = cloneNormalizedChannelModelPrice(row.InputPrice)
+	row.OutputPrice = cloneNormalizedChannelModelPrice(row.OutputPrice)
 }
 
 func applyChannelModelRows(channel *Channel, rows []ChannelModel) {
@@ -487,13 +489,22 @@ func completeChannelModelRowDefaults(row *ChannelModel, channelProtocol int) {
 	}
 	normalizeChannelModelRow(row)
 	_ = channelProtocol
-	row.PriceUnit = normalizeChannelModelPriceUnit(row.PriceUnit, row.UpstreamModel, row.Model)
+	row.Type = normalizeChannelModelType(row.Type, row.UpstreamModel, row.Model)
+	row.PriceUnit = normalizeChannelModelPriceUnit(row.PriceUnit, row.Type, row.UpstreamModel, row.Model)
 	row.Currency = normalizeChannelModelCurrency(row.Currency)
 	row.InputPrice = cloneNormalizedChannelModelPrice(row.InputPrice)
 	row.OutputPrice = cloneNormalizedChannelModelPrice(row.OutputPrice)
 }
 
-func normalizeChannelModelPriceUnit(raw string, upstreamModel string, model string) string {
+func normalizeChannelModelType(raw string, upstreamModel string, model string) string {
+	referenceModel := strings.TrimSpace(upstreamModel)
+	if referenceModel == "" {
+		referenceModel = strings.TrimSpace(model)
+	}
+	return normalizeModelType(raw, referenceModel)
+}
+
+func normalizeChannelModelPriceUnit(raw string, modelType string, upstreamModel string, model string) string {
 	priceUnit := strings.TrimSpace(strings.ToLower(raw))
 	if priceUnit != "" {
 		return priceUnit
@@ -502,7 +513,7 @@ func normalizeChannelModelPriceUnit(raw string, upstreamModel string, model stri
 	if referenceModel == "" {
 		referenceModel = strings.TrimSpace(model)
 	}
-	return defaultPriceUnitByType("", referenceModel)
+	return defaultPriceUnitByType(modelType, referenceModel)
 }
 
 func normalizeChannelModelCurrency(raw string) string {

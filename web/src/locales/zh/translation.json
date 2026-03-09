@@ -56,7 +56,7 @@
       "response_time": "响应时间",
       "balance": "余额",
       "priority": "优先级",
-      "test_model": "测试模型",
+      "test_model": "单测模型",
       "actions": "操作",
       "no_name": "无",
       "status_enabled": "已启用",
@@ -68,13 +68,15 @@
       "status_unknown": "未知状态",
       "not_tested": "未测试",
       "priority_tip": "渠道选择优先级，越高越优先",
-      "select_test_model": "请选择测试模型",
+      "select_test_model": "请选择单测模型",
       "click_to_update": "点击更新",
       "balance_not_supported": "-"
     },
     "buttons": {
       "test": "测试",
-      "test_channel": "测试渠道",
+      "test_capability": "测能力",
+      "test_model": "测模型",
+      "test_channel": "测试能力",
       "disable_channel": "禁用渠道",
       "delete_channel": "删除渠道",
       "delete": "删除",
@@ -90,10 +92,12 @@
       "refresh": "刷新"
     },
     "messages": {
-      "test_success": "渠道 {{name}} 测试成功，测试模型 {{model}}，耗时 {{time}} 秒，结果：{{message}}",
+      "test_capability_success": "渠道 {{name}} 能力测试成功，耗时 {{time}} 秒，结果：{{message}}",
+      "test_model_success": "渠道 {{name}} 模型测试成功，测试模型 {{model}}，耗时 {{time}} 秒，结果：{{message}}",
       "test_all_started": "已成功开始测试渠道，请刷新页面查看结果。",
       "batch_test_select_required": "请先选择至少一个渠道。",
-      "batch_test_done": "批量测试完成：成功 {{success}}，失败 {{failed}}。",
+      "batch_test_done": "批量能力测试完成：成功 {{success}}，失败 {{failed}}。",
+      "select_model_test_required": "请先选择一个单测模型。",
       "batch_disable_select_required": "请先选择至少一个待禁用渠道。",
       "batch_disable_done": "批量禁用完成：成功 {{success}}，失败 {{failed}}。",
       "batch_delete_select_required": "请先选择至少一个待删除渠道。",
@@ -101,6 +105,11 @@
       "balance_update_success": "渠道 {{name}} 余额更新成功！",
       "all_balance_updated": "已更新完毕所有已启用渠道余额！",
       "operation_success": "操作成功完成！"
+    },
+    "model_types": {
+      "text": "文本",
+      "image": "图片",
+      "audio": "音频"
     },
     "providers": {
       "title": "模型供应商管理",
@@ -227,6 +236,7 @@
           "selected": "启用",
           "name": "名称",
           "alias": "别名",
+          "type": "类型",
           "price_unit": "计价单位",
           "input_price": "输入价覆盖",
           "output_price": "输出价覆盖"
@@ -249,9 +259,9 @@
       },
       "capability_tester": {
         "title": "能力测试",
-        "hint": "使用当前草稿渠道和已选模型做真实探测。未匹配到图片模型或音频模型时，会自动跳过对应能力测试。",
+        "hint": "使用当前草稿渠道和已选模型做真实探测。系统会按模型类型自动选择文本 / 图片 / 音频模型分别测试对应能力；未匹配到某类型模型时，会自动跳过对应能力测试。",
         "button": "开始测试",
-        "empty": "还没有测试结果，点击“开始测试”后会依次探测 chat、responses、images、audio。",
+        "empty": "还没有测试结果，点击“开始测试”后会按模型类型依次探测 chat、responses、images、audio。",
         "last_tested": "最近测试时间：{{time}}",
         "test_success": "能力测试已完成",
         "test_failed": "能力测试失败",

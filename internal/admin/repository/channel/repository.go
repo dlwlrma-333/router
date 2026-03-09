@@ -155,13 +155,14 @@ func buildSelectedModelCapabilitySignature(channel *model.Channel) string {
 		}
 		modelID := strings.TrimSpace(row.Model)
 		upstreamModel := strings.TrimSpace(row.UpstreamModel)
+		modelType := strings.TrimSpace(row.Type)
 		if modelID == "" {
 			continue
 		}
 		if upstreamModel == "" {
 			upstreamModel = modelID
 		}
-		parts = append(parts, modelID+"=>"+upstreamModel)
+		parts = append(parts, modelID+"=>"+upstreamModel+"#"+modelType)
 	}
 	return strings.Join(parts, "|")
 }

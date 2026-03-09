@@ -105,30 +105,49 @@ func recordCapabilityTestLog(ctx context.Context, channel *model.Channel, modelN
 	})
 }
 
-func executeChannelCapabilityTest(ctx context.Context, channel *model.Channel, overrideTestModel string) ([]previewCapabilityResult, bool, string, int64, string, *relaymodel.Error, int, error) {
+type channelTestOptions struct {
+	Mode           string
+	Model          string
+	PersistResults bool
+}
+
+func executeChannelCapabilityTest(ctx context.Context, channel *model.Channel, options channelTestOptions) ([]previewCapabilityResult, bool, string, int64, string, *relaymodel.Error, int, error) {
 	if channel == nil {
 		return nil, false, "", 0, "", nil, 0, fmt.Errorf("渠道不存在")
 	}
 	targetChannel := *channel
-	if strings.TrimSpace(overrideTestModel) != "" {
-		targetChannel.TestModel = strings.TrimSpace(overrideTestModel)
+	testMode := normalizePreviewCapabilityTestMode(options.Mode)
+	testModel := strings.TrimSpace(options.Model)
+	if testModel != "" {
+		targetChannel.TestModel = testModel
 	}
 	startedAt := time.Now()
-	results, err := runChannelCapabilityTests(&targetChannel)
+	results, err := runChannelCapabilityTests(&targetChannel, testMode, testModel)
 	if err != nil {
-		modelName := strings.TrimSpace(targetChannel.TestModel)
+		modelName := testModel
+		if modelName == "" {
+			modelName = strings.TrimSpace(targetChannel.TestModel)
+		}
 		recordCapabilityTestLog(ctx, channel, modelName, false, err.Error(), startedAt)
 		return nil, false, err.Error(), 0, modelName, nil, 0, err
 	}
-	if err := persistPreviewCapabilityResults(channel.Id, results); err != nil {
-		modelName := strings.TrimSpace(targetChannel.TestModel)
-		message := "保存能力测试结果失败: " + err.Error()
-		recordCapabilityTestLog(ctx, channel, modelName, false, message, startedAt)
-		return nil, false, message, 0, modelName, nil, 0, err
+	if options.PersistResults {
+		if err := persistPreviewCapabilityResults(channel.Id, results); err != nil {
+			modelName := testModel
+			if modelName == "" {
+				modelName = strings.TrimSpace(targetChannel.TestModel)
+			}
+			message := "保存能力测试结果失败: " + err.Error()
+			recordCapabilityTestLog(ctx, channel, modelName, false, message, startedAt)
+			return nil, false, message, 0, modelName, nil, 0, err
+		}
 	}
 	success, responseMessage, latencyMs, modelName := summarizeCapabilityTestResults(results)
 	if strings.TrimSpace(modelName) == "" {
 		modelName = strings.TrimSpace(targetChannel.TestModel)
+		if strings.TrimSpace(testModel) != "" {
+			modelName = strings.TrimSpace(testModel)
+		}
 	}
 	relayErr, statusCode := extractFailureSignalFromCapabilityResults(results)
 	recordCapabilityTestLog(ctx, channel, modelName, success, responseMessage, startedAt)
@@ -142,6 +161,7 @@ func executeChannelCapabilityTest(ctx context.Context, channel *model.Channel, o
 // @Produce json
 // @Param id path string true "Channel ID"
 // @Param model query string false "Model name"
+// @Param mode query string false "Test mode (capability|model)"
 // @Success 200 {object} docs.StandardResponse
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/admin/channel/test/{id} [get]
@@ -167,7 +187,12 @@ func TestChannel(c *gin.Context) {
 		return
 	}
 	testModel := strings.TrimSpace(c.Query("model"))
-	results, success, responseMessage, milliseconds, modelName, _, _, err := executeChannelCapabilityTest(ctx, channel, testModel)
+	testMode := normalizePreviewCapabilityTestMode(c.Query("mode"))
+	results, success, responseMessage, milliseconds, modelName, _, _, err := executeChannelCapabilityTest(ctx, channel, channelTestOptions{
+		Mode:           testMode,
+		Model:          testModel,
+		PersistResults: testMode != previewCapabilityTestModeModel,
+	})
 	if err != nil {
 		logChannelAdminWarn(c, "test", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("model", modelName), stringField("reason", responseMessage))
 		c.JSON(http.StatusOK, gin.H{
@@ -240,7 +265,10 @@ func testChannels(ctx context.Context, notify bool, scope string) error {
 		}()
 		for _, channel := range channels {
 			isChannelEnabled := channel.Status == model.ChannelStatusEnabled
-			_, success, responseMessage, milliseconds, _, relayErr, statusCode, _ := executeChannelCapabilityTest(ctx, channel, strings.TrimSpace(channel.TestModel))
+			_, success, responseMessage, milliseconds, _, relayErr, statusCode, _ := executeChannelCapabilityTest(ctx, channel, channelTestOptions{
+				Mode:           previewCapabilityTestModeCapability,
+				PersistResults: true,
+			})
 			if isChannelEnabled && success && milliseconds > disableThreshold {
 				timeoutErr := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
 				if config.AutomaticDisableChannelEnabled {
