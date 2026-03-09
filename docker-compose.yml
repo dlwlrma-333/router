@@ -12,7 +12,7 @@ services:
       - ./data/oneapi:/data
       - ./logs:/app/logs
     environment:
-      - SQL_DSN=yeying:yeying@tcp(host.docker.internal:3306)/router  # 修改此行，或注释掉以使用 SQLite 作为数据库
+      - SQL_DSN=postgres://postgres:postgres@host.docker.internal:5432/postgres?sslmode=disable
       - REDIS_CONN_STRING=redis://host.docker.internal:6379
       - SESSION_SECRET=random_string  # 修改为随机字符串
       - TZ=Asia/Shanghai

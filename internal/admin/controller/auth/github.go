@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -138,7 +137,7 @@ func GitHubOAuth(c *gin.Context) {
 		}
 	} else {
 		if config.RegisterEnabled {
-			user.Username = "github_" + strconv.Itoa(model.GetMaxUserId()+1)
+			user.Username = "github_" + random.GetRandomString(8)
 			if githubUser.Name != "" {
 				user.DisplayName = githubUser.Name
 			} else {
@@ -148,7 +147,7 @@ func GitHubOAuth(c *gin.Context) {
 			user.Role = model.RoleCommonUser
 			user.Status = model.UserStatusEnabled
 
-			if err := user.Insert(ctx, 0); err != nil {
+			if err := user.Insert(ctx, ""); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
@@ -202,9 +201,16 @@ func GitHubBind(c *gin.Context) {
 		return
 	}
 	session := sessions.Default(c)
-	id := session.Get("id")
+	id, idErr := sessionIDToString(session.Get("id"))
+	if idErr != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "未登录",
+		})
+		return
+	}
 	// id := c.GetInt("id")  // critical bug!
-	user.Id = id.(int)
+	user.Id = id
 	err = user.FillUserById()
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{

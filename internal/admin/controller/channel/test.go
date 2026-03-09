@@ -1,16 +1,10 @@
 package channel
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,211 +12,127 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/yeying-community/router/common/config"
-	"github.com/yeying-community/router/common/ctxkey"
 	"github.com/yeying-community/router/common/helper"
 	"github.com/yeying-community/router/common/logger"
 	"github.com/yeying-community/router/common/message"
 	"github.com/yeying-community/router/internal/admin/model"
 	"github.com/yeying-community/router/internal/admin/monitor"
 	channelsvc "github.com/yeying-community/router/internal/admin/service/channel"
-	"github.com/yeying-community/router/internal/relay"
-	"github.com/yeying-community/router/internal/relay/adaptor/openai"
-	"github.com/yeying-community/router/internal/relay/channeltype"
-	"github.com/yeying-community/router/internal/relay/controller"
-	"github.com/yeying-community/router/internal/relay/meta"
 	relaymodel "github.com/yeying-community/router/internal/relay/model"
-	"github.com/yeying-community/router/internal/relay/relaymode"
-	"github.com/yeying-community/router/internal/transport/http/middleware"
 )
 
-func buildTestRequest(model string) *relaymodel.GeneralOpenAIRequest {
-	if model == "" {
-		model = "gpt-3.5-turbo"
+func summarizeCapabilityTestResults(results []previewCapabilityResult) (bool, string, int64, string) {
+	if len(results) == 0 {
+		return false, "未返回能力测试结果", 0, ""
 	}
-	testRequest := &relaymodel.GeneralOpenAIRequest{
-		Model: model,
+	supportedLabels := make([]string, 0, len(results))
+	messageParts := make([]string, 0, len(results))
+	var latencyMs int64
+	modelName := ""
+	for _, item := range results {
+		if modelName == "" && strings.TrimSpace(item.Model) != "" {
+			modelName = strings.TrimSpace(item.Model)
+		}
+		if item.Supported {
+			label := strings.TrimSpace(item.Label)
+			if label == "" {
+				label = strings.TrimSpace(item.Capability)
+			}
+			if label != "" {
+				supportedLabels = append(supportedLabels, label)
+			}
+			if latencyMs == 0 && item.LatencyMs > 0 {
+				latencyMs = item.LatencyMs
+			}
+			continue
+		}
+		if item.Status == previewCapabilityStatusSkipped {
+			continue
+		}
+		if msg := strings.TrimSpace(item.Message); msg != "" {
+			messageParts = append(messageParts, msg)
+		}
 	}
-	testMessage := relaymodel.Message{
-		Role:    "user",
-		Content: config.TestPrompt,
+	if len(supportedLabels) > 0 {
+		return true, "支持能力: " + strings.Join(supportedLabels, ", "), latencyMs, modelName
 	}
-	testRequest.Messages = append(testRequest.Messages, testMessage)
-	return testRequest
+	if len(messageParts) > 0 {
+		return false, messageParts[0], 0, modelName
+	}
+	return false, "未检测到可用能力", 0, modelName
 }
 
-func parseTestResponse(resp string) (*openai.TextResponse, string, error) {
-	var response openai.TextResponse
-	err := json.Unmarshal([]byte(resp), &response)
-	if err != nil {
-		return nil, "", err
+func parseHTTPStatusCodeFromMessage(message string) int {
+	normalized := strings.TrimSpace(strings.ToLower(message))
+	const prefix = "http status code:"
+	if !strings.HasPrefix(normalized, prefix) {
+		return 0
 	}
-	if len(response.Choices) == 0 {
-		return nil, "", errors.New("response has no choices")
+	var statusCode int
+	if _, err := fmt.Sscanf(strings.TrimSpace(normalized[len(prefix):]), "%d", &statusCode); err != nil {
+		return 0
 	}
-	stringContent, ok := response.Choices[0].Content.(string)
-	if !ok {
-		return nil, "", errors.New("response content is not string")
-	}
-	return &response, stringContent, nil
+	return statusCode
 }
 
-type responsesEnvelope struct {
-	Output []struct {
-		Content []struct {
-			Type       string `json:"type"`
-			Text       string `json:"text"`
-			OutputText string `json:"output_text"`
-		} `json:"content"`
-	} `json:"output"`
+func extractFailureSignalFromCapabilityResults(results []previewCapabilityResult) (*relaymodel.Error, int) {
+	for _, item := range results {
+		if item.Supported || item.Status == previewCapabilityStatusSkipped {
+			continue
+		}
+		message := strings.TrimSpace(item.Message)
+		if message == "" {
+			continue
+		}
+		return &relaymodel.Error{Message: message}, parseHTTPStatusCodeFromMessage(message)
+	}
+	return nil, 0
 }
 
-func parseResponsesTestResponse(resp string) (string, error) {
-	var env responsesEnvelope
-	if err := json.Unmarshal([]byte(resp), &env); err != nil {
-		return "", err
+func recordCapabilityTestLog(ctx context.Context, channel *model.Channel, modelName string, success bool, responseMessage string, startedAt time.Time) {
+	if channel == nil {
+		return
 	}
-	contentTypes := make([]string, 0)
-	for _, output := range env.Output {
-		for _, content := range output.Content {
-			if content.Type != "" {
-				contentTypes = append(contentTypes, content.Type)
-			} else {
-				contentTypes = append(contentTypes, "<empty>")
-			}
-			if content.Text != "" {
-				return content.Text, nil
-			}
-			if content.OutputText != "" {
-				return content.OutputText, nil
-			}
-		}
+	logContent := fmt.Sprintf("渠道 %s 能力测试成功，结果：%s", channel.DisplayName(), responseMessage)
+	if !success {
+		logContent = fmt.Sprintf("渠道 %s 能力测试失败，错误：%s", channel.DisplayName(), responseMessage)
 	}
-	return "", errors.New("response has no output text, content types: " + strings.Join(contentTypes, ","))
+	model.RecordTestLog(ctx, &model.Log{
+		ChannelId:   channel.Id,
+		ModelName:   modelName,
+		Content:     logContent,
+		ElapsedTime: helper.CalcElapsedTime(startedAt),
+	})
 }
 
-func testChannel(ctx context.Context, channel *model.Channel, request *relaymodel.GeneralOpenAIRequest) (responseMessage string, err error, openaiErr *relaymodel.Error) {
-	startTime := time.Now()
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = &http.Request{
-		Method: "POST",
-		URL:    &url.URL{Path: "/v1/chat/completions"},
-		Body:   nil,
-		Header: make(http.Header),
+func executeChannelCapabilityTest(ctx context.Context, channel *model.Channel, overrideTestModel string) ([]previewCapabilityResult, bool, string, int64, string, *relaymodel.Error, int, error) {
+	if channel == nil {
+		return nil, false, "", 0, "", nil, 0, fmt.Errorf("渠道不存在")
 	}
-	c.Request.Header.Set("Authorization", "Bearer "+channel.Key)
-	c.Request.Header.Set("Content-Type", "application/json")
-	c.Set(ctxkey.Channel, channel.Type)
-	c.Set(ctxkey.BaseURL, channel.GetBaseURL())
-	cfg, _ := channel.LoadConfig()
-	relayMode := relaymode.ChatCompletions
-	if cfg.UseResponses {
-		relayMode = relaymode.Responses
-		c.Request.URL.Path = "/v1/responses"
+	targetChannel := *channel
+	if strings.TrimSpace(overrideTestModel) != "" {
+		targetChannel.TestModel = strings.TrimSpace(overrideTestModel)
 	}
-	if cfg.UserAgent != "" {
-		c.Request.Header.Set("User-Agent", cfg.UserAgent)
-	}
-	if cfg.UseResponses {
-		request.Messages = nil
-		request.Input = []relaymodel.Message{
-			{
-				Role:    "user",
-				Content: config.TestPrompt,
-			},
-		}
-	}
-	logger.SysLog(fmt.Sprintf("[testChannel] channel_id=%d name=%s use_responses=%v path=%s", channel.Id, channel.Name, cfg.UseResponses, c.Request.URL.Path))
-	c.Set(ctxkey.Config, cfg)
-	middleware.SetupContextForSelectedChannel(c, channel, "")
-	meta := meta.GetByContext(c)
-	logger.SysLog(fmt.Sprintf("[testChannel] meta mode=%d request_path=%s base_url=%s api_type=%d", meta.Mode, meta.RequestURLPath, meta.BaseURL, meta.APIType))
-	logger.SysLog(fmt.Sprintf("[testChannel] ua=%s", c.Request.Header.Get("User-Agent")))
-	apiType := channeltype.ToAPIType(channel.Type)
-	adaptor := relay.GetAdaptor(apiType)
-	if adaptor == nil {
-		return "", fmt.Errorf("invalid api type: %d, adaptor is nil", apiType), nil
-	}
-	adaptor.Init(meta)
-	modelName := request.Model
-	modelMap := channel.GetModelMapping()
-	if modelName == "" || !strings.Contains(channel.Models, modelName) {
-		modelNames := strings.Split(channel.Models, ",")
-		if len(modelNames) > 0 {
-			modelName = modelNames[0]
-		}
-	}
-	if modelMap != nil && modelMap[modelName] != "" {
-		modelName = modelMap[modelName]
-	}
-	meta.OriginModelName, meta.ActualModelName = request.Model, modelName
-	request.Model = modelName
-	convertedRequest, err := adaptor.ConvertRequest(c, relayMode, request)
+	startedAt := time.Now()
+	results, err := runChannelCapabilityTests(&targetChannel)
 	if err != nil {
-		return "", err, nil
+		modelName := strings.TrimSpace(targetChannel.TestModel)
+		recordCapabilityTestLog(ctx, channel, modelName, false, err.Error(), startedAt)
+		return nil, false, err.Error(), 0, modelName, nil, 0, err
 	}
-	jsonData, err := json.Marshal(convertedRequest)
-	if err != nil {
-		return "", err, nil
+	if err := persistPreviewCapabilityResults(channel.Id, results); err != nil {
+		modelName := strings.TrimSpace(targetChannel.TestModel)
+		message := "保存能力测试结果失败: " + err.Error()
+		recordCapabilityTestLog(ctx, channel, modelName, false, message, startedAt)
+		return nil, false, message, 0, modelName, nil, 0, err
 	}
-	defer func() {
-		logContent := fmt.Sprintf("渠道 %s 测试成功，响应：%s", channel.Name, responseMessage)
-		if err != nil || openaiErr != nil {
-			errorMessage := ""
-			if err != nil {
-				errorMessage = err.Error()
-			} else {
-				errorMessage = openaiErr.Message
-			}
-			logContent = fmt.Sprintf("渠道 %s 测试失败，错误：%s", channel.Name, errorMessage)
-		}
-		go model.RecordTestLog(ctx, &model.Log{
-			ChannelId:   channel.Id,
-			ModelName:   modelName,
-			Content:     logContent,
-			ElapsedTime: helper.CalcElapsedTime(startTime),
-		})
-	}()
-	logger.SysLog(string(jsonData))
-	requestBody := bytes.NewBuffer(jsonData)
-	c.Request.Body = io.NopCloser(requestBody)
-	resp, err := adaptor.DoRequest(c, meta, requestBody)
-	if err != nil {
-		return "", err, nil
+	success, responseMessage, latencyMs, modelName := summarizeCapabilityTestResults(results)
+	if strings.TrimSpace(modelName) == "" {
+		modelName = strings.TrimSpace(targetChannel.TestModel)
 	}
-	if resp != nil && resp.StatusCode != http.StatusOK {
-		err := controller.RelayErrorHandler(resp)
-		errorMessage := err.Error.Message
-		if errorMessage != "" {
-			errorMessage = ", error message: " + errorMessage
-		}
-		return "", fmt.Errorf("http status code: %d%s", resp.StatusCode, errorMessage), &err.Error
-	}
-	usage, respErr := adaptor.DoResponse(c, resp, meta)
-	if respErr != nil {
-		return "", fmt.Errorf("%s", respErr.Error.Message), &respErr.Error
-	}
-	if usage == nil {
-		return "", errors.New("usage is nil"), nil
-	}
-	rawResponse := w.Body.String()
-	if cfg.UseResponses {
-		responseMessage, err = parseResponsesTestResponse(rawResponse)
-	} else {
-		_, responseMessage, err = parseTestResponse(rawResponse)
-	}
-	if err != nil {
-		logger.SysError(fmt.Sprintf("failed to parse error: %s, \nresponse: %s", err.Error(), rawResponse))
-		return "", err, nil
-	}
-	result := w.Result()
-	// print result.Body
-	respBody, err := io.ReadAll(result.Body)
-	if err != nil {
-		return "", err, nil
-	}
-	logger.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
-	return responseMessage, nil, nil
+	relayErr, statusCode := extractFailureSignalFromCapabilityResults(results)
+	recordCapabilityTestLog(ctx, channel, modelName, success, responseMessage, startedAt)
+	return results, success, responseMessage, latencyMs, modelName, relayErr, statusCode, nil
 }
 
 // TestChannel godoc
@@ -230,54 +140,66 @@ func testChannel(ctx context.Context, channel *model.Channel, request *relaymode
 // @Tags admin
 // @Security BearerAuth
 // @Produce json
-// @Param id path int true "Channel ID"
+// @Param id path string true "Channel ID"
 // @Param model query string false "Model name"
 // @Success 200 {object} docs.StandardResponse
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/admin/channel/test/{id} [get]
 func TestChannel(c *gin.Context) {
 	ctx := c.Request.Context()
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		logChannelAdminWarn(c, "test", stringField("reason", "id 为空"))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": "id 为空",
 		})
 		return
 	}
+	var err error
 	channel, err := channelsvc.GetByID(id, true)
 	if err != nil {
+		logChannelAdminWarn(c, "test", stringField("channel_id", id), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	modelName := c.Query("model")
-	testRequest := buildTestRequest(modelName)
-	tik := time.Now()
-	responseMessage, err, _ := testChannel(ctx, channel, testRequest)
-	tok := time.Now()
-	milliseconds := tok.Sub(tik).Milliseconds()
+	testModel := strings.TrimSpace(c.Query("model"))
+	results, success, responseMessage, milliseconds, modelName, _, _, err := executeChannelCapabilityTest(ctx, channel, testModel)
 	if err != nil {
-		milliseconds = 0
+		logChannelAdminWarn(c, "test", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("model", modelName), stringField("reason", responseMessage))
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": responseMessage,
+		})
+		return
 	}
 	go channel.UpdateResponseTime(milliseconds)
 	consumedTime := float64(milliseconds) / 1000.0
-	if err != nil {
+	if !success {
+		logChannelAdminWarn(c, "test", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("model", modelName), int64Field("latency_ms", milliseconds), stringField("result", responseMessage))
 		c.JSON(http.StatusOK, gin.H{
 			"success":   false,
-			"message":   err.Error(),
+			"message":   responseMessage,
 			"time":      consumedTime,
 			"modelName": modelName,
+			"data": gin.H{
+				"results": results,
+			},
 		})
 		return
 	}
+	logChannelAdminInfo(c, "test", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("model", modelName), int64Field("latency_ms", milliseconds), intField("capability_count", len(results)))
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
 		"message":   responseMessage,
 		"time":      consumedTime,
 		"modelName": modelName,
+		"data": gin.H{
+			"results": results,
+		},
 	})
 	return
 }
@@ -305,38 +227,36 @@ func testChannels(ctx context.Context, notify bool, scope string) error {
 		disableThreshold = 10000000 // a impossible value
 	}
 	go func() {
-		for _, channel := range channels {
-			isChannelEnabled := channel.Status == model.ChannelStatusEnabled
-			tik := time.Now()
-			testRequest := buildTestRequest("")
-			_, err, openaiErr := testChannel(ctx, channel, testRequest)
-			tok := time.Now()
-			milliseconds := tok.Sub(tik).Milliseconds()
-			if isChannelEnabled && milliseconds > disableThreshold {
-				err = fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
-				if config.AutomaticDisableChannelEnabled {
-					monitor.DisableChannel(channel.Id, channel.Name, err.Error())
-				} else {
-					_ = message.Notify(message.ByAll, fmt.Sprintf("渠道 %s （%d）测试超时", channel.Name, channel.Id), "", err.Error())
+		defer func() {
+			testAllChannelsLock.Lock()
+			testAllChannelsRunning = false
+			testAllChannelsLock.Unlock()
+			if notify {
+				err := message.Notify(message.ByAll, "渠道测试完成", "", "渠道测试完成，如果没有收到禁用通知，说明所有渠道都正常")
+				if err != nil {
+					logger.SysError(fmt.Sprintf("failed to send email: %s", err.Error()))
 				}
 			}
-			if isChannelEnabled && monitor.ShouldDisableChannel(openaiErr, -1) {
-				monitor.DisableChannel(channel.Id, channel.Name, err.Error())
+		}()
+		for _, channel := range channels {
+			isChannelEnabled := channel.Status == model.ChannelStatusEnabled
+			_, success, responseMessage, milliseconds, _, relayErr, statusCode, _ := executeChannelCapabilityTest(ctx, channel, strings.TrimSpace(channel.TestModel))
+			if isChannelEnabled && success && milliseconds > disableThreshold {
+				timeoutErr := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
+				if config.AutomaticDisableChannelEnabled {
+					monitor.DisableChannel(channel.Id, channel.DisplayName(), timeoutErr.Error())
+				} else {
+					_ = message.Notify(message.ByAll, fmt.Sprintf("渠道 %s （%s）测试超时", channel.DisplayName(), channel.Id), "", timeoutErr.Error())
+				}
 			}
-			if !isChannelEnabled && monitor.ShouldEnableChannel(err, openaiErr) {
-				monitor.EnableChannel(channel.Id, channel.Name)
+			if isChannelEnabled && !success && monitor.ShouldDisableChannel(relayErr, statusCode) {
+				monitor.DisableChannel(channel.Id, channel.DisplayName(), responseMessage)
+			}
+			if !isChannelEnabled && success && monitor.ShouldEnableChannel(nil, nil) {
+				monitor.EnableChannel(channel.Id, channel.DisplayName())
 			}
 			channel.UpdateResponseTime(milliseconds)
 			time.Sleep(config.RequestInterval)
-		}
-		testAllChannelsLock.Lock()
-		testAllChannelsRunning = false
-		testAllChannelsLock.Unlock()
-		if notify {
-			err := message.Notify(message.ByAll, "渠道测试完成", "", "渠道测试完成，如果没有收到禁用通知，说明所有渠道都正常")
-			if err != nil {
-				logger.SysError(fmt.Sprintf("failed to send email: %s", err.Error()))
-			}
 		}
 	}()
 	return nil
@@ -359,12 +279,14 @@ func TestChannels(c *gin.Context) {
 	}
 	err := testChannels(ctx, true, scope)
 	if err != nil {
+		logChannelAdminWarn(c, "test_all", stringField("scope", scope), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+	logChannelAdminInfo(c, "test_all", stringField("scope", scope))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

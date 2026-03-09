@@ -15,13 +15,13 @@ import (
 	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/common/helper"
 	"github.com/yeying-community/router/common/logger"
+	adminmodel "github.com/yeying-community/router/internal/admin/model"
 	"github.com/yeying-community/router/internal/relay"
 	"github.com/yeying-community/router/internal/relay/adaptor"
 	"github.com/yeying-community/router/internal/relay/adaptor/openai"
 	"github.com/yeying-community/router/internal/relay/apitype"
 	"github.com/yeying-community/router/internal/relay/billing"
-	billingratio "github.com/yeying-community/router/internal/relay/billing/ratio"
-	"github.com/yeying-community/router/internal/relay/channeltype"
+	relaychannel "github.com/yeying-community/router/internal/relay/channel"
 	"github.com/yeying-community/router/internal/relay/meta"
 	"github.com/yeying-community/router/internal/relay/model"
 	"github.com/yeying-community/router/internal/relay/relaymode"
@@ -44,14 +44,26 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	meta.ActualModelName = textRequest.Model
 	// set system prompt if not empty
 	systemPromptReset := setSystemPrompt(ctx, textRequest, meta.ForcedSystemPrompt)
-	// get model ratio & group ratio
-	modelRatio := billingratio.GetChannelModelRatio(textRequest.Model, meta.ChannelType, meta.ChannelModelRatio)
-	groupRatio := billingratio.GetGroupRatio(meta.Group)
-	ratio := modelRatio * groupRatio
+	groupRatio := adminmodel.GetGroupBillingRatio(meta.Group)
+	pricing, err := adminmodel.ResolveChannelModelPricing(meta.ChannelProtocol, meta.ChannelModelConfigs, textRequest.Model)
+	if err != nil {
+		if groupRatio == 0 {
+			pricing = adminmodel.ResolvedModelPricing{
+				Model:     textRequest.Model,
+				Type:      adminmodel.InferModelType(textRequest.Model),
+				PriceUnit: adminmodel.ModelProviderPriceUnitPer1KTokens,
+				Currency:  adminmodel.ModelProviderPriceCurrencyUSD,
+				Source:    "group_free",
+			}
+		} else {
+			logger.Errorf(ctx, "ResolveChannelModelPricing failed: %s", err.Error())
+			return openai.ErrorWrapper(err, "model_pricing_not_configured", http.StatusServiceUnavailable)
+		}
+	}
 	// pre-consume quota
 	promptTokens := getPromptTokens(textRequest, meta.Mode)
 	meta.PromptTokens = promptTokens
-	preConsumedQuota, bizErr := preConsumeQuota(ctx, textRequest, promptTokens, ratio, meta)
+	preConsumedQuota, bizErr := preConsumeQuota(ctx, textRequest, promptTokens, pricing, groupRatio, meta)
 	if bizErr != nil {
 		logger.Warnf(ctx, "preConsumeQuota failed: %+v", *bizErr)
 		return bizErr
@@ -88,7 +100,7 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 		return respErr
 	}
 	// post-consume quota
-	go postConsumeQuota(ctx, usage, meta, textRequest, ratio, preConsumedQuota, modelRatio, groupRatio, systemPromptReset)
+	go postConsumeQuota(ctx, usage, meta, textRequest, pricing, preConsumedQuota, groupRatio, systemPromptReset)
 	return nil
 }
 
@@ -108,7 +120,7 @@ func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralO
 		}
 		rawBody, _ := common.GetRequestBody(c)
 		if rawBody != nil {
-			rid := helper.GetRequestID(c.Request.Context())
+			rid := helper.GetTraceID(c.Request.Context())
 			if rid != "" {
 				dumpPath := filepath.Join("/tmp", "resp_body_"+rid+".json")
 				_ = os.WriteFile(dumpPath, rawBody, 0644)
@@ -126,7 +138,7 @@ func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralO
 	if !config.EnforceIncludeUsage &&
 		meta.APIType == apitype.OpenAI &&
 		meta.OriginModelName == meta.ActualModelName &&
-		meta.ChannelType != channeltype.Baichuan &&
+		meta.ChannelProtocol != relaychannel.Baichuan &&
 		meta.ForcedSystemPrompt == "" {
 		// no need to convert request for openai
 		return c.Request.Body, nil

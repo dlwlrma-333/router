@@ -18,7 +18,7 @@ const EditUser = () => {
     wechat_id: '',
     email: '',
     quota: 0,
-    group: 'default',
+    group: '',
   });
   const [groupOptions, setGroupOptions] = useState([]);
   const {
@@ -35,13 +35,19 @@ const EditUser = () => {
   };
   const fetchGroups = useCallback(async () => {
     try {
-      let res = await API.get(`/api/v1/admin/group/`);
+      let res = await API.get(`/api/v1/admin/group/catalog`);
+      const rows = Array.isArray(res?.data?.data) ? res.data.data : [];
       setGroupOptions(
-        res.data.data.map((group) => ({
-          key: group,
-          text: group,
-          value: group,
-        }))
+        rows
+          .filter((group) => group?.enabled)
+          .map((group) => ({
+            key: group.id,
+            text:
+              group.name && group.name !== group.id
+                ? `${group.name} (${group.id})`
+                : group.id,
+            value: group.id,
+          }))
       );
     } catch (error) {
       showError(error.message);

@@ -57,8 +57,6 @@ type ServerRuntimeConfig struct {
 type DatabaseRuntimeConfig struct {
 	SQLDSN             string `yaml:"sql_dsn"`
 	LogSQLDSN          string `yaml:"log_sql_dsn"`
-	SQLitePath         string `yaml:"sqlite_path"`
-	SQLiteBusyTimeout  int    `yaml:"sqlite_busy_timeout"`
 	MaxIdleConns       int    `yaml:"max_idle_conns"`
 	MaxOpenConns       int    `yaml:"max_open_conns"`
 	MaxLifetimeSeconds int    `yaml:"max_lifetime_seconds"`
@@ -160,10 +158,8 @@ func defaultRuntimeConfig() RuntimeConfig {
 			LogDir:  "./logs",
 		},
 		Database: DatabaseRuntimeConfig{
-			SQLDSN:             "",
+			SQLDSN:             "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable",
 			LogSQLDSN:          "",
-			SQLitePath:         "one-api.db",
-			SQLiteBusyTimeout:  3000,
 			MaxIdleConns:       100,
 			MaxOpenConns:       1000,
 			MaxLifetimeSeconds: 60,
@@ -296,14 +292,6 @@ func ApplyRuntimeConfig(cfg *RuntimeConfig, portFlagSet bool, logDirFlagSet bool
 
 	SQLDSN = strings.TrimSpace(cfg.Database.SQLDSN)
 	LogSQLDSN = strings.TrimSpace(cfg.Database.LogSQLDSN)
-	SQLitePath = strings.TrimSpace(cfg.Database.SQLitePath)
-	if SQLitePath == "" {
-		SQLitePath = "one-api.db"
-	}
-	SQLiteBusyTimeout = cfg.Database.SQLiteBusyTimeout
-	if SQLiteBusyTimeout <= 0 {
-		SQLiteBusyTimeout = 3000
-	}
 	SQLMaxIdleConns = cfg.Database.MaxIdleConns
 	if SQLMaxIdleConns <= 0 {
 		SQLMaxIdleConns = 100
@@ -515,8 +503,6 @@ func setCompatibilityEnvs() {
 	_ = os.Setenv("UCAN_ACTION", config.UcanAction)
 	_ = os.Setenv("SQL_DSN", SQLDSN)
 	_ = os.Setenv("LOG_SQL_DSN", LogSQLDSN)
-	_ = os.Setenv("SQLITE_PATH", SQLitePath)
-	_ = os.Setenv("SQLITE_BUSY_TIMEOUT", strconv.Itoa(SQLiteBusyTimeout))
 	_ = os.Setenv("SQL_MAX_IDLE_CONNS", strconv.Itoa(SQLMaxIdleConns))
 	_ = os.Setenv("SQL_MAX_OPEN_CONNS", strconv.Itoa(SQLMaxOpenConns))
 	_ = os.Setenv("SQL_MAX_LIFETIME", strconv.Itoa(SQLMaxLifetimeSeconds))

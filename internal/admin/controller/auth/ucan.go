@@ -40,7 +40,7 @@ func PublicProfile(c *gin.Context) {
 
 	if claims, err := common.VerifyWalletJWT(bearer); err == nil {
 		addr := strings.ToLower(claims.WalletAddress)
-		if addr == "" && claims.UserID != 0 {
+		if addr == "" && strings.TrimSpace(claims.UserID) != "" {
 			user := model.User{Id: claims.UserID}
 			if err := user.FillUserById(); err == nil && user.WalletAddress != nil {
 				addr = strings.ToLower(*user.WalletAddress)

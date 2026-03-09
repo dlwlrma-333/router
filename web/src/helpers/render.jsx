@@ -1,5 +1,5 @@
 import { Label, Message } from 'semantic-ui-react';
-import { getChannelOption } from './helper';
+import { getChannelProtocolOption } from './helper';
 import React from 'react';
 
 export function renderText(text, limit) {
@@ -138,8 +138,8 @@ export function renderColorLabel(text) {
   );
 }
 
-export function renderChannelTip(channelId) {
-  let channel = getChannelOption(channelId);
+export function renderChannelTip(protocol) {
+  let channel = getChannelProtocolOption(protocol);
   if (channel === undefined || channel.tip === undefined) {
     return <></>;
   }

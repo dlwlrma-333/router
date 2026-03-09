@@ -71,10 +71,8 @@ OpenAI 兼容调用（`/api/v1/public/*`）使用 `TokenAuth + Distribute`，与
 - OpenAI 兼容：`internal/transport/http/router/relay.go`
 
 新增/改动 API 时，请同步更新文档：
-- `docs/API.v1.md`（对外文档，仅 /api/v1 分层 + JWT）
-- `docs/openapi.json`（Swagger/OpenAPI 产物，执行 `scripts/gen-openapi.sh` 生成）
-- `CodexDev/API/api-v1-mapping.md`（旧路径 → 新路径映射表）
-- `CodexDev/API/notes.md`（架构与变更记录）
+- `docs/接口文档.md`（统一 API 文档）
+- `docs/swagger/openapi.json`（Swagger/OpenAPI 产物，执行 `scripts/gen-openapi.sh` 生成）
 
 Swagger 注释要求：
 - 为 `/api/v1/public` 与 `/api/v1/admin` handler 补充 swag 注释（不要写旧 `/api` 或 `/v1`）

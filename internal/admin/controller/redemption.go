@@ -79,14 +79,15 @@ func SearchRedemptions(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/admin/redemption/{id} [get]
 func GetRedemption(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
+	id := c.Param("id")
+	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": "id 为空",
 		})
 		return
 	}
+	var err error
 	redemption, err := model.GetRedemptionById(id)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -148,7 +149,7 @@ func AddRedemption(c *gin.Context) {
 	for i := 0; i < redemption.Count; i++ {
 		key := random.GetUUID()
 		cleanRedemption := model.Redemption{
-			UserId:      c.GetInt(ctxkey.Id),
+			UserId:      c.GetString(ctxkey.Id),
 			Name:        redemption.Name,
 			Key:         key,
 			CreatedTime: helper.GetTimestamp(),
@@ -183,7 +184,7 @@ func AddRedemption(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/admin/redemption/{id} [delete]
 func DeleteRedemption(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id := c.Param("id")
 	err := model.DeleteRedemptionById(id)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{

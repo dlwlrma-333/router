@@ -3,13 +3,13 @@ package model
 import "context"
 
 type UserRepository struct {
-	GetMaxUserId                             func() int
+	GetMaxUserId                             func() string
 	GetAllUsers                              func(startIdx int, num int, order string) ([]*User, error)
 	SearchUsers                              func(keyword string) ([]*User, error)
-	GetUserById                              func(id int, selectAll bool) (*User, error)
-	GetUserIdByAffCode                       func(affCode string) (int, error)
-	DeleteUserById                           func(id int) error
-	Insert                                   func(ctx context.Context, user *User, inviterId int) error
+	GetUserById                              func(id string, selectAll bool) (*User, error)
+	GetUserIdByAffCode                       func(affCode string) (string, error)
+	DeleteUserById                           func(id string) error
+	Insert                                   func(ctx context.Context, user *User, inviterId string) error
 	Update                                   func(user *User, updatePassword bool) error
 	Delete                                   func(user *User) error
 	ValidateAndFill                          func(user *User) error
@@ -29,23 +29,23 @@ type UserRepository struct {
 	IsWalletAddressAlreadyTaken              func(address string) bool
 	IsUsernameAlreadyTaken                   func(username string) bool
 	ResetUserPasswordByEmail                 func(email string, password string) error
-	IsAdmin                                  func(userId int) bool
-	IsUserEnabled                            func(userId int) (bool, error)
+	IsAdmin                                  func(userId string) bool
+	IsUserEnabled                            func(userId string) (bool, error)
 	ValidateAccessToken                      func(token string) *User
-	GetUserQuota                             func(id int) (int64, error)
-	GetUserUsedQuota                         func(id int) (int64, error)
-	GetUserEmail                             func(id int) (string, error)
-	GetUserGroup                             func(id int) (string, error)
-	IncreaseUserQuota                        func(id int, quota int64) error
-	DecreaseUserQuota                        func(id int, quota int64) error
-	IncreaseUserQuotaDirect                  func(id int, quota int64) error
-	DecreaseUserQuotaDirect                  func(id int, quota int64) error
+	GetUserQuota                             func(id string) (int64, error)
+	GetUserUsedQuota                         func(id string) (int64, error)
+	GetUserEmail                             func(id string) (string, error)
+	GetUserGroup                             func(id string) (string, error)
+	IncreaseUserQuota                        func(id string, quota int64) error
+	DecreaseUserQuota                        func(id string, quota int64) error
+	IncreaseUserQuotaDirect                  func(id string, quota int64) error
+	DecreaseUserQuotaDirect                  func(id string, quota int64) error
 	GetRootUserEmail                         func() string
-	UpdateUserUsedQuotaAndRequestCount       func(id int, quota int64)
-	UpdateUserUsedQuotaAndRequestCountDirect func(id int, quota int64, count int)
-	UpdateUserUsedQuotaDirect                func(id int, quota int64)
-	UpdateUserRequestCountDirect             func(id int, count int)
-	GetUsernameById                          func(id int) string
+	UpdateUserUsedQuotaAndRequestCount       func(id string, quota int64)
+	UpdateUserUsedQuotaAndRequestCountDirect func(id string, quota int64, count int)
+	UpdateUserUsedQuotaDirect                func(id string, quota int64)
+	UpdateUserRequestCountDirect             func(id string, count int)
+	GetUsernameById                          func(id string) string
 }
 
 var userRepo UserRepository

@@ -21,14 +21,14 @@ type OpenAIUsageResponse struct {
 	TotalUsage float64 `json:"total_usage"` // unit: 0.01 dollar
 }
 
-func GetTokenByID(tokenId int) (*model.Token, error) {
+func GetTokenByID(tokenId string) (*model.Token, error) {
 	return tokenrepo.GetByID(tokenId)
 }
 
-func GetUserQuota(userId int) (int64, error) {
+func GetUserQuota(userId string) (int64, error) {
 	return userrepo.GetQuota(userId)
 }
 
-func GetUserUsedQuota(userId int) (int64, error) {
+func GetUserUsedQuota(userId string) (int64, error) {
 	return userrepo.GetUsedQuota(userId)
 }

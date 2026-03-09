@@ -9,8 +9,8 @@ const (
 )
 
 type Redemption struct {
-	Id           int    `json:"id"`
-	UserId       int    `json:"user_id"`
+	Id           string `json:"id" gorm:"type:char(36);primaryKey"`
+	UserId       string `json:"user_id" gorm:"type:char(36);index"`
 	Key          string `json:"key" gorm:"type:char(32);uniqueIndex"`
 	Status       int    `json:"status" gorm:"default:1"`
 	Name         string `json:"name" gorm:"index"`
@@ -28,11 +28,11 @@ func SearchRedemptions(keyword string) ([]*Redemption, error) {
 	return mustRedemptionRepo().SearchRedemptions(keyword)
 }
 
-func GetRedemptionById(id int) (*Redemption, error) {
+func GetRedemptionById(id string) (*Redemption, error) {
 	return mustRedemptionRepo().GetRedemptionById(id)
 }
 
-func Redeem(ctx context.Context, key string, userId int) (int64, error) {
+func Redeem(ctx context.Context, key string, userId string) (int64, error) {
 	return mustRedemptionRepo().Redeem(ctx, key, userId)
 }
 
@@ -53,6 +53,6 @@ func (redemption *Redemption) Delete() error {
 	return mustRedemptionRepo().Delete(redemption)
 }
 
-func DeleteRedemptionById(id int) error {
+func DeleteRedemptionById(id string) error {
 	return mustRedemptionRepo().DeleteRedemptionById(id)
 }

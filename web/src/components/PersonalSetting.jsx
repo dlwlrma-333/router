@@ -53,7 +53,7 @@ const PersonalSetting = () => {
         address,
         chain_id: chainId,
       });
-      const payload = nonceResp?.data?.data || nonceResp?.data?.body || nonceResp?.data;
+      const payload = nonceResp?.data?.data;
       if (nonceResp?.data?.success === false) {
         showError(nonceResp.data?.message || '获取挑战失败');
         return;

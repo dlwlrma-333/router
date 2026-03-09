@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/common/logger"
+	"github.com/yeying-community/router/common/random"
 	usercontroller "github.com/yeying-community/router/internal/admin/controller/user"
 	"github.com/yeying-community/router/internal/admin/model"
 )
@@ -138,14 +138,14 @@ func OidcAuth(c *gin.Context) {
 			if oidcUser.PreferredUsername != "" {
 				user.Username = oidcUser.PreferredUsername
 			} else {
-				user.Username = "oidc_" + strconv.Itoa(model.GetMaxUserId()+1)
+				user.Username = "oidc_" + random.GetRandomString(8)
 			}
 			if oidcUser.Name != "" {
 				user.DisplayName = oidcUser.Name
 			} else {
 				user.DisplayName = "OIDC User"
 			}
-			err := user.Insert(ctx, 0)
+			err := user.Insert(ctx, "")
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
@@ -200,9 +200,16 @@ func OidcBind(c *gin.Context) {
 		return
 	}
 	session := sessions.Default(c)
-	id := session.Get("id")
+	id, idErr := sessionIDToString(session.Get("id"))
+	if idErr != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "未登录",
+		})
+		return
+	}
 	// id := c.GetInt("id")  // critical bug!
-	user.Id = id.(int)
+	user.Id = id
 	err = user.FillUserById()
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{

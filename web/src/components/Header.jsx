@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { UserContext } from '../context/User';
 import { useTranslation } from 'react-i18next';
@@ -23,13 +23,18 @@ const ADMIN_HEADER_BUTTONS = [
   },
   {
     name: 'header.model_providers',
-    to: '/admin/model-provider',
+    to: '/admin/provider',
     icon: 'cubes',
   },
   {
     name: 'header.channel',
     to: '/admin/channel',
     icon: 'sitemap',
+  },
+  {
+    name: 'header.group',
+    to: '/admin/group',
+    icon: 'group',
   },
   {
     name: 'header.user',
@@ -94,6 +99,16 @@ const Header = ({ workspace = 'user' }) => {
 
   const [showSidebar, setShowSidebar] = useState(false);
   const logo = getLogo();
+  const shouldFixHeader = Boolean(userState?.user);
+
+  useEffect(() => {
+    const body = document.body;
+    if (!body) return;
+    body.classList.toggle('header-fixed-active', shouldFixHeader);
+    return () => {
+      body.classList.remove('header-fixed-active');
+    };
+  }, [shouldFixHeader]);
 
   const currentWorkspace = workspace === 'admin' ? 'admin' : 'user';
   const hasAdminAccess = isAdmin();
@@ -201,6 +216,7 @@ const Header = ({ workspace = 'user' }) => {
         <Menu
           borderless
           size='large'
+          className={shouldFixHeader ? 'router-fixed-header' : ''}
           style={
             showSidebar
               ? {
@@ -324,6 +340,7 @@ const Header = ({ workspace = 'user' }) => {
     <>
       <Menu
         borderless
+        className={shouldFixHeader ? 'router-fixed-header' : ''}
         style={{
           borderTop: 'none',
           boxShadow: 'rgba(0, 0, 0, 0.04) 0px 2px 12px 0px',

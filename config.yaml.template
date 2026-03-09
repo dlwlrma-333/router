@@ -10,14 +10,12 @@ server:
   log_dir: ./logs
 
 database:
-  # PostgreSQL: postgres://user:pass@host:5432/db?sslmode=disable
-  # MySQL: user:pass@tcp(host:3306)/db?charset=utf8mb4&parseTime=True&loc=Local
-  # 留空时使用 SQLite
-  sql_dsn: ""
+  # 仅支持 PostgreSQL
+  # 本地 Docker Compose 默认: /Users/liuxin2/Workspace/opensource/deployer/middleware/postgresql/.env
+  # POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres POSTGRES_DB=postgres POSTGRES_PORT=5432
+  sql_dsn: "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable"
   # 日志库 DSN，留空则复用 sql_dsn
   log_sql_dsn: ""
-  sqlite_path: one-api.db
-  sqlite_busy_timeout: 3000
   max_idle_conns: 100
   max_open_conns: 1000
   max_lifetime_seconds: 60

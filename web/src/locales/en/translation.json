@@ -2,7 +2,8 @@
   "header": {
     "home": "Home",
     "channel": "Channel",
-    "model_providers": "Model Providers",
+    "model_providers": "Providers",
+    "group": "Group",
     "token": "Token",
     "redemption": "Redemption",
     "topup": "Top Up",
@@ -44,15 +45,13 @@
       "channels": "Channels",
       "model_providers": "Model Providers"
     },
-    "search": "Search channels by ID, name and key...",
-    "balance_notice": "OpenAI channels no longer support getting balance via key, so balance shows as 0. For supported channel types, click balance to refresh.",
-    "test_notice": "Channel testing only supports chat models, preferring gpt-3.5-turbo. If unavailable, uses the first model in your configured list.",
-    "detail_notice": "Click the detail button below to show balance and set additional test models.",
-    "table": {
-      "id": "ID",
-      "name": "Name",
+  "search": "Search channels by identifier or display name...",
+  "table": {
+    "id": "ID",
+    "name": "Channel",
+    "identifier": "Identifier: {{id}}",
       "group": "Group",
-      "type": "Type",
+      "type": "Protocol Type",
       "status": "Status",
       "response_time": "Response Time",
       "balance": "Balance",
@@ -63,6 +62,7 @@
       "status_enabled": "Enabled",
       "status_disabled": "Disabled",
       "status_auto_disabled": "Disabled",
+      "status_creating": "Creating",
       "status_disabled_tip": "This channel is manually disabled",
       "status_auto_disabled_tip": "This channel is automatically disabled",
       "status_unknown": "Unknown Status",
@@ -74,30 +74,37 @@
     },
     "buttons": {
       "test": "Test",
+      "test_channel": "Test Channels",
+      "disable_channel": "Disable Channels",
+      "delete_channel": "Delete Channels",
       "delete": "Delete",
       "confirm_delete": "Delete Channel",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
       "enable": "Enable",
       "disable": "Disable",
       "edit": "Edit",
+      "copy": "Copy",
       "add": "Add New Channel",
       "test_all": "Test All Channels",
-      "test_disabled": "Test Disabled Channels",
-      "delete_disabled": "Delete Disabled Channels",
-      "confirm_delete_disabled": "Confirm Delete",
-      "refresh": "Refresh",
-      "show_detail": "Details",
-      "hide_detail": "Hide Details"
+      "refresh": "Refresh"
     },
     "messages": {
-      "test_success": "Channel {{name}} test successful, model {{model}}, time {{time}}s, output: {{message}}",
+      "test_success": "Channel {{name}} test successful, model {{model}}, time {{time}}s, result: {{message}}",
       "test_all_started": "Channel testing started successfully, please refresh page to see results.",
-      "delete_disabled_success": "Deleted all disabled channels, total: {{count}}",
+      "batch_test_select_required": "Please select at least one channel first.",
+      "batch_test_done": "Batch testing finished: {{success}} succeeded, {{failed}} failed.",
+      "batch_disable_select_required": "Please select at least one channel to disable.",
+      "batch_disable_done": "Batch disable finished: {{success}} succeeded, {{failed}} failed.",
+      "batch_delete_select_required": "Please select at least one channel to delete.",
+      "batch_delete_done": "Batch deletion finished: {{success}} succeeded, {{failed}} failed.",
       "balance_update_success": "Channel {{name}} balance updated successfully!",
       "all_balance_updated": "All enabled channel balances have been updated!",
       "operation_success": "Operation completed successfully!"
     },
     "providers": {
       "title": "Model Provider Catalog",
+      "search": "Search provider, name, source, model...",
       "fetch": {
         "provider": "Provider",
         "base_url": "Base URL",
@@ -125,12 +132,27 @@
         "empty": "No model provider catalog",
         "model_count": "{{count}} models"
       },
+      "model_detail_table": {
+        "add": "Add Model",
+        "search_placeholder": "Search model details...",
+        "model": "Model",
+        "type": "Type",
+        "input_price": "Input Price",
+        "output_price": "Output Price",
+        "price_unit": "Price Unit",
+        "currency": "Currency",
+        "source": "Source",
+        "actions": "Actions",
+        "empty": "No model details"
+      },
       "dialog": {
         "title_create": "Add Model Provider",
         "title_edit": "Edit Model Provider",
+        "title_detail": "Model Provider Details",
         "delete_title": "Confirm Delete Model Provider",
         "delete_content": "Are you sure you want to delete model provider {{provider}}?",
         "delete_confirm": "Delete",
+        "edit": "Edit",
         "provider": "Provider ID",
         "provider_placeholder": "e.g. openai / google / anthropic",
         "name": "Display Name",
@@ -141,6 +163,8 @@
         "key_placeholder": "Used when fetching models from provider API",
         "models": "Models (one per line, or comma-separated)",
         "models_placeholder": "e.g. gpt-4o-mini",
+        "model_details": "Model Details",
+        "model_details_placeholder": "[{\"model\":\"gpt-4o-mini\",\"type\":\"text\",\"input_price\":0.00015,\"output_price\":0.0006,\"price_unit\":\"per_1k_tokens\",\"currency\":\"USD\"}]",
         "cancel": "Back",
         "cancel_create": "Cancel",
         "confirm": "Confirm"
@@ -153,6 +177,7 @@
         "provider_exists": "This provider already exists, please edit it directly",
         "save_failed": "Failed to save model provider catalog",
         "save_success": "Model provider catalog saved",
+        "model_details_invalid": "Invalid model_details JSON format",
         "fetch_provider_required": "Please choose a provider first",
         "fetch_key_required": "Please provide API key first, or save one in provider config",
         "fetch_failed": "Failed to fetch models from provider API",
@@ -160,67 +185,102 @@
       }
     },
     "edit": {
-      "title_edit": "Update Channel Information",
-      "title_create": "Create New Channel",
-      "type": "Interface Type",
-      "model_provider": "Model Provider",
-      "model_provider_options": {
-        "gpt": "GPT",
-        "gemini": "Gemini",
-        "claude": "Claude",
-        "deepseek": "DeepSeek",
-        "qwen": "Qwen",
-        "xai": "xAI Grok",
-        "mistral": "Mistral",
-        "cohere": "Cohere",
-        "zhipu": "Zhipu GLM",
-        "hunyuan": "Tencent Hunyuan",
-        "volcengine": "Volcengine Doubao",
-        "minimax": "MiniMax"
-      },
-      "name": "Name",
-      "name_placeholder": "Please enter name",
+    "title_detail": "Channel Details",
+    "title_edit": "Update Channel Information",
+    "title_create": "Create New Channel",
+    "identifier": "Channel Identifier",
+    "identifier_placeholder": "e.g. openai-main",
+    "type": "Protocol Type",
+    "name": "Display Name",
+    "name_placeholder": "Optional, falls back to the channel identifier",
       "group": "Group",
       "group_placeholder": "Please select groups that can use this channel",
-      "group_addition": "Please edit group multipliers in system settings to add new group:",
+      "group_addition": "You can add a group in Group Management:",
       "models": "Models",
       "models_placeholder": "Please select models supported by this channel",
-      "model_mapping": "Model Mapping",
-      "model_mapping_placeholder": "Optional, used to modify model names in request body. A JSON string where keys are request model names and values are target model names",
       "system_prompt": "System Prompt",
       "system_prompt_placeholder": "Optional, used to force set system prompt. Use with custom model & model mapping. First create a unique custom model name above, then map it to a natively supported model",
-      "proxy_url": "Proxy",
+      "proxy_url": "Address",
       "proxy_url_placeholder": "This is optional and used for API calls via a proxy. Please enter the proxy URL, formatted as: https://domain.com",
-      "base_url": "Base URL",
-      "base_url_placeholder": "The Base URL required by the OpenAPI SDK",
-      "key": "Key",
+      "base_url": "Address",
+      "base_url_placeholder": "The address required by the OpenAPI SDK",
+      "key": "Secret Key",
       "key_placeholder": "Please enter key",
-      "use_responses": {
-        "label": "Use Codex Responses Mode (/v1/responses)",
-        "help": "When enabled, this channel routes via Responses format (Codex/CLI)"
-      },
-      "user_agent": {
-        "label": "Client Identifier (User-Agent)",
-        "placeholder": "e.g. codex-cli",
-        "help": "Fill this only if upstream enforces a client allowlist; empty means no User-Agent override",
-        "codex_checkbox": "Use Codex CLI (User-Agent=codex-cli)"
-      },
-      "batch": "Batch Create",
-      "batch_placeholder": "Please enter keys, one per line",
       "buttons": {
+        "back": "Back",
         "cancel": "Cancel",
         "submit": "Submit",
+        "previous_step": "Previous",
+        "next_step": "Next",
+        "fetch_models": "Fetch Models",
+        "verify_and_fetch_models": "Verify & Fetch Models",
+        "select_all": "Select All",
         "fill_models": "Fill Related Models",
         "fill_all": "Fill All Models",
         "clear": "Clear All Models",
         "add_custom": "Add",
         "custom_placeholder": "Enter custom model name"
       },
-      "messages": {
-        "name_required": "Please enter channel name and key!",
-        "model_provider_required": "Please choose a model provider first!",
+      "model_selector": {
+        "summary": "Selected {{selected}} / {{total}}",
+        "table": {
+          "selected": "Enabled",
+          "name": "Name",
+          "alias": "Alias",
+          "price_unit": "Price Unit",
+          "input_price": "Input Override",
+          "output_price": "Output Override"
+        },
+        "realtime_enabled": "Realtime model sync is enabled: changing address or key refreshes models and selects all by default.",
+        "realtime_hint": "After address and key are filled, supported models will be fetched automatically.",
+        "flow_title": "Create Channel Flow",
+        "flow_steps": "1) Verify connection and fetch models 2) Select models actually supported by this channel 3) Submit creation. Re-verify after connection changes.",
+        "flow_steps_no_verify": "1) Click \"Fetch Models\" to load system model list 2) Select models supported by this channel 3) Submit creation.",
+        "protocol_support_yes": "This protocol supports connection verification.",
+        "protocol_support_no": "This protocol does not support connection verification. Use system model list for selection.",
+        "manual_mode_hint": "This protocol uses system model list and does not run online connection verification.",
+        "verify_prerequisite": "Please provide address and key before verifying connection.",
+        "verify_required": "Please verify connection and fetch models before submit.",
+        "verify_in_progress": "Verifying connection and syncing models...",
+        "verify_ready": "Connection verified. You can submit now.",
+        "verify_stale": "Connection changed. Please verify and fetch models again.",
+        "empty": "No models available yet. Click \"Fetch Models\" or check your configuration.",
+        "last_synced": "Last synced at: {{time}}"
+      },
+      "capability_tester": {
+        "title": "Capability Test",
+        "hint": "Run real probes against the current draft channel and selected models. Image or audio checks are skipped automatically when no matching model is selected.",
+        "button": "Run Tests",
+        "empty": "No test result yet. Click \"Run Tests\" to probe chat, responses, images, and audio one by one.",
+        "last_tested": "Last tested at: {{time}}",
+        "test_success": "Capability tests completed",
+        "test_failed": "Capability test failed",
+        "stale": "Connection info or model selection changed. Please run capability tests again.",
+        "status": {
+          "supported": "Supported",
+          "unsupported": "Unsupported",
+          "skipped": "Skipped"
+        },
+        "table": {
+          "capability": "Capability",
+          "endpoint": "Endpoint",
+          "model": "Test Model",
+          "status": "Status",
+          "latency": "Latency",
+          "message": "Message"
+        }
+      },
+    "messages": {
+      "identifier_required": "Please enter a channel identifier!",
+      "identifier_invalid": "Channel identifier only supports lowercase letters, digits, and -, with a maximum length of 64 characters.",
+      "key_required": "Please enter the channel key!",
+      "groups_required": "Please select at least one group!",
         "models_required": "Please select at least one model!",
-        "model_mapping_invalid": "Model mapping must be valid JSON format!",
+        "create_draft_failed": "Failed to create channel draft",
+        "update_draft_failed": "Failed to save channel draft",
+        "fetch_models_failed": "Failed to fetch models",
+        "models_empty": "No available models were returned",
+        "model_config_invalid": "Invalid model configuration. Check alias emptiness or duplicates, and ensure price overrides are non-negative.",
         "update_success": "Channel updated successfully!",
         "create_success": "Channel created successfully!"
       },
@@ -234,6 +294,12 @@
       "douban_notice": "For Douban, you need to go to",
       "douban_notice_link": "Model Inference Page",
       "douban_notice_2": "to create an inference endpoint, and use the endpoint name as model name, e.g.: `ep-20240608051426-tkxvl`.",
+      "wizard": {
+        "step_basic": "Step 1: Connection",
+        "step_models": "Step 2: Model Selection",
+        "step_capabilities": "Step 3: Capability Test",
+        "step_advanced": "Step 4: Advanced Settings"
+      },
       "aws_region_placeholder": "region, e.g.: us-west-2",
       "aws_ak_placeholder": "AWS IAM Access Key",
       "aws_sk_placeholder": "AWS IAM Secret Key",
@@ -251,6 +317,100 @@
         "fastgpt": "Enter in format: APIKey-AppId, e.g.: fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041",
         "tencent": "Enter in format: AppId|SecretId|SecretKey"
       }
+    }
+  },
+  "group_manage": {
+    "title": "Group Management",
+    "search": "Search group ID, name, or description",
+    "table": {
+      "id": "Group ID",
+      "name": "Display Name",
+      "description": "Description",
+      "channels": "Channels",
+      "billing_ratio": "Billing Ratio",
+      "source": "Source",
+      "status": "Status",
+      "sort_order": "Sort Order",
+      "updated_at": "Updated At",
+      "actions": "Actions"
+    },
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "form": {
+      "id": "Group ID",
+      "id_placeholder": "e.g. enterprise",
+      "name": "Display Name",
+      "name_placeholder": "e.g. Enterprise",
+      "description": "Description",
+      "description_placeholder": "Optional description for this group",
+      "billing_ratio": "Billing Ratio",
+      "billing_ratio_placeholder": "Defaults to 1, use 0 or greater",
+      "sort_order": "Sort Value",
+      "channels": "Bound Channels",
+      "channels_placeholder": "Select channels available for this group"
+    },
+    "buttons": {
+      "add": "Add Group",
+      "add_model": "Add Model",
+      "back": "Back",
+      "refresh": "Refresh",
+      "edit": "Edit",
+      "bind_channels": "Configure Channels",
+      "enable": "Enable",
+      "disable": "Disable",
+      "delete": "Delete",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "modal": {
+      "create_title": "Create Group",
+      "edit_title": "Edit Group",
+      "delete_title": "Confirm Delete Group",
+      "delete_confirm": "Are you sure you want to delete group {{id}}?",
+      "bind_channels_title": "Configure Channels for Group {{id}}"
+    },
+    "detail": {
+      "model": "Model",
+      "channel_count": "Channel Count",
+      "model_channels": "Channels",
+      "model_search_placeholder": "Search model or channel",
+      "supported_models": "Supported Models",
+      "empty_models": "No supported models",
+      "bound_channels": "Bound Channels",
+      "empty_channels": "No bound channels"
+    },
+    "edit": {
+      "model_configs": "Group Model Mappings",
+      "model": "Visible Model",
+      "channel": "Channel",
+      "upstream_model": "Channel Model",
+      "model_placeholder": "Enter the model name exposed to clients",
+      "channel_placeholder": "Select the channel for this model",
+      "upstream_model_placeholder": "Select the actual upstream model used by the channel",
+      "model_search_placeholder": "Search visible model, channel, or upstream model",
+      "empty_model_configs": "No group model configs"
+    },
+    "messages": {
+      "loading": "Loading...",
+      "empty": "No groups",
+      "id_required": "Group ID is required",
+      "billing_ratio_invalid": "Billing ratio must be greater than or equal to 0",
+      "load_failed": "Failed to load groups",
+      "bind_load_failed": "Failed to load group channels",
+      "model_load_failed": "Failed to load group models",
+      "model_config_load_failed": "Failed to load group model configs",
+      "model_config_incomplete": "Please complete the group model config before submitting",
+      "model_config_duplicate": "The same visible model cannot use the same channel twice",
+      "create_success": "Group created successfully",
+      "create_failed": "Failed to create group",
+      "update_success": "Group updated successfully",
+      "update_failed": "Failed to update group",
+      "bind_update_success": "Group channel bindings saved",
+      "bind_update_failed": "Failed to save group channel bindings",
+      "delete_success": "Group deleted successfully",
+      "delete_failed": "Failed to delete group"
     }
   },
   "token": {
@@ -443,7 +603,7 @@
       "display_name_placeholder": "Please enter new display name",
       "group": "Group",
       "group_placeholder": "Please select group",
-      "group_addition": "Please edit group multipliers in system settings to add new group:",
+      "group_addition": "You can add a group in Group Management:",
       "quota": "Remaining Quota",
       "quota_placeholder": "Please enter new remaining quota",
       "github_id": "Linked GitHub Account",
@@ -787,24 +947,6 @@
         "invitee_reward_placeholder": "e.g.: 1000",
         "buttons": {
           "save": "Save Quota Settings"
-        }
-      },
-      "ratio": {
-        "title": "Ratio Settings",
-        "model": {
-          "title": "Model Ratio",
-          "placeholder": "A JSON text where keys are model names and values are ratios"
-        },
-        "completion": {
-          "title": "Completion Ratio",
-          "placeholder": "A JSON text where keys are model names and values are ratios. These ratios are the proportion of completion to prompt ratio, which can override Router's internal ratios"
-        },
-        "group": {
-          "title": "Group Ratio",
-          "placeholder": "A JSON text where keys are group names and values are ratios"
-        },
-        "buttons": {
-          "save": "Save Ratio Settings"
         }
       },
       "log": {

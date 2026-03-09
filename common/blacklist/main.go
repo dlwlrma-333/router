@@ -11,19 +11,19 @@ func init() {
 	blackList = sync.Map{}
 }
 
-func userId2Key(id int) string {
-	return fmt.Sprintf("userid_%d", id)
+func userId2Key(id string) string {
+	return fmt.Sprintf("userid_%s", id)
 }
 
-func BanUser(id int) {
+func BanUser(id string) {
 	blackList.Store(userId2Key(id), true)
 }
 
-func UnbanUser(id int) {
+func UnbanUser(id string) {
 	blackList.Delete(userId2Key(id))
 }
 
-func IsUserBanned(id int) bool {
+func IsUserBanned(id string) bool {
 	_, ok := blackList.Load(userId2Key(id))
 	return ok
 }

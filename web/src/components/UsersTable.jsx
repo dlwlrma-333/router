@@ -246,14 +246,6 @@ const UsersTable = () => {
             <Table.HeaderCell
               style={{ cursor: 'pointer' }}
               onClick={() => {
-                sortUser('id');
-              }}
-            >
-              {t('user.table.id')}
-            </Table.HeaderCell>
-            <Table.HeaderCell
-              style={{ cursor: 'pointer' }}
-              onClick={() => {
                 sortUser('username');
               }}
             >
@@ -328,7 +320,6 @@ const UsersTable = () => {
               if (user.deleted) return <></>;
               return (
                 <Table.Row key={user.id}>
-                  <Table.Cell>{user.id}</Table.Cell>
                   <Table.Cell>
                     <Popup
                       content={user.email ? user.email : '未绑定邮箱地址'}
@@ -449,7 +440,7 @@ const UsersTable = () => {
 
         <Table.Footer>
           <Table.Row>
-            <Table.HeaderCell colSpan='10'>
+            <Table.HeaderCell colSpan='9'>
               <Button size='small' as={Link} to='/user/add' loading={loading}>
                 {t('user.buttons.add')}
               </Button>

@@ -20,70 +20,70 @@ import (
 	"github.com/yeying-community/router/internal/relay/adaptor/togetherai"
 	"github.com/yeying-community/router/internal/relay/adaptor/xai"
 	"github.com/yeying-community/router/internal/relay/adaptor/xunfeiv2"
-	"github.com/yeying-community/router/internal/relay/channeltype"
+	relaychannel "github.com/yeying-community/router/internal/relay/channel"
 )
 
 var CompatibleChannels = []int{
-	channeltype.Azure,
-	channeltype.AI360,
-	channeltype.Moonshot,
-	channeltype.Baichuan,
-	channeltype.Minimax,
-	channeltype.Doubao,
-	channeltype.Mistral,
-	channeltype.Groq,
-	channeltype.LingYiWanWu,
-	channeltype.StepFun,
-	channeltype.DeepSeek,
-	channeltype.TogetherAI,
-	channeltype.Novita,
-	channeltype.SiliconFlow,
-	channeltype.XAI,
-	channeltype.BaiduV2,
-	channeltype.XunfeiV2,
+	relaychannel.Azure,
+	relaychannel.AI360,
+	relaychannel.Moonshot,
+	relaychannel.Baichuan,
+	relaychannel.Minimax,
+	relaychannel.Doubao,
+	relaychannel.Mistral,
+	relaychannel.Groq,
+	relaychannel.LingYiWanWu,
+	relaychannel.StepFun,
+	relaychannel.DeepSeek,
+	relaychannel.TogetherAI,
+	relaychannel.Novita,
+	relaychannel.SiliconFlow,
+	relaychannel.XAI,
+	relaychannel.BaiduV2,
+	relaychannel.XunfeiV2,
 }
 
-func GetCompatibleChannelMeta(channelType int) (string, []string) {
-	switch channelType {
-	case channeltype.Azure:
+func GetCompatibleChannelMeta(channelProtocol int) (string, []string) {
+	switch channelProtocol {
+	case relaychannel.Azure:
 		return "azure", ModelList
-	case channeltype.AI360:
+	case relaychannel.AI360:
 		return "360", ai360.ModelList
-	case channeltype.Moonshot:
+	case relaychannel.Moonshot:
 		return "moonshot", moonshot.ModelList
-	case channeltype.Baichuan:
+	case relaychannel.Baichuan:
 		return "baichuan", baichuan.ModelList
-	case channeltype.Minimax:
+	case relaychannel.Minimax:
 		return "minimax", minimax.ModelList
-	case channeltype.Mistral:
+	case relaychannel.Mistral:
 		return "mistralai", mistral.ModelList
-	case channeltype.Groq:
+	case relaychannel.Groq:
 		return "groq", groq.ModelList
-	case channeltype.LingYiWanWu:
+	case relaychannel.LingYiWanWu:
 		return "lingyiwanwu", lingyiwanwu.ModelList
-	case channeltype.StepFun:
+	case relaychannel.StepFun:
 		return "stepfun", stepfun.ModelList
-	case channeltype.DeepSeek:
+	case relaychannel.DeepSeek:
 		return "deepseek", deepseek.ModelList
-	case channeltype.TogetherAI:
+	case relaychannel.TogetherAI:
 		return "together.ai", togetherai.ModelList
-	case channeltype.Doubao:
+	case relaychannel.Doubao:
 		return "doubao", doubao.ModelList
-	case channeltype.Novita:
+	case relaychannel.Novita:
 		return "novita", novita.ModelList
-	case channeltype.SiliconFlow:
+	case relaychannel.SiliconFlow:
 		return "siliconflow", siliconflow.ModelList
-	case channeltype.XAI:
+	case relaychannel.XAI:
 		return "xai", xai.ModelList
-	case channeltype.BaiduV2:
+	case relaychannel.BaiduV2:
 		return "baiduv2", baiduv2.ModelList
-	case channeltype.XunfeiV2:
+	case relaychannel.XunfeiV2:
 		return "xunfeiv2", xunfeiv2.ModelList
-	case channeltype.OpenRouter:
+	case relaychannel.OpenRouter:
 		return "openrouter", openrouter.ModelList
-	case channeltype.AliBailian:
+	case relaychannel.AliBailian:
 		return "alibailian", alibailian.ModelList
-	case channeltype.GeminiOpenAICompatible:
+	case relaychannel.GeminiOpenAICompatible:
 		return "geminiv2", geminiv2.ModelList
 	default:
 		return "openai", ModelList

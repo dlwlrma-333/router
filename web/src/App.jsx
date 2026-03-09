@@ -32,6 +32,7 @@ import Log from './pages/Log';
 import Chat from './pages/Chat';
 import Dashboard from './pages/Dashboard';
 import ModelProviders from './pages/ModelProviders';
+import Group from './pages/Group';
 import AdminLayout from './layouts/AdminLayout';
 import UserLayout from './layouts/UserLayout';
 
@@ -305,6 +306,14 @@ function App() {
           }
         />
         <Route
+          path='/admin/channel/detail/:id'
+          element={
+            <Suspense fallback={<Loading />}>
+              <EditChannel />
+            </Suspense>
+          }
+        />
+        <Route
           path='/admin/channel/add'
           element={
             <Suspense fallback={<Loading />}>
@@ -313,8 +322,12 @@ function App() {
           }
         />
         <Route
-          path='/admin/model-provider'
+          path='/admin/provider'
           element={<ModelProviders />}
+        />
+        <Route
+          path='/admin/group'
+          element={<Group />}
         />
         <Route
           path='/admin/redemption'
@@ -419,11 +432,11 @@ function App() {
         }
       />
       <Route
-        path='/model-provider/*'
+        path='/provider/*'
         element={
           <PrefixRedirect
-            from='/model-provider'
-            to='/admin/model-provider'
+            from='/provider'
+            to='/admin/provider'
           />
         }
       />

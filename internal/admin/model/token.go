@@ -17,8 +17,8 @@ const (
 )
 
 type Token struct {
-	Id             int     `json:"id"`
-	UserId         int     `json:"user_id"`
+	Id             string  `json:"id" gorm:"type:char(36);primaryKey"`
+	UserId         string  `json:"user_id" gorm:"type:char(36);index"`
 	Key            string  `json:"key" gorm:"type:char(48);uniqueIndex"`
 	Status         int     `json:"status" gorm:"default:1"`
 	Name           string  `json:"name" gorm:"index" `
@@ -32,17 +32,17 @@ type Token struct {
 	Subnet         *string `json:"subnet" gorm:"default:''"`
 }
 
-func GetAllUserTokens(userId int, startIdx int, num int, order string) ([]*Token, error) {
+func GetAllUserTokens(userId string, startIdx int, num int, order string) ([]*Token, error) {
 	return mustTokenRepo().GetAllUserTokens(userId, startIdx, num, order)
 }
 
 // GetFirstAvailableToken returns the earliest created enabled token of a user
 // that is not expired and still has quota (or unlimited).
-func GetFirstAvailableToken(userId int) (*Token, error) {
+func GetFirstAvailableToken(userId string) (*Token, error) {
 	return mustTokenRepo().GetFirstAvailableToken(userId)
 }
 
-func SearchUserTokens(userId int, keyword string) ([]*Token, error) {
+func SearchUserTokens(userId string, keyword string) ([]*Token, error) {
 	return mustTokenRepo().SearchUserTokens(userId, keyword)
 }
 
@@ -50,11 +50,11 @@ func ValidateUserToken(key string) (*Token, error) {
 	return mustTokenRepo().ValidateUserToken(key)
 }
 
-func GetTokenByIds(id int, userId int) (*Token, error) {
+func GetTokenByIds(id string, userId string) (*Token, error) {
 	return mustTokenRepo().GetTokenByIds(id, userId)
 }
 
-func GetTokenById(id int) (*Token, error) {
+func GetTokenById(id string) (*Token, error) {
 	return mustTokenRepo().GetTokenById(id)
 }
 
@@ -85,27 +85,27 @@ func (t *Token) GetModels() string {
 	return *t.Models
 }
 
-func DeleteTokenById(id int, userId int) error {
+func DeleteTokenById(id string, userId string) error {
 	return mustTokenRepo().DeleteTokenById(id, userId)
 }
 
-func IncreaseTokenQuota(id int, quota int64) error {
+func IncreaseTokenQuota(id string, quota int64) error {
 	return mustTokenRepo().IncreaseTokenQuota(id, quota)
 }
 
-func increaseTokenQuota(id int, quota int64) error {
+func increaseTokenQuota(id string, quota int64) error {
 	return mustTokenRepo().IncreaseTokenQuotaDirect(id, quota)
 }
 
-func DecreaseTokenQuota(id int, quota int64) error {
+func DecreaseTokenQuota(id string, quota int64) error {
 	return mustTokenRepo().DecreaseTokenQuota(id, quota)
 }
 
-func decreaseTokenQuota(id int, quota int64) error {
+func decreaseTokenQuota(id string, quota int64) error {
 	return mustTokenRepo().DecreaseTokenQuotaDirect(id, quota)
 }
 
-func PreConsumeTokenQuota(tokenId int, quota int64) (err error) {
+func PreConsumeTokenQuota(tokenId string, quota int64) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
@@ -170,7 +170,7 @@ func PreConsumeTokenQuota(tokenId int, quota int64) (err error) {
 	return err
 }
 
-func PostConsumeTokenQuota(tokenId int, quota int64) (err error) {
+func PostConsumeTokenQuota(tokenId string, quota int64) (err error) {
 	token, err := GetTokenById(tokenId)
 	if err != nil {
 		return err

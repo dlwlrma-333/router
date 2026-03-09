@@ -2,7 +2,7 @@ package model
 
 import (
 	"database/sql"
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 
@@ -11,9 +11,7 @@ import (
 	"github.com/yeying-community/router/common/helper"
 	"github.com/yeying-community/router/common/logger"
 	"github.com/yeying-community/router/common/random"
-	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -34,6 +32,7 @@ func CreateRootAccountIfNeed() error {
 			accessToken = config.InitialRootAccessToken
 		}
 		rootUser := User{
+			Id:          random.GetUUID(),
 			Username:    "root",
 			Password:    hashedPassword,
 			Role:        RoleRootUser,
@@ -46,7 +45,7 @@ func CreateRootAccountIfNeed() error {
 		if config.InitialRootToken != "" {
 			logger.SysLog("creating initial root token as requested")
 			token := Token{
-				Id:             1,
+				Id:             random.GetUUID(),
 				UserId:         rootUser.Id,
 				Key:            config.InitialRootToken,
 				Status:         TokenStatusEnabled,
@@ -64,45 +63,43 @@ func CreateRootAccountIfNeed() error {
 }
 
 func chooseDB(dsn string) (*gorm.DB, error) {
-	switch {
-	case strings.HasPrefix(dsn, "postgres://"):
-		// Use PostgreSQL
-		return openPostgreSQL(dsn)
-	case dsn != "":
-		// Use MySQL
-		return openMySQL(dsn)
-	default:
-		// Use SQLite
-		return openSQLite()
+	trimmed := strings.TrimSpace(dsn)
+	if trimmed == "" {
+		return nil, errors.New("database.sql_dsn is required and only PostgreSQL is supported")
 	}
+	return openPostgreSQL(trimmed, true)
 }
 
-func openPostgreSQL(dsn string) (*gorm.DB, error) {
+func chooseMigrationDB(dsn string) (*gorm.DB, error) {
+	trimmed := strings.TrimSpace(dsn)
+	if trimmed == "" {
+		return nil, errors.New("database.sql_dsn is required and only PostgreSQL is supported")
+	}
+	return openPostgreSQL(trimmed, false)
+}
+
+func openPostgreSQL(dsn string, prepareStmt bool) (*gorm.DB, error) {
+	if !isPostgreSQLDSN(dsn) {
+		return nil, errors.New("unsupported database.sql_dsn: only PostgreSQL DSN is supported")
+	}
 	logger.SysLog("using PostgreSQL as database")
 	common.UsingPostgreSQL = true
 	return gorm.Open(postgres.New(postgres.Config{
 		DSN:                  dsn,
 		PreferSimpleProtocol: true, // disables implicit prepared statement usage
 	}), &gorm.Config{
-		PrepareStmt: true, // precompile SQL
+		PrepareStmt: prepareStmt,
 	})
 }
 
-func openMySQL(dsn string) (*gorm.DB, error) {
-	logger.SysLog("using MySQL as database")
-	common.UsingMySQL = true
-	return gorm.Open(mysql.Open(dsn), &gorm.Config{
-		PrepareStmt: true, // precompile SQL
-	})
-}
-
-func openSQLite() (*gorm.DB, error) {
-	logger.SysLog("SQL_DSN not set, using SQLite as database")
-	common.UsingSQLite = true
-	dsn := fmt.Sprintf("%s?_busy_timeout=%d", common.SQLitePath, common.SQLiteBusyTimeout)
-	return gorm.Open(sqlite.Open(dsn), &gorm.Config{
-		PrepareStmt: true, // precompile SQL
-	})
+func isPostgreSQLDSN(dsn string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(dsn))
+	if normalized == "" {
+		return false
+	}
+	return strings.HasPrefix(normalized, "postgres://") ||
+		strings.HasPrefix(normalized, "postgresql://") ||
+		strings.Contains(normalized, "host=")
 }
 
 func InitDB() {
@@ -113,14 +110,13 @@ func InitDB() {
 		return
 	}
 
-	sqlDB := setDBConns(DB)
+	setDBConns(DB)
 
 	if !config.IsMasterNode {
+		if err = SyncModelPricingCatalogWithDB(DB); err != nil {
+			logger.SysError("failed to sync model pricing catalog: " + err.Error())
+		}
 		return
-	}
-
-	if common.UsingMySQL {
-		_, _ = sqlDB.Exec("DROP INDEX idx_channels_key ON channels;") // TODO: delete this line when most users have upgraded
 	}
 
 	logger.SysLog("database migration started")
@@ -129,44 +125,21 @@ func InitDB() {
 		return
 	}
 	logger.SysLog("database migrated")
+	if err = SyncModelPricingCatalogWithDB(DB); err != nil {
+		logger.SysError("failed to sync model pricing catalog: " + err.Error())
+	}
 }
 
 func migrateDB() error {
-	var err error
-	if err = DB.AutoMigrate(&Channel{}); err != nil {
+	migrationDB, err := chooseMigrationDB(common.SQLDSN)
+	if err != nil {
 		return err
 	}
-	if err = DB.AutoMigrate(&Token{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&User{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&Option{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&Redemption{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&Ability{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&Log{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&ModelProvider{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&ChannelTypeCatalog{}); err != nil {
-		return err
-	}
-	if err = DB.AutoMigrate(&Channel{}); err != nil {
-		return err
-	}
-	if err = runMainVersionedMigrations(DB); err != nil {
-		return err
-	}
-	return nil
+	setDBConns(migrationDB)
+	defer func() {
+		_ = closeDB(migrationDB)
+	}()
+	return runMainVersionedMigrations(migrationDB)
 }
 
 func InitLogDB() {
@@ -199,11 +172,15 @@ func InitLogDB() {
 }
 
 func migrateLOGDB() error {
-	var err error
-	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
+	migrationDB, err := chooseMigrationDB(common.LogSQLDSN)
+	if err != nil {
 		return err
 	}
-	return runLogVersionedMigrations(LOG_DB)
+	setDBConns(migrationDB)
+	defer func() {
+		_ = closeDB(migrationDB)
+	}()
+	return runLogVersionedMigrations(migrationDB)
 }
 
 func setDBConns(db *gorm.DB) *sql.DB {

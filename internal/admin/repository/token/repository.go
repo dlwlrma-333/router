@@ -3,6 +3,7 @@ package token
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/common/helper"
 	"github.com/yeying-community/router/common/logger"
+	"github.com/yeying-community/router/common/random"
 	"github.com/yeying-community/router/internal/admin/model"
 )
 
@@ -33,7 +35,7 @@ func init() {
 	})
 }
 
-func GetAll(userId, start, num int, order string) ([]*model.Token, error) {
+func GetAll(userId string, start, num int, order string) ([]*model.Token, error) {
 	var tokens []*model.Token
 	query := model.DB.Where("user_id = ?", userId)
 
@@ -43,15 +45,15 @@ func GetAll(userId, start, num int, order string) ([]*model.Token, error) {
 	case "used_quota":
 		query = query.Order("used_quota desc")
 	default:
-		query = query.Order("id desc")
+		query = query.Order("created_time desc")
 	}
 
 	err := query.Limit(num).Offset(start).Find(&tokens).Error
 	return tokens, err
 }
 
-func GetFirstAvailable(userId int) (*model.Token, error) {
-	if userId == 0 {
+func GetFirstAvailable(userId string) (*model.Token, error) {
+	if strings.TrimSpace(userId) == "" {
 		return nil, errors.New("user id is empty")
 	}
 	var token model.Token
@@ -59,7 +61,7 @@ func GetFirstAvailable(userId int) (*model.Token, error) {
 	err := model.DB.Where("user_id = ? AND status = ?", userId, model.TokenStatusEnabled).
 		Where("(expired_time = -1 OR expired_time > ?)", now).
 		Where("(unlimited_quota OR remain_quota > 0)").
-		Order("id asc").
+		Order("created_time asc").
 		First(&token).Error
 	if err != nil {
 		return nil, err
@@ -67,7 +69,7 @@ func GetFirstAvailable(userId int) (*model.Token, error) {
 	return &token, nil
 }
 
-func Search(userId int, keyword string) ([]*model.Token, error) {
+func Search(userId string, keyword string) ([]*model.Token, error) {
 	var tokens []*model.Token
 	err := model.DB.Where("user_id = ?", userId).Where("name LIKE ?", keyword+"%").Find(&tokens).Error
 	return tokens, err
@@ -86,7 +88,7 @@ func ValidateUserToken(key string) (*model.Token, error) {
 		return nil, errors.New("令牌验证失败")
 	}
 	if token.Status == model.TokenStatusExhausted {
-		return nil, fmt.Errorf("令牌 %s（#%d）额度已用尽", token.Name, token.Id)
+		return nil, fmt.Errorf("令牌 %s（#%s）额度已用尽", token.Name, token.Id)
 	} else if token.Status == model.TokenStatusExpired {
 		return nil, errors.New("该令牌已过期")
 	}
@@ -116,8 +118,8 @@ func ValidateUserToken(key string) (*model.Token, error) {
 	return token, nil
 }
 
-func GetByIDs(tokenId, userId int) (*model.Token, error) {
-	if tokenId == 0 || userId == 0 {
+func GetByIDs(tokenId, userId string) (*model.Token, error) {
+	if strings.TrimSpace(tokenId) == "" || strings.TrimSpace(userId) == "" {
 		return nil, errors.New("id 或 userId 为空！")
 	}
 	token := model.Token{Id: tokenId, UserId: userId}
@@ -125,8 +127,8 @@ func GetByIDs(tokenId, userId int) (*model.Token, error) {
 	return &token, err
 }
 
-func GetByID(tokenId int) (*model.Token, error) {
-	if tokenId == 0 {
+func GetByID(tokenId string) (*model.Token, error) {
+	if strings.TrimSpace(tokenId) == "" {
 		return nil, errors.New("id 为空！")
 	}
 	token := model.Token{Id: tokenId}
@@ -135,6 +137,9 @@ func GetByID(tokenId int) (*model.Token, error) {
 }
 
 func Create(token *model.Token) error {
+	if strings.TrimSpace(token.Id) == "" {
+		token.Id = random.GetUUID()
+	}
 	return model.DB.Create(token).Error
 }
 
@@ -150,8 +155,8 @@ func Delete(token *model.Token) error {
 	return model.DB.Delete(token).Error
 }
 
-func DeleteByID(tokenId, userId int) error {
-	if tokenId == 0 || userId == 0 {
+func DeleteByID(tokenId, userId string) error {
+	if strings.TrimSpace(tokenId) == "" || strings.TrimSpace(userId) == "" {
 		return errors.New("id 或 userId 为空！")
 	}
 	token := model.Token{Id: tokenId, UserId: userId}
@@ -162,7 +167,7 @@ func DeleteByID(tokenId, userId int) error {
 	return Delete(&token)
 }
 
-func IncreaseQuota(id int, quota int64) error {
+func IncreaseQuota(id string, quota int64) error {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
@@ -173,7 +178,7 @@ func IncreaseQuota(id int, quota int64) error {
 	return IncreaseQuotaDirect(id, quota)
 }
 
-func IncreaseQuotaDirect(id int, quota int64) error {
+func IncreaseQuotaDirect(id string, quota int64) error {
 	return model.DB.Model(&model.Token{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
 			"remain_quota":  gorm.Expr("remain_quota + ?", quota),
@@ -183,7 +188,7 @@ func IncreaseQuotaDirect(id int, quota int64) error {
 	).Error
 }
 
-func DecreaseQuota(id int, quota int64) error {
+func DecreaseQuota(id string, quota int64) error {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
@@ -194,7 +199,7 @@ func DecreaseQuota(id int, quota int64) error {
 	return DecreaseQuotaDirect(id, quota)
 }
 
-func DecreaseQuotaDirect(id int, quota int64) error {
+func DecreaseQuotaDirect(id string, quota int64) error {
 	return model.DB.Model(&model.Token{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
 			"remain_quota":  gorm.Expr("remain_quota - ?", quota),

@@ -57,10 +57,6 @@ func Run() {
 
 	// Initialize options
 	model.InitOptionMap()
-	if common.RedisEnabled {
-		// for compatibility with old versions
-		config.MemoryCacheEnabled = true
-	}
 	if config.MemoryCacheEnabled {
 		logger.SysLog("memory cache enabled")
 		logger.SysLog(fmt.Sprintf("sync frequency: %d seconds", config.SyncFrequency))
@@ -93,9 +89,8 @@ func Run() {
 	server.Use(gin.Recovery())
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
-	server.Use(middleware.RequestId())
+	server.Use(middleware.TraceID())
 	server.Use(middleware.Language())
-	server.Use(middleware.ApiLogger())
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(config.SessionSecret))

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/common/logger"
+	"github.com/yeying-community/router/common/random"
 	usercontroller "github.com/yeying-community/router/internal/admin/controller/user"
 	"github.com/yeying-community/router/internal/admin/model"
 )
@@ -128,7 +128,7 @@ func LarkOAuth(c *gin.Context) {
 		}
 	} else {
 		if config.RegisterEnabled {
-			user.Username = "lark_" + strconv.Itoa(model.GetMaxUserId()+1)
+			user.Username = "lark_" + random.GetRandomString(8)
 			if larkUser.Name != "" {
 				user.DisplayName = larkUser.Name
 			} else {
@@ -137,7 +137,7 @@ func LarkOAuth(c *gin.Context) {
 			user.Role = model.RoleCommonUser
 			user.Status = model.UserStatusEnabled
 
-			if err := user.Insert(ctx, 0); err != nil {
+			if err := user.Insert(ctx, ""); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
@@ -184,9 +184,16 @@ func LarkBind(c *gin.Context) {
 		return
 	}
 	session := sessions.Default(c)
-	id := session.Get("id")
+	id, idErr := sessionIDToString(session.Get("id"))
+	if idErr != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "未登录",
+		})
+		return
+	}
 	// id := c.GetInt("id")  // critical bug!
-	user.Id = id.(int)
+	user.Id = id
 	err = user.FillUserById()
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{

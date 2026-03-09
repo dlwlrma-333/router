@@ -92,10 +92,10 @@ func SetupSession(user *model.User, c *gin.Context) error {
 	session.Set("status", user.Status)
 	err := session.Save()
 	if err != nil {
-		logger.LoginErrorf(c.Request.Context(), "setup session failed user=%d err=%v", user.Id, err)
+		logger.LoginErrorf(c.Request.Context(), "setup session failed user=%s err=%v", user.Id, err)
 		return err
 	}
-	logger.Loginf(c.Request.Context(), "setup session ok user=%d role=%d", user.Id, user.Role)
+	logger.Loginf(c.Request.Context(), "setup session ok user=%s role=%d", user.Id, user.Role)
 	return nil
 }
 
@@ -116,7 +116,7 @@ func SetupLogin(user *model.User, c *gin.Context) {
 		Status:        user.Status,
 		WalletAddress: user.WalletAddress,
 	}
-	logger.Loginf(c.Request.Context(), "password login success user=%d role=%d", user.Id, user.Role)
+	logger.Loginf(c.Request.Context(), "password login success user=%s role=%d", user.Id, user.Role)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
@@ -142,7 +142,7 @@ func Logout(c *gin.Context) {
 		})
 		return
 	}
-	logger.Loginf(c.Request.Context(), "logout success user=%v", c.GetInt("id"))
+	logger.Loginf(c.Request.Context(), "logout success user=%s", c.GetString("id"))
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
@@ -285,14 +285,15 @@ func SearchUsers(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/admin/user/{id} [get]
 func GetUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
+	id := c.Param("id")
+	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": "id 为空",
 		})
 		return
 	}
+	var err error
 	user, err := usersvc.GetByID(id, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -331,7 +332,7 @@ func GetUser(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/public/user/dashboard [get]
 func GetUserDashboard(c *gin.Context) {
-	id := c.GetInt(ctxkey.Id)
+	id := c.GetString(ctxkey.Id)
 	granularity := strings.ToLower(strings.TrimSpace(c.DefaultQuery("granularity", "day")))
 	switch granularity {
 	case "hour", "day", "week", "month", "year":
@@ -434,7 +435,7 @@ func GetUserDashboard(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/public/user/spend/overview [get]
 func GetUserSpendOverview(c *gin.Context) {
-	userId := c.GetInt(ctxkey.Id)
+	userId := c.GetString(ctxkey.Id)
 	period := strings.ToLower(strings.TrimSpace(c.DefaultQuery("period", "last_month")))
 	now := time.Now()
 	todayStart := startOfDay(now)
@@ -551,8 +552,8 @@ func GetUserSpendOverview(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/public/user/token [get]
 func GenerateAccessToken(c *gin.Context) {
-	id := c.GetInt(ctxkey.Id)
-	logger.Loginf(c.Request.Context(), "generate access token request user=%d", id)
+	id := c.GetString(ctxkey.Id)
+	logger.Loginf(c.Request.Context(), "generate access token request user=%s", id)
 	user, err := usersvc.GetByID(id, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -586,7 +587,7 @@ func GenerateAccessToken(c *gin.Context) {
 		})
 		return
 	}
-	logger.Loginf(c.Request.Context(), "generate access token success user=%d token=%s", user.Id, user.AccessToken)
+	logger.Loginf(c.Request.Context(), "generate access token success user=%s token=%s", user.Id, user.AccessToken)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -605,7 +606,7 @@ func GenerateAccessToken(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/public/user/aff [get]
 func GetAffCode(c *gin.Context) {
-	id := c.GetInt(ctxkey.Id)
+	id := c.GetString(ctxkey.Id)
 	user, err := usersvc.GetByID(id, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -641,7 +642,7 @@ func GetAffCode(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/public/user/self [get]
 func GetSelf(c *gin.Context) {
-	id := c.GetInt(ctxkey.Id)
+	id := c.GetString(ctxkey.Id)
 	user, err := usersvc.GetByID(id, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -672,7 +673,7 @@ func UpdateUser(c *gin.Context) {
 	ctx := c.Request.Context()
 	var updatedUser model.User
 	err := json.NewDecoder(c.Request.Body).Decode(&updatedUser)
-	if err != nil || updatedUser.Id == 0 {
+	if err != nil || updatedUser.Id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": i18n.Translate(c, "invalid_parameter"),
@@ -683,7 +684,7 @@ func UpdateUser(c *gin.Context) {
 		updatedUser.Password = "$I_LOVE_U" // make Validator happy :)
 	}
 	if err := common.Validate.Struct(&updatedUser); err != nil {
-		logger.Loginf(c.Request.Context(), "update user invalid input err=%v id=%d username=%s display=%s role=%d status=%d quota=%d used=%d email=%s",
+		logger.Loginf(c.Request.Context(), "update user invalid input err=%v id=%s username=%s display=%s role=%d status=%d quota=%d used=%d email=%s",
 			err, updatedUser.Id, updatedUser.Username, updatedUser.DisplayName, updatedUser.Role, updatedUser.Status, updatedUser.Quota, updatedUser.UsedQuota, updatedUser.Email)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -767,7 +768,7 @@ func UpdateSelf(c *gin.Context) {
 	}
 
 	cleanUser := model.User{
-		Id:          c.GetInt(ctxkey.Id),
+		Id:          c.GetString(ctxkey.Id),
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
@@ -802,14 +803,15 @@ func UpdateSelf(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/admin/user/{id} [delete]
 func DeleteUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
+	id := c.Param("id")
+	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": "id 为空",
 		})
 		return
 	}
+	var err error
 	originUser, err := usersvc.GetByID(id, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -845,7 +847,7 @@ func DeleteUser(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/public/user/self [delete]
 func DeleteSelf(c *gin.Context) {
-	id := c.GetInt("id")
+	id := c.GetString("id")
 	user, _ := usersvc.GetByID(id, false)
 
 	if user.Role == model.RoleRootUser {
@@ -916,7 +918,7 @@ func CreateUser(c *gin.Context) {
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
 	}
-	if err := usersvc.Create(ctx, &cleanUser, 0); err != nil {
+	if err := usersvc.Create(ctx, &cleanUser, ""); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -976,7 +978,7 @@ func ManageUser(c *gin.Context) {
 		})
 		return
 	}
-	if foundUser == nil || foundUser.Id == 0 {
+	if foundUser == nil || foundUser.Id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "用户不存在",
@@ -1082,7 +1084,7 @@ func EmailBind(c *gin.Context) {
 		})
 		return
 	}
-	id := c.GetInt("id")
+	id := c.GetString("id")
 	user := model.User{
 		Id: id,
 	}
@@ -1139,7 +1141,7 @@ func TopUp(c *gin.Context) {
 		})
 		return
 	}
-	id := c.GetInt("id")
+	id := c.GetString("id")
 	quota, err := usersvc.Redeem(ctx, req.Key, id)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -1157,7 +1159,7 @@ func TopUp(c *gin.Context) {
 }
 
 type adminTopUpRequest struct {
-	UserId int    `json:"user_id"`
+	UserId string `json:"user_id"`
 	Quota  int    `json:"quota"`
 	Remark string `json:"remark"`
 }

@@ -18,7 +18,6 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN apk add --no-cache \
     gcc \
     musl-dev \
-    sqlite-dev \
     build-base
 
 ENV GO111MODULE=on \

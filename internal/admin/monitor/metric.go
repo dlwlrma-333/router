@@ -4,18 +4,18 @@ import (
 	"github.com/yeying-community/router/common/config"
 )
 
-var store = make(map[int][]bool)
-var metricSuccessChan = make(chan int, config.MetricSuccessChanSize)
-var metricFailChan = make(chan int, config.MetricFailChanSize)
+var store = make(map[string][]bool)
+var metricSuccessChan = make(chan string, config.MetricSuccessChanSize)
+var metricFailChan = make(chan string, config.MetricFailChanSize)
 
-func consumeSuccess(channelId int) {
+func consumeSuccess(channelId string) {
 	if len(store[channelId]) > config.MetricQueueSize {
 		store[channelId] = store[channelId][1:]
 	}
 	store[channelId] = append(store[channelId], true)
 }
 
-func consumeFail(channelId int) (bool, float64) {
+func consumeFail(channelId string) (bool, float64) {
 	if len(store[channelId]) > config.MetricQueueSize {
 		store[channelId] = store[channelId][1:]
 	}
@@ -65,7 +65,7 @@ func init() {
 	}
 }
 
-func Emit(channelId int, success bool) {
+func Emit(channelId string, success bool) {
 	if !config.EnableMetric {
 		return
 	}

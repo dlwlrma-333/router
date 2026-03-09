@@ -27,10 +27,7 @@ var (
 )
 
 func CacheGetTokenByKey(key string) (*Token, error) {
-	keyCol := "`key`"
-	if common.UsingPostgreSQL {
-		keyCol = `"key"`
-	}
+	keyCol := `"key"`
 	var token Token
 	if !common.RedisEnabled {
 		err := DB.Where(keyCol+" = ?", key).First(&token).Error
@@ -56,17 +53,17 @@ func CacheGetTokenByKey(key string) (*Token, error) {
 	return &token, err
 }
 
-func CacheGetUserGroup(id int) (group string, err error) {
+func CacheGetUserGroup(id string) (group string, err error) {
 	if !common.RedisEnabled {
 		return GetUserGroup(id)
 	}
-	group, err = common.RedisGet(fmt.Sprintf("user_group:%d", id))
+	group, err = common.RedisGet(fmt.Sprintf("user_group:%s", id))
 	if err != nil {
 		group, err = GetUserGroup(id)
 		if err != nil {
 			return "", err
 		}
-		err = common.RedisSet(fmt.Sprintf("user_group:%d", id), group, time.Duration(UserId2GroupCacheSeconds)*time.Second)
+		err = common.RedisSet(fmt.Sprintf("user_group:%s", id), group, time.Duration(UserId2GroupCacheSeconds)*time.Second)
 		if err != nil {
 			logger.SysError("Redis set user group error: " + err.Error())
 		}
@@ -74,23 +71,23 @@ func CacheGetUserGroup(id int) (group string, err error) {
 	return group, err
 }
 
-func fetchAndUpdateUserQuota(ctx context.Context, id int) (quota int64, err error) {
+func fetchAndUpdateUserQuota(ctx context.Context, id string) (quota int64, err error) {
 	quota, err = GetUserQuota(id)
 	if err != nil {
 		return 0, err
 	}
-	err = common.RedisSet(fmt.Sprintf("user_quota:%d", id), fmt.Sprintf("%d", quota), time.Duration(UserId2QuotaCacheSeconds)*time.Second)
+	err = common.RedisSet(fmt.Sprintf("user_quota:%s", id), fmt.Sprintf("%d", quota), time.Duration(UserId2QuotaCacheSeconds)*time.Second)
 	if err != nil {
 		logger.Error(ctx, "Redis set user quota error: "+err.Error())
 	}
 	return
 }
 
-func CacheGetUserQuota(ctx context.Context, id int) (quota int64, err error) {
+func CacheGetUserQuota(ctx context.Context, id string) (quota int64, err error) {
 	if !common.RedisEnabled {
 		return GetUserQuota(id)
 	}
-	quotaString, err := common.RedisGet(fmt.Sprintf("user_quota:%d", id))
+	quotaString, err := common.RedisGet(fmt.Sprintf("user_quota:%s", id))
 	if err != nil {
 		return fetchAndUpdateUserQuota(ctx, id)
 	}
@@ -99,13 +96,13 @@ func CacheGetUserQuota(ctx context.Context, id int) (quota int64, err error) {
 		return 0, nil
 	}
 	if quota <= config.PreConsumedQuota { // when user's quota is less than pre-consumed quota, we need to fetch from db
-		logger.Infof(ctx, "user %d's cached quota is too low: %d, refreshing from db", quota, id)
+		logger.Infof(ctx, "user %s's cached quota is too low: %d, refreshing from db", id, quota)
 		return fetchAndUpdateUserQuota(ctx, id)
 	}
 	return quota, nil
 }
 
-func CacheUpdateUserQuota(ctx context.Context, id int) error {
+func CacheUpdateUserQuota(ctx context.Context, id string) error {
 	if !common.RedisEnabled {
 		return nil
 	}
@@ -113,23 +110,23 @@ func CacheUpdateUserQuota(ctx context.Context, id int) error {
 	if err != nil {
 		return err
 	}
-	err = common.RedisSet(fmt.Sprintf("user_quota:%d", id), fmt.Sprintf("%d", quota), time.Duration(UserId2QuotaCacheSeconds)*time.Second)
+	err = common.RedisSet(fmt.Sprintf("user_quota:%s", id), fmt.Sprintf("%d", quota), time.Duration(UserId2QuotaCacheSeconds)*time.Second)
 	return err
 }
 
-func CacheDecreaseUserQuota(id int, quota int64) error {
+func CacheDecreaseUserQuota(id string, quota int64) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	err := common.RedisDecrease(fmt.Sprintf("user_quota:%d", id), int64(quota))
+	err := common.RedisDecrease(fmt.Sprintf("user_quota:%s", id), int64(quota))
 	return err
 }
 
-func CacheIsUserEnabled(userId int) (bool, error) {
+func CacheIsUserEnabled(userId string) (bool, error) {
 	if !common.RedisEnabled {
 		return IsUserEnabled(userId)
 	}
-	enabled, err := common.RedisGet(fmt.Sprintf("user_enabled:%d", userId))
+	enabled, err := common.RedisGet(fmt.Sprintf("user_enabled:%s", userId))
 	if err == nil {
 		return enabled == "1", nil
 	}
@@ -142,7 +139,7 @@ func CacheIsUserEnabled(userId int) (bool, error) {
 	if userEnabled {
 		enabled = "1"
 	}
-	err = common.RedisSet(fmt.Sprintf("user_enabled:%d", userId), enabled, time.Duration(UserId2StatusCacheSeconds)*time.Second)
+	err = common.RedisSet(fmt.Sprintf("user_enabled:%s", userId), enabled, time.Duration(UserId2StatusCacheSeconds)*time.Second)
 	if err != nil {
 		logger.SysError("Redis set user enabled error: " + err.Error())
 	}
@@ -169,36 +166,60 @@ func CacheGetGroupModels(ctx context.Context, group string) ([]string, error) {
 }
 
 var group2model2channels map[string]map[string][]*Channel
+var group2model2channel2upstream map[string]map[string]map[string]string
 var channelSyncLock sync.RWMutex
 
 func InitChannelCache() {
-	newChannelId2channel := make(map[int]*Channel)
 	var channels []*Channel
 	DB.Where("status = ?", ChannelStatusEnabled).Find(&channels)
-	for _, channel := range channels {
-		newChannelId2channel[channel.Id] = channel
+	if err := HydrateChannelsWithModels(DB, channels); err != nil {
+		logger.SysError("failed to hydrate channel models for cache: " + err.Error())
 	}
 	var abilities []*Ability
-	DB.Find(&abilities)
+	DB.Where("enabled = ?", true).Find(&abilities)
 	groups := make(map[string]bool)
 	for _, ability := range abilities {
-		groups[ability.Group] = true
+		groupName := strings.TrimSpace(ability.Group)
+		if groupName == "" {
+			continue
+		}
+		groups[groupName] = true
 	}
 	newGroup2model2channels := make(map[string]map[string][]*Channel)
+	newGroup2model2channel2upstream := make(map[string]map[string]map[string]string)
 	for group := range groups {
 		newGroup2model2channels[group] = make(map[string][]*Channel)
+		newGroup2model2channel2upstream[group] = make(map[string]map[string]string)
 	}
+	channelByID := make(map[string]*Channel, len(channels))
 	for _, channel := range channels {
-		groups := strings.Split(channel.Group, ",")
-		for _, group := range groups {
-			models := strings.Split(channel.Models, ",")
-			for _, model := range models {
-				if _, ok := newGroup2model2channels[group][model]; !ok {
-					newGroup2model2channels[group][model] = make([]*Channel, 0)
-				}
-				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel)
-			}
+		if channel == nil {
+			continue
 		}
+		channelByID[channel.Id] = channel
+	}
+	for _, ability := range abilities {
+		if ability == nil {
+			continue
+		}
+		groupName := strings.TrimSpace(ability.Group)
+		modelName := strings.TrimSpace(ability.Model)
+		channelID := strings.TrimSpace(ability.ChannelId)
+		if groupName == "" || modelName == "" || channelID == "" {
+			continue
+		}
+		channel, ok := channelByID[channelID]
+		if !ok {
+			continue
+		}
+		if _, ok := newGroup2model2channels[groupName][modelName]; !ok {
+			newGroup2model2channels[groupName][modelName] = make([]*Channel, 0)
+		}
+		if _, ok := newGroup2model2channel2upstream[groupName][modelName]; !ok {
+			newGroup2model2channel2upstream[groupName][modelName] = make(map[string]string)
+		}
+		newGroup2model2channels[groupName][modelName] = append(newGroup2model2channels[groupName][modelName], channel)
+		newGroup2model2channel2upstream[groupName][modelName][channelID] = NormalizeAbilityUpstreamModel(modelName, ability.UpstreamModel)
 	}
 
 	// sort by priority
@@ -213,8 +234,72 @@ func InitChannelCache() {
 
 	channelSyncLock.Lock()
 	group2model2channels = newGroup2model2channels
+	group2model2channel2upstream = newGroup2model2channel2upstream
 	channelSyncLock.Unlock()
 	logger.SysLog("channels synced from database")
+}
+
+func CacheListSatisfiedChannels(group string, model string) ([]*Channel, error) {
+	if !config.MemoryCacheEnabled {
+		return ListSatisfiedChannels(group, model)
+	}
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+	channels := group2model2channels[group][model]
+	if len(channels) == 0 {
+		return nil, errors.New("channel not found")
+	}
+	result := make([]*Channel, 0, len(channels))
+	result = append(result, channels...)
+	return result, nil
+}
+
+func CacheGetGroupModelMapping(group string, modelName string, channelID string) map[string]string {
+	group = strings.TrimSpace(group)
+	modelName = strings.TrimSpace(modelName)
+	channelID = strings.TrimSpace(channelID)
+	if group == "" || modelName == "" || channelID == "" {
+		return nil
+	}
+
+	upstreamModel := ""
+	if config.MemoryCacheEnabled {
+		channelSyncLock.RLock()
+		if groupModels, ok := group2model2channel2upstream[group]; ok {
+			if channelMappings, ok := groupModels[modelName]; ok {
+				upstreamModel = strings.TrimSpace(channelMappings[channelID])
+			}
+		}
+		channelSyncLock.RUnlock()
+	} else {
+		groupCol := `"group"`
+		record := Ability{}
+		if err := DB.Where(groupCol+" = ? AND model = ? AND channel_id = ?", group, modelName, channelID).Take(&record).Error; err == nil {
+			upstreamModel = NormalizeAbilityUpstreamModel(modelName, record.UpstreamModel)
+		}
+	}
+
+	upstreamModel = strings.TrimSpace(upstreamModel)
+	if upstreamModel == "" || upstreamModel == modelName {
+		return nil
+	}
+	return map[string]string{
+		modelName: upstreamModel,
+	}
+}
+
+func RefreshAbilityCachesForGroups(groupIDs ...string) {
+	for _, groupID := range normalizeTrimmedValuesPreserveOrder(groupIDs) {
+		if groupID == "" || !common.RedisEnabled {
+			continue
+		}
+		if err := common.RedisDel(fmt.Sprintf("group_models:%s", groupID)); err != nil {
+			logger.SysError("Redis delete group models error: " + err.Error())
+		}
+	}
+	if config.MemoryCacheEnabled {
+		InitChannelCache()
+	}
 }
 
 func SyncChannelCache(frequency int) {

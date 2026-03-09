@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/yeying-community/router/common/helper"
@@ -36,22 +35,10 @@ type versionedMigration struct {
 func runMainVersionedMigrations(db *gorm.DB) error {
 	migrations := []versionedMigration{
 		{
-			Version:     "202603030001_model_provider_catalog",
-			Description: "normalize and migrate model provider catalog",
+			Version:     "202603081930_main_baseline_v6",
+			Description: "baseline: create current main schema and seed current catalogs",
 			Up: func(tx *gorm.DB) error {
-				return runModelProviderMigrationsWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603030002_redemptions_postgres_sequence",
-			Description: "ensure redemptions id sequence for PostgreSQL",
-			Up:          ensureRedemptionsPostgresSequence,
-		},
-		{
-			Version:     "202603030003_channel_type_catalog",
-			Description: "initialize channel interface type catalog",
-			Up: func(tx *gorm.DB) error {
-				return runChannelTypeCatalogMigrationsWithDB(tx)
+				return runMainBaselineMigrationWithDB(tx)
 			},
 		},
 	}
@@ -61,9 +48,11 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 func runLogVersionedMigrations(db *gorm.DB) error {
 	migrations := []versionedMigration{
 		{
-			Version:     "202603030001_logs_postgres_sequence",
-			Description: "ensure logs id sequence for PostgreSQL",
-			Up:          ensureLogsPostgresSequence,
+			Version:     "202603081401_log_baseline_v3",
+			Description: "baseline: create current log schema",
+			Up: func(tx *gorm.DB) error {
+				return runLogBaselineMigrationWithDB(tx)
+			},
 		},
 	}
 	return runVersionedMigrations(db, migrationScopeLog, migrations)
@@ -76,16 +65,22 @@ func runVersionedMigrations(db *gorm.DB, scope string, migrations []versionedMig
 	if strings.TrimSpace(scope) == "" {
 		return fmt.Errorf("migration scope cannot be empty")
 	}
-	if err := db.AutoMigrate(&SchemaMigration{}); err != nil {
+	keepVersions, err := configuredMigrationVersions(migrations)
+	if err != nil {
+		return err
+	}
+	// Run migrations without prepared statements. Schema changes can invalidate
+	// cached plans for queries such as SELECT *, especially when columns are dropped.
+	migrationDB := db.Session(&gorm.Session{
+		NewDB:       true,
+		PrepareStmt: false,
+	})
+	if err := migrationDB.AutoMigrate(&SchemaMigration{}); err != nil {
 		return err
 	}
 
-	sort.Slice(migrations, func(i, j int) bool {
-		return migrations[i].Version < migrations[j].Version
-	})
-
 	applied := make([]SchemaMigration, 0)
-	if err := db.Where("scope = ?", scope).Find(&applied).Error; err != nil {
+	if err := migrationDB.Where("scope = ?", scope).Find(&applied).Error; err != nil {
 		return err
 	}
 	appliedSet := make(map[string]struct{}, len(applied))
@@ -102,7 +97,7 @@ func runVersionedMigrations(db *gorm.DB, scope string, migrations []versionedMig
 		}
 
 		logger.SysLogf("migration[%s] applying %s (%s)", scope, migration.Version, migration.Description)
-		err := db.Transaction(func(tx *gorm.DB) error {
+		err := migrationDB.Transaction(func(tx *gorm.DB) error {
 			if err := migration.Up(tx); err != nil {
 				return err
 			}
@@ -119,39 +114,42 @@ func runVersionedMigrations(db *gorm.DB, scope string, migrations []versionedMig
 		}
 		logger.SysLogf("migration[%s] applied %s", scope, migration.Version)
 	}
-	return nil
+	return cleanupObsoleteSchemaMigrations(migrationDB, scope, keepVersions)
 }
 
-func ensureRedemptionsPostgresSequence(tx *gorm.DB) error {
-	if tx.Dialector.Name() != "postgres" {
-		return nil
+func configuredMigrationVersions(migrations []versionedMigration) ([]string, error) {
+	if len(migrations) == 0 {
+		return nil, fmt.Errorf("no migrations configured")
 	}
-	statements := []string{
-		"CREATE SEQUENCE IF NOT EXISTS redemptions_id_seq OWNED BY redemptions.id",
-		"SELECT setval('redemptions_id_seq', COALESCE((SELECT MAX(id)+1 FROM redemptions),1), false)",
-		"ALTER TABLE redemptions ALTER COLUMN id SET DEFAULT nextval('redemptions_id_seq')",
-	}
-	for _, stmt := range statements {
-		if err := tx.Exec(stmt).Error; err != nil {
-			return err
+	seen := make(map[string]struct{}, len(migrations))
+	versions := make([]string, 0, len(migrations))
+	for _, migration := range migrations {
+		version := strings.TrimSpace(migration.Version)
+		if version == "" {
+			return nil, fmt.Errorf("migration version cannot be empty")
 		}
+		if _, ok := seen[version]; ok {
+			return nil, fmt.Errorf("duplicate migration version: %s", version)
+		}
+		seen[version] = struct{}{}
+		versions = append(versions, version)
 	}
-	return nil
+	return versions, nil
 }
 
-func ensureLogsPostgresSequence(tx *gorm.DB) error {
-	if tx.Dialector.Name() != "postgres" {
+func cleanupObsoleteSchemaMigrations(db *gorm.DB, scope string, keepVersions []string) error {
+	if db == nil {
 		return nil
 	}
-	statements := []string{
-		"CREATE SEQUENCE IF NOT EXISTS logs_id_seq OWNED BY logs.id",
-		"SELECT setval('logs_id_seq', COALESCE((SELECT MAX(id)+1 FROM logs),1), false)",
-		"ALTER TABLE logs ALTER COLUMN id SET DEFAULT nextval('logs_id_seq')",
+	if len(keepVersions) == 0 {
+		return fmt.Errorf("no migration versions configured for scope %s", scope)
 	}
-	for _, stmt := range statements {
-		if err := tx.Exec(stmt).Error; err != nil {
-			return err
-		}
+	result := db.Where("scope = ? AND version NOT IN ?", scope, keepVersions).Delete(&SchemaMigration{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		logger.SysLogf("migration[%s] removed %d obsolete schema_migrations rows", scope, result.RowsAffected)
 	}
 	return nil
 }

@@ -18,7 +18,7 @@ const (
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
 type User struct {
-	Id               int     `json:"id"`
+	Id               string  `json:"id" gorm:"type:char(36);primaryKey"`
 	Username         string  `json:"username" gorm:"unique;index" validate:"max=20"`
 	Password         string  `json:"password" gorm:"not null;" validate:"min=8,max=20"`
 	DisplayName      string  `json:"display_name" gorm:"index" validate:"max=20"`
@@ -35,12 +35,12 @@ type User struct {
 	Quota            int64   `json:"quota" gorm:"bigint;default:0"`
 	UsedQuota        int64   `json:"used_quota" gorm:"bigint;default:0;column:used_quota"`
 	RequestCount     int     `json:"request_count" gorm:"type:int;default:0;"`
-	Group            string  `json:"group" gorm:"type:varchar(32);default:'default'"`
+	Group            string  `json:"group" gorm:"type:varchar(32);default:''"`
 	AffCode          string  `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
-	InviterId        int     `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	InviterId        string  `json:"inviter_id" gorm:"type:char(36);column:inviter_id;index"`
 }
 
-func GetMaxUserId() int {
+func GetMaxUserId() string {
 	return mustUserRepo().GetMaxUserId()
 }
 
@@ -52,19 +52,19 @@ func SearchUsers(keyword string) ([]*User, error) {
 	return mustUserRepo().SearchUsers(keyword)
 }
 
-func GetUserById(id int, selectAll bool) (*User, error) {
+func GetUserById(id string, selectAll bool) (*User, error) {
 	return mustUserRepo().GetUserById(id, selectAll)
 }
 
-func GetUserIdByAffCode(affCode string) (int, error) {
+func GetUserIdByAffCode(affCode string) (string, error) {
 	return mustUserRepo().GetUserIdByAffCode(affCode)
 }
 
-func DeleteUserById(id int) error {
+func DeleteUserById(id string) error {
 	return mustUserRepo().DeleteUserById(id)
 }
 
-func (user *User) Insert(ctx context.Context, inviterId int) error {
+func (user *User) Insert(ctx context.Context, inviterId string) error {
 	return mustUserRepo().Insert(ctx, user, inviterId)
 }
 
@@ -145,11 +145,11 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	return mustUserRepo().ResetUserPasswordByEmail(email, password)
 }
 
-func IsAdmin(userId int) bool {
+func IsAdmin(userId string) bool {
 	return mustUserRepo().IsAdmin(userId)
 }
 
-func IsUserEnabled(userId int) (bool, error) {
+func IsUserEnabled(userId string) (bool, error) {
 	return mustUserRepo().IsUserEnabled(userId)
 }
 
@@ -157,35 +157,35 @@ func ValidateAccessToken(token string) *User {
 	return mustUserRepo().ValidateAccessToken(token)
 }
 
-func GetUserQuota(id int) (int64, error) {
+func GetUserQuota(id string) (int64, error) {
 	return mustUserRepo().GetUserQuota(id)
 }
 
-func GetUserUsedQuota(id int) (int64, error) {
+func GetUserUsedQuota(id string) (int64, error) {
 	return mustUserRepo().GetUserUsedQuota(id)
 }
 
-func GetUserEmail(id int) (string, error) {
+func GetUserEmail(id string) (string, error) {
 	return mustUserRepo().GetUserEmail(id)
 }
 
-func GetUserGroup(id int) (string, error) {
+func GetUserGroup(id string) (string, error) {
 	return mustUserRepo().GetUserGroup(id)
 }
 
-func IncreaseUserQuota(id int, quota int64) error {
+func IncreaseUserQuota(id string, quota int64) error {
 	return mustUserRepo().IncreaseUserQuota(id, quota)
 }
 
-func increaseUserQuota(id int, quota int64) error {
+func increaseUserQuota(id string, quota int64) error {
 	return mustUserRepo().IncreaseUserQuotaDirect(id, quota)
 }
 
-func DecreaseUserQuota(id int, quota int64) error {
+func DecreaseUserQuota(id string, quota int64) error {
 	return mustUserRepo().DecreaseUserQuota(id, quota)
 }
 
-func decreaseUserQuota(id int, quota int64) error {
+func decreaseUserQuota(id string, quota int64) error {
 	return mustUserRepo().DecreaseUserQuotaDirect(id, quota)
 }
 
@@ -193,22 +193,22 @@ func GetRootUserEmail() string {
 	return mustUserRepo().GetRootUserEmail()
 }
 
-func UpdateUserUsedQuotaAndRequestCount(id int, quota int64) {
+func UpdateUserUsedQuotaAndRequestCount(id string, quota int64) {
 	mustUserRepo().UpdateUserUsedQuotaAndRequestCount(id, quota)
 }
 
-func updateUserUsedQuotaAndRequestCount(id int, quota int64, count int) {
+func updateUserUsedQuotaAndRequestCount(id string, quota int64, count int) {
 	mustUserRepo().UpdateUserUsedQuotaAndRequestCountDirect(id, quota, count)
 }
 
-func updateUserUsedQuota(id int, quota int64) {
+func updateUserUsedQuota(id string, quota int64) {
 	mustUserRepo().UpdateUserUsedQuotaDirect(id, quota)
 }
 
-func updateUserRequestCount(id int, count int) {
+func updateUserRequestCount(id string, count int) {
 	mustUserRepo().UpdateUserRequestCountDirect(id, count)
 }
 
-func GetUsernameById(id int) string {
+func GetUsernameById(id string) string {
 	return mustUserRepo().GetUsernameById(id)
 }

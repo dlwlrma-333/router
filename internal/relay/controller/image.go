@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -15,10 +16,12 @@ import (
 	"github.com/yeying-community/router/common/ctxkey"
 	"github.com/yeying-community/router/common/logger"
 	"github.com/yeying-community/router/internal/admin/model"
+	adminmodel "github.com/yeying-community/router/internal/admin/model"
 	"github.com/yeying-community/router/internal/relay"
 	"github.com/yeying-community/router/internal/relay/adaptor/openai"
-	billingratio "github.com/yeying-community/router/internal/relay/billing/ratio"
-	"github.com/yeying-community/router/internal/relay/channeltype"
+	"github.com/yeying-community/router/internal/relay/billing"
+	relaychannel "github.com/yeying-community/router/internal/relay/channel"
+	"github.com/yeying-community/router/internal/relay/imagerule"
 	"github.com/yeying-community/router/internal/relay/meta"
 	relaymodel "github.com/yeying-community/router/internal/relay/model"
 )
@@ -42,25 +45,25 @@ func getImageRequest(c *gin.Context, _ int) (*relaymodel.ImageRequest, error) {
 }
 
 func isValidImageSize(model string, size string) bool {
-	if model == "cogview-3" || billingratio.ImageSizeRatios[model] == nil {
+	if model == "cogview-3" || imagerule.ImageSizeRatios[model] == nil {
 		return true
 	}
-	_, ok := billingratio.ImageSizeRatios[model][size]
+	_, ok := imagerule.ImageSizeRatios[model][size]
 	return ok
 }
 
 func isValidImagePromptLength(model string, promptLength int) bool {
-	maxPromptLength, ok := billingratio.ImagePromptLengthLimitations[model]
+	maxPromptLength, ok := imagerule.ImagePromptLengthLimitations[model]
 	return !ok || promptLength <= maxPromptLength
 }
 
 func isWithinRange(element string, value int) bool {
-	amounts, ok := billingratio.ImageGenerationAmounts[element]
+	amounts, ok := imagerule.ImageGenerationAmounts[element]
 	return !ok || (value >= amounts[0] && value <= amounts[1])
 }
 
 func getImageSizeRatio(model string, size string) float64 {
-	if ratio, ok := billingratio.ImageSizeRatios[model][size]; ok {
+	if ratio, ok := imagerule.ImageSizeRatios[model][size]; ok {
 		return ratio
 	}
 	return 1
@@ -131,11 +134,26 @@ func RelayImageHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 
 	imageModel := imageRequest.Model
 	// Convert the original image model
-	imageRequest.Model, _ = getMappedModelName(imageRequest.Model, billingratio.ImageOriginModelName)
+	imageRequest.Model, _ = getMappedModelName(imageRequest.Model, imagerule.ImageOriginModelName)
 	c.Set("response_format", imageRequest.ResponseFormat)
+	groupRatio := adminmodel.GetGroupBillingRatio(meta.Group)
+	pricing, pricingErr := adminmodel.ResolveChannelModelPricing(meta.ChannelProtocol, meta.ChannelModelConfigs, imageModel)
+	if pricingErr != nil {
+		if groupRatio == 0 {
+			pricing = adminmodel.ResolvedModelPricing{
+				Model:     imageModel,
+				Type:      adminmodel.InferModelType(imageModel),
+				PriceUnit: adminmodel.ModelProviderPriceUnitPerImage,
+				Currency:  adminmodel.ModelProviderPriceCurrencyUSD,
+				Source:    "group_free",
+			}
+		} else {
+			return openai.ErrorWrapper(pricingErr, "model_pricing_not_configured", http.StatusServiceUnavailable)
+		}
+	}
 
 	var requestBody io.Reader
-	if isModelMapped || meta.ChannelType == channeltype.Azure { // make Azure channel request body
+	if isModelMapped || meta.ChannelProtocol == relaychannel.Azure { // make Azure channel request body
 		jsonStr, err := json.Marshal(imageRequest)
 		if err != nil {
 			return openai.ErrorWrapper(err, "marshal_image_request_failed", http.StatusInternalServerError)
@@ -152,11 +170,11 @@ func RelayImageHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 	adaptor.Init(meta)
 
 	// these adaptors need to convert the request
-	switch meta.ChannelType {
-	case channeltype.Zhipu,
-		channeltype.Ali,
-		channeltype.Replicate,
-		channeltype.Baidu:
+	switch meta.ChannelProtocol {
+	case relaychannel.Zhipu,
+		relaychannel.Ali,
+		relaychannel.Replicate,
+		relaychannel.Baidu:
 		finalRequest, err := adaptor.ConvertImageRequest(imageRequest)
 		if err != nil {
 			return openai.ErrorWrapper(err, "convert_image_request_failed", http.StatusInternalServerError)
@@ -168,18 +186,15 @@ func RelayImageHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 		requestBody = bytes.NewBuffer(jsonStr)
 	}
 
-	modelRatio := billingratio.GetChannelModelRatio(imageModel, meta.ChannelType, meta.ChannelModelRatio)
-	groupRatio := billingratio.GetGroupRatio(meta.Group)
-	ratio := modelRatio * groupRatio
 	userQuota, err := model.CacheGetUserQuota(ctx, meta.UserId)
 
-	var quota int64
-	switch meta.ChannelType {
-	case channeltype.Replicate:
-		// replicate always return 1 image
-		quota = int64(ratio * imageCostRatio * 1000)
-	default:
-		quota = int64(ratio*imageCostRatio*1000) * int64(imageRequest.N)
+	imageCount := imageRequest.N
+	if meta.ChannelProtocol == relaychannel.Replicate {
+		imageCount = 1
+	}
+	quota, err := billing.ComputeImageQuota(imageCount, imageCostRatio, pricing, groupRatio)
+	if err != nil {
+		return openai.ErrorWrapper(err, "calculate_image_quota_failed", http.StatusInternalServerError)
 	}
 
 	if userQuota-quota < 0 {
@@ -200,7 +215,7 @@ func RelayImageHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 			return
 		}
 
-		if meta.TokenId > 0 {
+		if strings.TrimSpace(meta.TokenId) != "" {
 			err := model.PostConsumeTokenQuota(meta.TokenId, quota)
 			if err != nil {
 				logger.SysError("error consuming token remain quota: " + err.Error())
@@ -217,7 +232,6 @@ func RelayImageHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 		}
 		if quota != 0 {
 			tokenName := c.GetString(ctxkey.TokenName)
-			logContent := fmt.Sprintf("倍率：%.2f × %.2f", modelRatio, groupRatio)
 			model.RecordConsumeLog(ctx, &model.Log{
 				UserId:           meta.UserId,
 				ChannelId:        meta.ChannelId,
@@ -226,10 +240,10 @@ func RelayImageHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 				ModelName:        imageRequest.Model,
 				TokenName:        tokenName,
 				Quota:            int(quota),
-				Content:          logContent,
+				Content:          billing.FormatPricingLog(pricing, groupRatio),
 			})
 			model.UpdateUserUsedQuotaAndRequestCount(meta.UserId, quota)
-			channelId := c.GetInt(ctxkey.ChannelId)
+			channelId := c.GetString(ctxkey.ChannelId)
 			model.UpdateChannelUsedQuota(channelId, quota)
 		}
 	}(c.Request.Context())

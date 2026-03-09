@@ -103,7 +103,7 @@ func WalletLogin(c *gin.Context) {
 	}
 
 	if err := usercontroller.SetupSession(user, c); err != nil {
-		logger.LoginErrorf(c.Request.Context(), "wallet login setup session failed user=%d err=%v", user.Id, err)
+		logger.LoginErrorf(c.Request.Context(), "wallet login setup session failed user=%s err=%v", user.Id, err)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无法保存会话信息，请重试",
@@ -116,9 +116,9 @@ func WalletLogin(c *gin.Context) {
 	}
 	token, exp, tokenErr := common.GenerateWalletJWT(user.Id, addr)
 	if tokenErr != nil {
-		logger.LoginErrorf(c.Request.Context(), "wallet jwt generate failed user=%d err=%v", user.Id, tokenErr)
+		logger.LoginErrorf(c.Request.Context(), "wallet jwt generate failed user=%s err=%v", user.Id, tokenErr)
 	}
-	logger.Loginf(c.Request.Context(), "wallet login success user=%d addr=%s role=%d token=%t exp=%s", user.Id, addr, user.Role, token != "", exp.UTC().Format(time.RFC3339))
+	logger.Loginf(c.Request.Context(), "wallet login success user=%s addr=%s role=%d token=%t exp=%s", user.Id, addr, user.Role, token != "", exp.UTC().Format(time.RFC3339))
 	cleanUser := model.User{
 		Id:            user.Id,
 		Username:      user.Username,
@@ -169,15 +169,15 @@ func WalletBind(c *gin.Context) {
 	}
 	addr := strings.ToLower(req.Address)
 	session := sessions.Default(c)
-	id := session.Get("id")
-	if id == nil {
+	id, idErr := sessionIDToString(session.Get("id"))
+	if idErr != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
 			"message": "未登录",
 		})
 		return
 	}
-	user := model.User{Id: id.(int)}
+	user := model.User{Id: id}
 	if err := user.FillUserById(); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -295,7 +295,7 @@ func walletAuthenticate(c *gin.Context, req walletLoginRequest) (*model.User, er
 		return nil, err
 	}
 	common.ConsumeWalletNonce(addr)
-	logger.Loginf(c.Request.Context(), "wallet auth success user=%d addr=%s", user.Id, addr)
+	logger.Loginf(c.Request.Context(), "wallet auth success user=%s addr=%s", user.Id, addr)
 	return user, nil
 }
 
@@ -331,7 +331,7 @@ func autoCreateWalletUser(addr string, ctx context.Context) (*model.User, error)
 		Status:        model.UserStatusEnabled,
 		WalletAddress: &addr,
 	}
-	if err := user.Insert(ctx, 0); err != nil {
+	if err := user.Insert(ctx, ""); err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -388,21 +388,15 @@ func WalletChallengeProto(c *gin.Context) {
 	logger.Loginf(c.Request.Context(), "wallet proto challenge success addr=%s nonce=%s chain=%s", addr, nonce, req.ChainId)
 	expireAt := time.Now().Add(time.Duration(config.WalletNonceTTLMinutes) * time.Minute)
 	body := gin.H{
-		"status":     protoStatus(1, "OK"),
 		"nonce":      nonce,
 		"message":    message,
 		"address":    addr,
 		"expires_at": expireAt.UTC().Format(time.RFC3339),
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"body":    body,
 		"success": true,
 		"message": "",
-		"data": gin.H{ // 兼容旧格式
-			"nonce":      nonce,
-			"message":    message,
-			"expires_at": expireAt.UTC().Format(time.RFC3339),
-		},
+		"data":    body,
 	})
 }
 
@@ -430,7 +424,7 @@ func WalletVerifyProto(c *gin.Context) {
 		return
 	}
 	if err := usercontroller.SetupSession(user, c); err != nil {
-		logger.LoginErrorf(c.Request.Context(), "wallet proto verify setup session fail user=%d err=%v", user.Id, err)
+		logger.LoginErrorf(c.Request.Context(), "wallet proto verify setup session fail user=%s err=%v", user.Id, err)
 		writeProtoError(c, 8, "无法保存会话信息，请重试")
 		return
 	}
@@ -444,9 +438,8 @@ func WalletVerifyProto(c *gin.Context) {
 		writeProtoError(c, 8, "生成 token 失败")
 		return
 	}
-	logger.Loginf(c.Request.Context(), "wallet proto verify success user=%d addr=%s token_exp=%s", user.Id, addr, exp.UTC().Format(time.RFC3339))
+	logger.Loginf(c.Request.Context(), "wallet proto verify success user=%s addr=%s token_exp=%s", user.Id, addr, exp.UTC().Format(time.RFC3339))
 	body := gin.H{
-		"status":     protoStatus(1, "OK"),
 		"token":      token,
 		"expires_at": exp.UTC().Format(time.RFC3339),
 		"user": gin.H{
@@ -458,10 +451,9 @@ func WalletVerifyProto(c *gin.Context) {
 		},
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"body":    body,
 		"success": true,
 		"message": "",
-		"data":    body, // 兼容旧风格
+		"data":    body,
 	})
 }
 
@@ -492,7 +484,7 @@ func WalletRefreshToken(c *gin.Context) {
 	}
 	user := model.User{Id: claims.UserID}
 	if err := user.FillUserById(); err != nil {
-		logger.Loginf(c.Request.Context(), "wallet refresh user not found id=%d", claims.UserID)
+		logger.Loginf(c.Request.Context(), "wallet refresh user not found id=%s", claims.UserID)
 		writeProtoError(c, 5, "用户不存在")
 		return
 	}
@@ -506,50 +498,40 @@ func WalletRefreshToken(c *gin.Context) {
 		return
 	}
 	if user.Status != model.UserStatusEnabled {
-		logger.Loginf(c.Request.Context(), "wallet refresh user disabled id=%d", user.Id)
+		logger.Loginf(c.Request.Context(), "wallet refresh user disabled id=%s", user.Id)
 		writeProtoError(c, 4, "用户已被封禁")
 		return
 	}
 	if err := usercontroller.SetupSession(&user, c); err != nil {
-		logger.LoginErrorf(c.Request.Context(), "wallet refresh setup session failed user=%d err=%v", user.Id, err)
+		logger.LoginErrorf(c.Request.Context(), "wallet refresh setup session failed user=%s err=%v", user.Id, err)
 		writeProtoError(c, 8, "无法保存会话信息，请重试")
 		return
 	}
 	addr := strings.ToLower(*user.WalletAddress)
 	token, exp, tokenErr := common.GenerateWalletJWT(user.Id, addr)
 	if tokenErr != nil {
-		logger.LoginErrorf(c.Request.Context(), "wallet refresh generate token failed user=%d err=%v", user.Id, tokenErr)
+		logger.LoginErrorf(c.Request.Context(), "wallet refresh generate token failed user=%s err=%v", user.Id, tokenErr)
 		writeProtoError(c, 8, "生成 token 失败")
 		return
 	}
-	logger.Loginf(c.Request.Context(), "wallet refresh success user=%d addr=%s exp=%s", user.Id, addr, exp.UTC().Format(time.RFC3339))
+	logger.Loginf(c.Request.Context(), "wallet refresh success user=%s addr=%s exp=%s", user.Id, addr, exp.UTC().Format(time.RFC3339))
 	body := gin.H{
-		"status":     protoStatus(1, "OK"),
 		"token":      token,
 		"expires_at": exp.UTC().Format(time.RFC3339),
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"body":    body,
 		"success": true,
 		"message": "",
 		"data":    body,
 	})
 }
 
-func protoStatus(code int, message string) gin.H {
-	return gin.H{
-		"code":    code,
-		"message": message,
-	}
-}
-
 func writeProtoError(c *gin.Context, code int, message string) {
+	_ = code
 	c.JSON(http.StatusOK, gin.H{
-		"body": gin.H{
-			"status": protoStatus(code, message),
-		},
 		"success": false,
 		"message": message,
+		"data":    nil,
 	})
 }
 
@@ -615,7 +597,7 @@ func WalletVerifyWeb3(c *gin.Context) {
 		return
 	}
 	if err := usercontroller.SetupSession(user, c); err != nil {
-		logger.LoginErrorf(c.Request.Context(), "wallet web3 verify setup session failed user=%d err=%v", user.Id, err)
+		logger.LoginErrorf(c.Request.Context(), "wallet web3 verify setup session failed user=%s err=%v", user.Id, err)
 		writeWeb3Error(c, 8, "无法保存会话信息，请重试")
 		return
 	}
@@ -636,7 +618,7 @@ func WalletVerifyWeb3(c *gin.Context) {
 		return
 	}
 	setWalletRefreshCookie(c, refreshToken, refreshExp)
-	logger.Loginf(c.Request.Context(), "wallet web3 verify success user=%d addr=%s exp=%s refresh_exp=%s", user.Id, addr, accessExp.UTC().Format(time.RFC3339), refreshExp.UTC().Format(time.RFC3339))
+	logger.Loginf(c.Request.Context(), "wallet web3 verify success user=%s addr=%s exp=%s refresh_exp=%s", user.Id, addr, accessExp.UTC().Format(time.RFC3339), refreshExp.UTC().Format(time.RFC3339))
 	writeWeb3OK(c, gin.H{
 		"address":          addr,
 		"token":            accessToken,
@@ -669,7 +651,7 @@ func WalletRefreshWeb3(c *gin.Context) {
 	}
 	user := model.User{Id: claims.UserID}
 	if err := user.FillUserById(); err != nil {
-		logger.Loginf(c.Request.Context(), "wallet web3 refresh user not found id=%d", claims.UserID)
+		logger.Loginf(c.Request.Context(), "wallet web3 refresh user not found id=%s", claims.UserID)
 		writeWeb3Error(c, 5, "用户不存在")
 		return
 	}
@@ -683,30 +665,30 @@ func WalletRefreshWeb3(c *gin.Context) {
 		return
 	}
 	if user.Status != model.UserStatusEnabled {
-		logger.Loginf(c.Request.Context(), "wallet web3 refresh user disabled id=%d", user.Id)
+		logger.Loginf(c.Request.Context(), "wallet web3 refresh user disabled id=%s", user.Id)
 		writeWeb3Error(c, 4, "用户已被封禁")
 		return
 	}
 	if err := usercontroller.SetupSession(&user, c); err != nil {
-		logger.LoginErrorf(c.Request.Context(), "wallet web3 refresh setup session failed user=%d err=%v", user.Id, err)
+		logger.LoginErrorf(c.Request.Context(), "wallet web3 refresh setup session failed user=%s err=%v", user.Id, err)
 		writeWeb3Error(c, 8, "无法保存会话信息，请重试")
 		return
 	}
 	addr := strings.ToLower(*user.WalletAddress)
 	accessToken, accessExp, tokenErr := common.GenerateWalletJWT(user.Id, addr)
 	if tokenErr != nil {
-		logger.LoginErrorf(c.Request.Context(), "wallet web3 refresh generate token failed user=%d err=%v", user.Id, tokenErr)
+		logger.LoginErrorf(c.Request.Context(), "wallet web3 refresh generate token failed user=%s err=%v", user.Id, tokenErr)
 		writeWeb3Error(c, 8, "生成 token 失败")
 		return
 	}
 	newRefreshToken, refreshExp, refreshErr := common.GenerateWalletRefreshJWT(user.Id, addr)
 	if refreshErr != nil {
-		logger.LoginErrorf(c.Request.Context(), "wallet web3 refresh generate refresh token failed user=%d err=%v", user.Id, refreshErr)
+		logger.LoginErrorf(c.Request.Context(), "wallet web3 refresh generate refresh token failed user=%s err=%v", user.Id, refreshErr)
 		writeWeb3Error(c, 8, "生成 refresh token 失败")
 		return
 	}
 	setWalletRefreshCookie(c, newRefreshToken, refreshExp)
-	logger.Loginf(c.Request.Context(), "wallet web3 refresh success user=%d addr=%s exp=%s refresh_exp=%s", user.Id, addr, accessExp.UTC().Format(time.RFC3339), refreshExp.UTC().Format(time.RFC3339))
+	logger.Loginf(c.Request.Context(), "wallet web3 refresh success user=%s addr=%s exp=%s refresh_exp=%s", user.Id, addr, accessExp.UTC().Format(time.RFC3339), refreshExp.UTC().Format(time.RFC3339))
 	writeWeb3OK(c, gin.H{
 		"address":          addr,
 		"token":            accessToken,

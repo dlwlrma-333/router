@@ -11,14 +11,14 @@ import (
 
 // WalletClaims defines JWT claims for wallet login.
 type WalletClaims struct {
-	UserID        int    `json:"user_id"`
+	UserID        string `json:"user_id"`
 	WalletAddress string `json:"wallet_address"`
 	TokenType     string `json:"token_type,omitempty"`
 	jwt.RegisteredClaims
 }
 
 // GenerateWalletJWT issues a JWT for the given user id and wallet address.
-func GenerateWalletJWT(userID int, walletAddress string) (token string, expiresAt time.Time, err error) {
+func GenerateWalletJWT(userID string, walletAddress string) (token string, expiresAt time.Time, err error) {
 	secret := []byte(config.WalletJWTSecret)
 	if len(secret) == 0 {
 		return "", time.Time{}, errors.New("wallet jwt secret not configured")
@@ -53,7 +53,7 @@ func VerifyWalletJWT(tokenString string) (*WalletClaims, error) {
 }
 
 // GenerateWalletRefreshJWT issues a refresh token for the given user id and wallet address.
-func GenerateWalletRefreshJWT(userID int, walletAddress string) (token string, expiresAt time.Time, err error) {
+func GenerateWalletRefreshJWT(userID string, walletAddress string) (token string, expiresAt time.Time, err error) {
 	secret := []byte(config.WalletJWTSecret)
 	if len(secret) == 0 {
 		return "", time.Time{}, errors.New("wallet jwt secret not configured")

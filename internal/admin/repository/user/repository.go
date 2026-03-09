@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"gorm.io/gorm"
@@ -66,9 +65,9 @@ func init() {
 	})
 }
 
-func GetMaxUserId() int {
+func GetMaxUserId() string {
 	var user model.User
-	model.DB.Last(&user)
+	model.DB.Order("id desc").Limit(1).Find(&user)
 	return user.Id
 }
 
@@ -101,33 +100,9 @@ func Search(keyword string) ([]*model.User, error) {
 	likeKeyword := trimmedKeyword + "%"
 	query := model.DB.Omit("password").Where("status != ?", model.UserStatusDeleted)
 
-	if !common.UsingPostgreSQL {
-		err := query.Where(
-			"(id = ? OR username LIKE ? OR email LIKE ? OR display_name LIKE ? OR wallet_address LIKE ?)",
-			trimmedKeyword,
-			likeKeyword,
-			likeKeyword,
-			likeKeyword,
-			likeKeyword,
-		).Find(&users).Error
-		return users, err
-	}
-
-	idVal, parseErr := strconv.Atoi(trimmedKeyword)
-	if parseErr == nil {
-		err := query.Where(
-			"(id = ? OR username LIKE ? OR email LIKE ? OR display_name LIKE ? OR wallet_address LIKE ?)",
-			idVal,
-			likeKeyword,
-			likeKeyword,
-			likeKeyword,
-			likeKeyword,
-		).Find(&users).Error
-		return users, err
-	}
-
 	err := query.Where(
-		"(username LIKE ? OR email LIKE ? OR display_name LIKE ? OR wallet_address LIKE ?)",
+		"(id = ? OR username LIKE ? OR email LIKE ? OR display_name LIKE ? OR wallet_address LIKE ?)",
+		trimmedKeyword,
 		likeKeyword,
 		likeKeyword,
 		likeKeyword,
@@ -136,8 +111,8 @@ func Search(keyword string) ([]*model.User, error) {
 	return users, err
 }
 
-func GetByID(id int, selectAll bool) (*model.User, error) {
-	if id == 0 {
+func GetByID(id string, selectAll bool) (*model.User, error) {
+	if strings.TrimSpace(id) == "" {
 		return nil, errors.New("id 为空！")
 	}
 	user := model.User{Id: id}
@@ -159,24 +134,24 @@ func GetByUsername(username string) (*model.User, error) {
 	return &user, nil
 }
 
-func GetIDByAffCode(code string) (int, error) {
+func GetIDByAffCode(code string) (string, error) {
 	if code == "" {
-		return 0, errors.New("affCode 为空！")
+		return "", errors.New("affCode 为空！")
 	}
 	var user model.User
 	err := model.DB.Select("id").First(&user, "aff_code = ?", code).Error
 	return user.Id, err
 }
 
-func DeleteByID(id int) error {
-	if id == 0 {
+func DeleteByID(id string) error {
+	if strings.TrimSpace(id) == "" {
 		return errors.New("id 为空！")
 	}
 	user := model.User{Id: id}
 	return Delete(&user)
 }
 
-func Create(ctx context.Context, user *model.User, inviterId int) error {
+func Create(ctx context.Context, user *model.User, inviterId string) error {
 	var err error
 	if user.Password != "" {
 		user.Password, err = common.Password2Hash(user.Password)
@@ -193,6 +168,9 @@ func Create(ctx context.Context, user *model.User, inviterId int) error {
 			user.WalletAddress = &lower
 		}
 	}
+	if strings.TrimSpace(user.Id) == "" {
+		user.Id = random.GetUUID()
+	}
 	user.Quota = config.QuotaForNewUser
 	user.AccessToken = random.GetUUID()
 	user.AffCode = random.GetRandomString(4)
@@ -203,7 +181,7 @@ func Create(ctx context.Context, user *model.User, inviterId int) error {
 	if config.QuotaForNewUser > 0 {
 		model.RecordLog(ctx, user.Id, model.LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", common.LogQuota(config.QuotaForNewUser)))
 	}
-	if inviterId != 0 {
+	if strings.TrimSpace(inviterId) != "" {
 		if config.QuotaForInvitee > 0 {
 			_ = IncreaseQuota(user.Id, config.QuotaForInvitee)
 			model.RecordLog(ctx, user.Id, model.LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", common.LogQuota(config.QuotaForInvitee)))
@@ -225,7 +203,7 @@ func Create(ctx context.Context, user *model.User, inviterId int) error {
 	}
 	result.Error = cleanToken.Insert()
 	if result.Error != nil {
-		logger.SysError(fmt.Sprintf("create default token for user %d failed: %s", user.Id, result.Error.Error()))
+		logger.SysError(fmt.Sprintf("create default token for user %s failed: %s", user.Id, result.Error.Error()))
 	}
 	return nil
 }
@@ -263,7 +241,7 @@ func Update(user *model.User, updatePassword bool) error {
 }
 
 func Delete(user *model.User) error {
-	if user.Id == 0 {
+	if strings.TrimSpace(user.Id) == "" {
 		return errors.New("id 为空！")
 	}
 	blacklist.BanUser(user.Id)
@@ -299,7 +277,7 @@ func ValidateAndFill(user *model.User) error {
 }
 
 func FillByID(user *model.User) error {
-	if user.Id == 0 {
+	if strings.TrimSpace(user.Id) == "" {
 		return errors.New("id 为空！")
 	}
 	model.DB.Where(model.User{Id: user.Id}).First(user)
@@ -405,8 +383,8 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	return err
 }
 
-func IsAdmin(userId int) bool {
-	if userId == 0 {
+func IsAdmin(userId string) bool {
+	if strings.TrimSpace(userId) == "" {
 		return false
 	}
 	var user model.User
@@ -418,8 +396,8 @@ func IsAdmin(userId int) bool {
 	return user.Role >= model.RoleAdminUser
 }
 
-func IsUserEnabled(userId int) (bool, error) {
-	if userId == 0 {
+func IsUserEnabled(userId string) (bool, error) {
+	if strings.TrimSpace(userId) == "" {
 		return false, errors.New("user id is empty")
 	}
 	var user model.User
@@ -442,36 +420,32 @@ func ValidateAccessToken(token string) *model.User {
 	return nil
 }
 
-func GetQuota(id int) (int64, error) {
+func GetQuota(id string) (int64, error) {
 	var quota int64
 	err := model.DB.Model(&model.User{}).Where("id = ?", id).Select("quota").Find(&quota).Error
 	return quota, err
 }
 
-func GetUsedQuota(id int) (int64, error) {
+func GetUsedQuota(id string) (int64, error) {
 	var quota int64
 	err := model.DB.Model(&model.User{}).Where("id = ?", id).Select("used_quota").Find(&quota).Error
 	return quota, err
 }
 
-func GetEmail(id int) (string, error) {
+func GetEmail(id string) (string, error) {
 	var email string
 	err := model.DB.Model(&model.User{}).Where("id = ?", id).Select("email").Find(&email).Error
 	return email, err
 }
 
-func GetGroup(id int) (string, error) {
-	groupCol := "`group`"
-	if common.UsingPostgreSQL {
-		groupCol = `"group"`
-	}
-
+func GetGroup(id string) (string, error) {
+	groupCol := `"group"`
 	var group string
 	err := model.DB.Model(&model.User{}).Where("id = ?", id).Select(groupCol).Find(&group).Error
 	return group, err
 }
 
-func IncreaseQuota(id int, quota int64) error {
+func IncreaseQuota(id string, quota int64) error {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
@@ -482,11 +456,11 @@ func IncreaseQuota(id int, quota int64) error {
 	return IncreaseQuotaDirect(id, quota)
 }
 
-func IncreaseQuotaDirect(id int, quota int64) error {
+func IncreaseQuotaDirect(id string, quota int64) error {
 	return model.DB.Model(&model.User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota + ?", quota)).Error
 }
 
-func DecreaseQuota(id int, quota int64) error {
+func DecreaseQuota(id string, quota int64) error {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
@@ -497,7 +471,7 @@ func DecreaseQuota(id int, quota int64) error {
 	return DecreaseQuotaDirect(id, quota)
 }
 
-func DecreaseQuotaDirect(id int, quota int64) error {
+func DecreaseQuotaDirect(id string, quota int64) error {
 	return model.DB.Model(&model.User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", quota)).Error
 }
 
@@ -507,7 +481,7 @@ func GetRootEmail() string {
 	return email
 }
 
-func UpdateUsedQuotaAndRequestCount(id int, quota int64) {
+func UpdateUsedQuotaAndRequestCount(id string, quota int64) {
 	if config.BatchUpdateEnabled {
 		model.AddBatchUpdateRecord(model.BatchUpdateTypeUsedQuota, id, quota)
 		model.AddBatchUpdateRecord(model.BatchUpdateTypeRequestCount, id, 1)
@@ -516,7 +490,7 @@ func UpdateUsedQuotaAndRequestCount(id int, quota int64) {
 	UpdateUsedQuotaAndRequestCountDirect(id, quota, 1)
 }
 
-func UpdateUsedQuotaAndRequestCountDirect(id int, quota int64, count int) {
+func UpdateUsedQuotaAndRequestCountDirect(id string, quota int64, count int) {
 	err := model.DB.Model(&model.User{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
 			"used_quota":    gorm.Expr("used_quota + ?", quota),
@@ -528,7 +502,7 @@ func UpdateUsedQuotaAndRequestCountDirect(id int, quota int64, count int) {
 	}
 }
 
-func UpdateUsedQuotaDirect(id int, quota int64) {
+func UpdateUsedQuotaDirect(id string, quota int64) {
 	err := model.DB.Model(&model.User{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
 			"used_quota": gorm.Expr("used_quota + ?", quota),
@@ -539,25 +513,17 @@ func UpdateUsedQuotaDirect(id int, quota int64) {
 	}
 }
 
-func UpdateRequestCountDirect(id int, count int) {
+func UpdateRequestCountDirect(id string, count int) {
 	err := model.DB.Model(&model.User{}).Where("id = ?", id).Update("request_count", gorm.Expr("request_count + ?", count)).Error
 	if err != nil {
 		logger.SysError("failed to update user request count: " + err.Error())
 	}
 }
 
-func GetUsernameById(id int) string {
+func GetUsernameById(id string) string {
 	var username string
 	model.DB.Model(&model.User{}).Where("id = ?", id).Select("username").Find(&username)
 	return username
-}
-
-func SearchLogsByPeriodAndModel(userId, start, end int, granularity string, models []string) ([]*model.LogStatistic, error) {
-	return model.SearchLogsByPeriodAndModel(userId, start, end, granularity, models)
-}
-
-func SearchLogModelsByPeriod(userId, start, end int) ([]string, error) {
-	return model.SearchLogModelsByPeriod(userId, start, end)
 }
 
 func AccessTokenExists(token string) (bool, error) {
@@ -572,14 +538,14 @@ func AccessTokenExists(token string) (bool, error) {
 	return false, err
 }
 
-func Redeem(ctx context.Context, key string, userId int) (int64, error) {
+func Redeem(ctx context.Context, key string, userId string) (int64, error) {
 	return model.Redeem(ctx, key, userId)
 }
 
-func RecordLog(ctx context.Context, userId int, logType int, content string) {
+func RecordLog(ctx context.Context, userId string, logType int, content string) {
 	model.RecordLog(ctx, userId, logType, content)
 }
 
-func RecordTopupLog(ctx context.Context, userId int, remark string, quota int) {
+func RecordTopupLog(ctx context.Context, userId string, remark string, quota int) {
 	model.RecordTopupLog(ctx, userId, remark, quota)
 }

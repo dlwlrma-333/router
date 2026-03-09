@@ -26,7 +26,7 @@ import (
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/public/token [get]
 func GetAllTokens(c *gin.Context) {
-	userId := c.GetInt(ctxkey.Id)
+	userId := c.GetString(ctxkey.Id)
 	p, _ := strconv.Atoi(c.Query("p"))
 	if p < 0 {
 		p = 0
@@ -60,7 +60,7 @@ func GetAllTokens(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/public/token/search [get]
 func SearchTokens(c *gin.Context) {
-	userId := c.GetInt(ctxkey.Id)
+	userId := c.GetString(ctxkey.Id)
 	keyword := c.Query("keyword")
 	tokens, err := tokensvc.Search(userId, keyword)
 	if err != nil {
@@ -88,12 +88,12 @@ func SearchTokens(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/public/token/{id} [get]
 func GetToken(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	userId := c.GetInt(ctxkey.Id)
-	if err != nil {
+	id := c.Param("id")
+	userId := c.GetString(ctxkey.Id)
+	if id == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": "id 为空",
 		})
 		return
 	}
@@ -114,8 +114,8 @@ func GetToken(c *gin.Context) {
 }
 
 func GetTokenStatus(c *gin.Context) {
-	tokenId := c.GetInt(ctxkey.TokenId)
-	userId := c.GetInt(ctxkey.Id)
+	tokenId := c.GetString(ctxkey.TokenId)
+	userId := c.GetString(ctxkey.Id)
 	token, err := tokensvc.GetByIDs(tokenId, userId)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -180,7 +180,7 @@ func AddToken(c *gin.Context) {
 	}
 
 	cleanToken := model.Token{
-		UserId:         c.GetInt(ctxkey.Id),
+		UserId:         c.GetString(ctxkey.Id),
 		Name:           token.Name,
 		Key:            random.GenerateKey(),
 		CreatedTime:    helper.GetTimestamp(),
@@ -217,8 +217,8 @@ func AddToken(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/public/token/{id} [delete]
 func DeleteToken(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	userId := c.GetInt(ctxkey.Id)
+	id := c.Param("id")
+	userId := c.GetString(ctxkey.Id)
 	err := tokensvc.DeleteByID(id, userId)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -246,7 +246,7 @@ func DeleteToken(c *gin.Context) {
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/public/token [put]
 func UpdateToken(c *gin.Context) {
-	userId := c.GetInt(ctxkey.Id)
+	userId := c.GetString(ctxkey.Id)
 	statusOnly := c.Query("status_only")
 	token := model.Token{}
 	err := c.ShouldBindJSON(&token)

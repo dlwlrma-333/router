@@ -10,34 +10,46 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/common/helper"
-	commonutils "github.com/yeying-community/router/common/utils"
 	"github.com/yeying-community/router/internal/admin/model"
 	channelsvc "github.com/yeying-community/router/internal/admin/service/channel"
 )
 
-func shouldRequireModelProviderOnUpdate(fields map[string]json.RawMessage) bool {
-	if len(fields) == 0 {
-		return false
+type updateChannelTestModelRequest struct {
+	ID        string `json:"id"`
+	TestModel string `json:"test_model"`
+}
+
+type createChannelDraftRequest struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Protocol string `json:"protocol"`
+	Key      string `json:"key"`
+	BaseURL  string `json:"base_url"`
+	Config   string `json:"config"`
+}
+
+func sanitizeChannelForResponse(channel *model.Channel) {
+	if channel == nil {
+		return
 	}
-	if _, ok := fields["model_provider"]; ok {
+	channel.NormalizeProtocol()
+	channel.Id = strings.TrimSpace(channel.Id)
+	channel.TestModel = strings.TrimSpace(channel.TestModel)
+	channel.Models = strings.TrimSpace(channel.Models)
+	channel.AvailableModels = model.NormalizeChannelModelIDsPreserveOrder(channel.AvailableModels)
+	channel.ModelConfigs = model.NormalizeChannelModelConfigsPreserveOrder(channel.ModelConfigs)
+	channel.SetCapabilityResults(channel.CapabilityResults)
+	channel.KeySet = strings.TrimSpace(channel.Key) != ""
+	channel.Key = ""
+}
+
+func isModelInChannelModels(testModel string, models string) bool {
+	normalized := strings.TrimSpace(testModel)
+	if normalized == "" {
 		return true
 	}
-	coreFields := []string{
-		"name",
-		"type",
-		"key",
-		"base_url",
-		"other",
-		"models",
-		"group",
-		"model_mapping",
-		"config",
-		"system_prompt",
-		"model_ratio",
-		"completion_ratio",
-	}
-	for _, field := range coreFields {
-		if _, ok := fields[field]; ok {
+	for _, item := range model.ParseChannelModelCSV(models) {
+		if item == normalized {
 			return true
 		}
 	}
@@ -66,6 +78,9 @@ func GetAllChannels(c *gin.Context) {
 		})
 		return
 	}
+	for _, channel := range channels {
+		sanitizeChannelForResponse(channel)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -93,6 +108,9 @@ func SearchChannels(c *gin.Context) {
 		})
 		return
 	}
+	for _, channel := range channels {
+		sanitizeChannelForResponse(channel)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -106,12 +124,26 @@ func SearchChannels(c *gin.Context) {
 // @Tags admin
 // @Security BearerAuth
 // @Produce json
-// @Param id path int true "Channel ID"
+// @Param id path string true "Channel ID"
 // @Success 200 {object} docs.StandardResponse
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/admin/channel/{id} [get]
 func GetChannel(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "id 为空",
+		})
+		return
+	}
+	selectAll := false
+	selectAllRaw := strings.TrimSpace(c.Query("select_all"))
+	if selectAllRaw == "1" || strings.EqualFold(selectAllRaw, "true") {
+		selectAll = true
+	}
+	var err error
+	channel, err := channelsvc.GetByID(id, selectAll)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -119,14 +151,7 @@ func GetChannel(c *gin.Context) {
 		})
 		return
 	}
-	channel, err := channelsvc.GetByID(id, false)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
+	sanitizeChannelForResponse(channel)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -149,39 +174,26 @@ func AddChannel(c *gin.Context) {
 	channel := model.Channel{}
 	err := c.ShouldBindJSON(&channel)
 	if err != nil {
+		logChannelAdminWarn(c, "create", stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+	channel.NormalizeModelConfigState()
 	channel.CreatedTime = helper.GetTimestamp()
-	channel.ModelProvider = commonutils.NormalizeModelProvider(channel.ModelProvider)
-	if channel.ModelProvider == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "模型供应商不能为空",
-		})
-		return
-	}
-	keys := strings.Split(channel.Key, "\n")
-	channels := make([]model.Channel, 0, len(keys))
-	for _, key := range keys {
-		if key == "" {
-			continue
-		}
-		localChannel := channel
-		localChannel.Key = key
-		channels = append(channels, localChannel)
-	}
-	err = channelsvc.BatchInsert(channels)
+	channel.NormalizeIdentity()
+	err = channelsvc.Insert(&channel)
 	if err != nil {
+		logChannelAdminWarn(c, "create", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+	logChannelAdminInfo(c, "create", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -189,26 +201,96 @@ func AddChannel(c *gin.Context) {
 	return
 }
 
-// DeleteChannel godoc
-// @Summary Delete channel (admin)
+// CreateChannelDraft godoc
+// @Summary Create channel draft (admin)
 // @Tags admin
 // @Security BearerAuth
+// @Accept json
 // @Produce json
-// @Param id path int true "Channel ID"
 // @Success 200 {object} docs.StandardResponse
 // @Failure 401 {object} docs.ErrorResponse
-// @Router /api/v1/admin/channel/{id} [delete]
-func DeleteChannel(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	channel := model.Channel{Id: id}
-	err := channelsvc.DeleteByID(channel.Id)
-	if err != nil {
+// @Router /api/v1/admin/channel/draft [post]
+func CreateChannelDraft(c *gin.Context) {
+	req := createChannelDraftRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logChannelAdminWarn(c, "create_draft", stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+	id := model.NormalizeChannelIdentifier(req.ID)
+	name := strings.TrimSpace(req.Name)
+	key := strings.TrimSpace(req.Key)
+	if err := model.ValidateChannelIdentifier(id); err != nil {
+		logChannelAdminWarn(c, "create_draft", stringField("channel_id", id), stringField("protocol", req.Protocol), stringField("reason", err.Error()))
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	if key == "" {
+		logChannelAdminWarn(c, "create_draft", stringField("channel_id", id), stringField("protocol", req.Protocol), stringField("reason", "渠道密钥不能为空"))
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "渠道密钥不能为空",
+		})
+		return
+	}
+	baseURL := strings.TrimSpace(req.BaseURL)
+	channel := model.Channel{
+		Id:          id,
+		Name:        name,
+		Protocol:    strings.TrimSpace(req.Protocol),
+		Key:         key,
+		Status:      model.ChannelStatusCreating,
+		Models:      "",
+		BaseURL:     &baseURL,
+		Config:      strings.TrimSpace(req.Config),
+		CreatedTime: helper.GetTimestamp(),
+	}
+	if err := channelsvc.Insert(&channel); err != nil {
+		logChannelAdminWarn(c, "create_draft", stringField("channel_id", id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()), stringField("reason", err.Error()))
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	logChannelAdminInfo(c, "create_draft", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()))
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"id": channel.Id,
+		},
+	})
+}
+
+// DeleteChannel godoc
+// @Summary Delete channel (admin)
+// @Tags admin
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Channel ID"
+// @Success 200 {object} docs.StandardResponse
+// @Failure 401 {object} docs.ErrorResponse
+// @Router /api/v1/admin/channel/{id} [delete]
+func DeleteChannel(c *gin.Context) {
+	id := c.Param("id")
+	channel := model.Channel{Id: id}
+	err := channelsvc.DeleteByID(channel.Id)
+	if err != nil {
+		logChannelAdminWarn(c, "delete", stringField("channel_id", channel.Id), stringField("reason", err.Error()))
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	logChannelAdminInfo(c, "delete", stringField("channel_id", channel.Id))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -227,12 +309,14 @@ func DeleteChannel(c *gin.Context) {
 func DeleteDisabledChannel(c *gin.Context) {
 	rows, err := channelsvc.DeleteDisabled()
 	if err != nil {
+		logChannelAdminWarn(c, "delete_disabled", stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+	logChannelAdminInfo(c, "delete_disabled", int64Field("rows", rows))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -270,34 +354,106 @@ func UpdateChannel(c *gin.Context) {
 	channel := model.Channel{}
 	err = json.Unmarshal(rawBody, &channel)
 	if err != nil {
+		logChannelAdminWarn(c, "update", stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	fields := make(map[string]json.RawMessage)
-	_ = json.Unmarshal(rawBody, &fields)
-	channel.ModelProvider = commonutils.NormalizeModelProvider(channel.ModelProvider)
-	if shouldRequireModelProviderOnUpdate(fields) && channel.ModelProvider == "" {
+	rawFields := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(rawBody, &rawFields); err != nil {
+		logChannelAdminWarn(c, "update", stringField("channel_id", channel.Id), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "模型供应商不能为空",
+			"message": err.Error(),
 		})
 		return
 	}
+	_, channel.NameProvided = rawFields["name"]
+	_, channel.ModelsProvided = rawFields["models"]
+	_, channel.ModelConfigsProvided = rawFields["model_configs"]
+	channel.NormalizeModelConfigState()
 	err = channelsvc.Update(&channel)
 	if err != nil {
+		logChannelAdminWarn(c, "update", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+	logChannelAdminInfo(c, "update", stringField("channel_id", channel.Id), stringField("name", channel.DisplayName()), stringField("protocol", channel.GetProtocol()), intField("model_count", len(model.ParseChannelModelCSV(channel.Models))))
+	sanitizeChannelForResponse(&channel)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data":    channel,
 	})
 	return
+}
+
+// UpdateChannelTestModel godoc
+// @Summary Update channel test model (admin)
+// @Tags admin
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body object true "Channel test model payload"
+// @Success 200 {object} docs.StandardResponse
+// @Failure 401 {object} docs.ErrorResponse
+// @Router /api/v1/admin/channel/test_model [put]
+func UpdateChannelTestModel(c *gin.Context) {
+	req := updateChannelTestModelRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logChannelAdminWarn(c, "update_test_model", stringField("reason", err.Error()))
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	req.ID = strings.TrimSpace(req.ID)
+	if req.ID == "" {
+		logChannelAdminWarn(c, "update_test_model", stringField("reason", "渠道 ID 无效"))
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "渠道 ID 无效",
+		})
+		return
+	}
+	channel, err := channelsvc.GetByID(req.ID, true)
+	if err != nil {
+		logChannelAdminWarn(c, "update_test_model", stringField("channel_id", req.ID), stringField("reason", err.Error()))
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	req.TestModel = strings.TrimSpace(req.TestModel)
+	if !isModelInChannelModels(req.TestModel, channel.Models) {
+		logChannelAdminWarn(c, "update_test_model", stringField("channel_id", req.ID), stringField("test_model", req.TestModel), stringField("reason", "测试模型不在渠道支持的模型列表中"))
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "测试模型不在渠道支持的模型列表中",
+		})
+		return
+	}
+	if err := channelsvc.UpdateTestModelByID(req.ID, req.TestModel); err != nil {
+		logChannelAdminWarn(c, "update_test_model", stringField("channel_id", req.ID), stringField("test_model", req.TestModel), stringField("reason", err.Error()))
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	logChannelAdminInfo(c, "update_test_model", stringField("channel_id", req.ID), stringField("test_model", req.TestModel))
+	channel.TestModel = req.TestModel
+	sanitizeChannelForResponse(channel)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    channel,
+	})
 }

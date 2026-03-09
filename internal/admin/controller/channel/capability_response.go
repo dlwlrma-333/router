@@ -1,0 +1,72 @@
+package channel
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
+	openaiadaptor "github.com/yeying-community/router/internal/relay/adaptor/openai"
+)
+
+type responsesEnvelope struct {
+	Output []struct {
+		Content []struct {
+			Type       string `json:"type"`
+			Text       string `json:"text"`
+			OutputText string `json:"output_text"`
+		} `json:"content"`
+	} `json:"output"`
+}
+
+func parseChatCapabilityResponse(resp string) (*openaiadaptor.TextResponse, string, error) {
+	var response openaiadaptor.TextResponse
+	err := json.Unmarshal([]byte(resp), &response)
+	if err != nil {
+		return nil, "", err
+	}
+	if len(response.Choices) == 0 {
+		return nil, "", errors.New("response has no choices")
+	}
+	stringContent, ok := response.Choices[0].Content.(string)
+	if !ok {
+		return nil, "", errors.New("response content is not string")
+	}
+	return &response, stringContent, nil
+}
+
+func parseResponsesCapabilityResponse(resp string) (string, error) {
+	var env responsesEnvelope
+	if err := json.Unmarshal([]byte(resp), &env); err != nil {
+		return "", err
+	}
+	contentTypes := make([]string, 0)
+	for _, output := range env.Output {
+		for _, content := range output.Content {
+			if content.Type != "" {
+				contentTypes = append(contentTypes, content.Type)
+			} else {
+				contentTypes = append(contentTypes, "<empty>")
+			}
+			if content.Text != "" {
+				return content.Text, nil
+			}
+			if content.OutputText != "" {
+				return content.OutputText, nil
+			}
+		}
+	}
+	return "", errors.New("response has no output text, content types: " + strings.Join(contentTypes, ","))
+}
+
+func parseTextCapabilityResponse(resp string) (string, error) {
+	_, chatText, chatErr := parseChatCapabilityResponse(resp)
+	if chatErr == nil {
+		return chatText, nil
+	}
+	responsesText, responsesErr := parseResponsesCapabilityResponse(resp)
+	if responsesErr == nil {
+		return responsesText, nil
+	}
+	return "", fmt.Errorf("parse as chat failed: %v; parse as responses failed: %v", chatErr, responsesErr)
+}

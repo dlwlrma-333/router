@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/common/ctxkey"
+	"github.com/yeying-community/router/common/random"
 	usercontroller "github.com/yeying-community/router/internal/admin/controller/user"
 	"github.com/yeying-community/router/internal/admin/model"
 )
@@ -85,12 +85,12 @@ func WeChatAuth(c *gin.Context) {
 		}
 	} else {
 		if config.RegisterEnabled {
-			user.Username = "wechat_" + strconv.Itoa(model.GetMaxUserId()+1)
+			user.Username = "wechat_" + random.GetRandomString(8)
 			user.DisplayName = "WeChat User"
 			user.Role = model.RoleCommonUser
 			user.Status = model.UserStatusEnabled
 
-			if err := user.Insert(ctx, 0); err != nil {
+			if err := user.Insert(ctx, ""); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
@@ -140,7 +140,7 @@ func WeChatBind(c *gin.Context) {
 		})
 		return
 	}
-	id := c.GetInt(ctxkey.Id)
+	id := c.GetString(ctxkey.Id)
 	user := model.User{
 		Id: id,
 	}

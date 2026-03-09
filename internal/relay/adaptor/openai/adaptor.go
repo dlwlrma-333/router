@@ -17,23 +17,23 @@ import (
 	"github.com/yeying-community/router/internal/relay/adaptor/geminiv2"
 	"github.com/yeying-community/router/internal/relay/adaptor/minimax"
 	"github.com/yeying-community/router/internal/relay/adaptor/novita"
-	"github.com/yeying-community/router/internal/relay/channeltype"
+	relaychannel "github.com/yeying-community/router/internal/relay/channel"
 	"github.com/yeying-community/router/internal/relay/meta"
 	"github.com/yeying-community/router/internal/relay/model"
 	"github.com/yeying-community/router/internal/relay/relaymode"
 )
 
 type Adaptor struct {
-	ChannelType int
+	ChannelProtocol int
 }
 
 func (a *Adaptor) Init(meta *meta.Meta) {
-	a.ChannelType = meta.ChannelType
+	a.ChannelProtocol = meta.ChannelProtocol
 }
 
 func (a *Adaptor) GetRequestURL(meta *meta.Meta) (string, error) {
-	switch meta.ChannelType {
-	case channeltype.Azure:
+	switch meta.ChannelProtocol {
+	case relaychannel.Azure:
 		if meta.Mode == relaymode.ImagesGenerations {
 			// https://learn.microsoft.com/en-us/azure/ai-services/openai/dall-e-quickstart?tabs=dalle3%2Ccommand-line&pivots=rest-api
 			// https://{resource_name}.openai.azure.com/openai/deployments/dall-e-3/images/generations?api-version=2024-03-01-preview
@@ -50,40 +50,34 @@ func (a *Adaptor) GetRequestURL(meta *meta.Meta) (string, error) {
 		//https://github.com/yeying-community/router/issues/1191
 		// {your endpoint}/openai/deployments/{your azure_model}/chat/completions?api-version={api_version}
 		requestURL = fmt.Sprintf("/openai/deployments/%s/%s", model_, task)
-		return GetFullRequestURL(meta.BaseURL, requestURL, meta.ChannelType), nil
-	case channeltype.Minimax:
+		return GetFullRequestURL(meta.BaseURL, requestURL, meta.ChannelProtocol), nil
+	case relaychannel.Minimax:
 		return minimax.GetRequestURL(meta)
-	case channeltype.Doubao:
+	case relaychannel.Doubao:
 		return doubao.GetRequestURL(meta)
-	case channeltype.Novita:
+	case relaychannel.Novita:
 		return novita.GetRequestURL(meta)
-	case channeltype.BaiduV2:
+	case relaychannel.BaiduV2:
 		return baiduv2.GetRequestURL(meta)
-	case channeltype.AliBailian:
+	case relaychannel.AliBailian:
 		return alibailian.GetRequestURL(meta)
-	case channeltype.GeminiOpenAICompatible:
+	case relaychannel.GeminiOpenAICompatible:
 		return geminiv2.GetRequestURL(meta)
 	default:
-		return GetFullRequestURL(meta.BaseURL, meta.RequestURLPath, meta.ChannelType), nil
+		return GetFullRequestURL(meta.BaseURL, meta.RequestURLPath, meta.ChannelProtocol), nil
 	}
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Request, meta *meta.Meta) error {
 	adaptor.SetupCommonRequestHeader(c, req, meta)
-	if meta.ChannelType == channeltype.Azure {
+	if meta.ChannelProtocol == relaychannel.Azure {
 		req.Header.Set("api-key", meta.APIKey)
-		if meta.Config.UserAgent != "" {
-			req.Header.Set("User-Agent", meta.Config.UserAgent)
-		}
 		return nil
 	}
 	req.Header.Set("Authorization", "Bearer "+meta.APIKey)
-	if meta.ChannelType == channeltype.OpenRouter {
+	if meta.ChannelProtocol == relaychannel.OpenRouter {
 		req.Header.Set("HTTP-Referer", "https://github.com/yeying-community/router")
 		req.Header.Set("X-Title", "Router")
-	}
-	if meta.Config.UserAgent != "" {
-		req.Header.Set("User-Agent", meta.Config.UserAgent)
 	}
 	return nil
 }
@@ -215,11 +209,11 @@ func relayResponsesResponse(c *gin.Context, resp *http.Response) (*model.Usage, 
 }
 
 func (a *Adaptor) GetModelList() []string {
-	_, modelList := GetCompatibleChannelMeta(a.ChannelType)
+	_, modelList := GetCompatibleChannelMeta(a.ChannelProtocol)
 	return modelList
 }
 
 func (a *Adaptor) GetChannelName() string {
-	channelName, _ := GetCompatibleChannelMeta(a.ChannelType)
+	channelName, _ := GetCompatibleChannelMeta(a.ChannelProtocol)
 	return channelName
 }

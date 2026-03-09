@@ -16,8 +16,8 @@ func GetSubscription(c *gin.Context) {
 	var token *model.Token
 	var expiredTime int64
 	if config.DisplayTokenStatEnabled {
-		tokenId := c.GetInt(ctxkey.TokenId)
-		if tokenId > 0 {
+		tokenId := c.GetString(ctxkey.TokenId)
+		if tokenId != "" {
 			token, err = billingsvc.GetTokenByID(tokenId)
 			if err == nil {
 				expiredTime = token.ExpiredTime
@@ -27,7 +27,7 @@ func GetSubscription(c *gin.Context) {
 		}
 	}
 	if token == nil {
-		userId := c.GetInt(ctxkey.Id)
+		userId := c.GetString(ctxkey.Id)
 		remainQuota, err = billingsvc.GetUserQuota(userId)
 		if err != nil {
 			usedQuota, err = billingsvc.GetUserUsedQuota(userId)
@@ -71,8 +71,8 @@ func GetUsage(c *gin.Context) {
 	var err error
 	var token *model.Token
 	if config.DisplayTokenStatEnabled {
-		tokenId := c.GetInt(ctxkey.TokenId)
-		if tokenId > 0 {
+		tokenId := c.GetString(ctxkey.TokenId)
+		if tokenId != "" {
 			token, err = billingsvc.GetTokenByID(tokenId)
 			if err == nil {
 				quota = token.UsedQuota
@@ -80,7 +80,7 @@ func GetUsage(c *gin.Context) {
 		}
 	}
 	if token == nil {
-		userId := c.GetInt(ctxkey.Id)
+		userId := c.GetString(ctxkey.Id)
 		quota, err = billingsvc.GetUserUsedQuota(userId)
 	}
 	if err != nil {

@@ -5,19 +5,19 @@ import (
 	tokenrepo "github.com/yeying-community/router/internal/admin/repository/token"
 )
 
-func GetAll(userId, start, num int, order string) ([]*model.Token, error) {
+func GetAll(userId string, start, num int, order string) ([]*model.Token, error) {
 	return tokenrepo.GetAll(userId, start, num, order)
 }
 
-func Search(userId int, keyword string) ([]*model.Token, error) {
+func Search(userId string, keyword string) ([]*model.Token, error) {
 	return tokenrepo.Search(userId, keyword)
 }
 
-func GetByIDs(tokenId, userId int) (*model.Token, error) {
+func GetByIDs(tokenId, userId string) (*model.Token, error) {
 	return tokenrepo.GetByIDs(tokenId, userId)
 }
 
-func GetByID(tokenId int) (*model.Token, error) {
+func GetByID(tokenId string) (*model.Token, error) {
 	return tokenrepo.GetByID(tokenId)
 }
 
@@ -29,6 +29,6 @@ func Update(token *model.Token) error {
 	return tokenrepo.Update(token)
 }
 
-func DeleteByID(tokenId, userId int) error {
+func DeleteByID(tokenId, userId string) error {
 	return tokenrepo.DeleteByID(tokenId, userId)
 }
