@@ -50,6 +50,13 @@ code {
     background: rgba(33, 133, 208, 0.08) !important;
 }
 
+.ui.dropdown.router-role-dropdown,
+.ui.dropdown.router-role-dropdown > .text,
+.ui.dropdown.router-role-dropdown .menu > .item {
+    font-size: inherit !important;
+    font-weight: inherit !important;
+}
+
 @media only screen and (max-width: 600px) {
     .hide-on-mobile {
         display: none !important;

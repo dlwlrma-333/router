@@ -433,6 +433,7 @@ const UsersTable = () => {
                       renderRole(user.role, t)
                     ) : (
                       <Dropdown
+                        className='router-role-dropdown'
                         selection
                         compact
                         options={ROLE_OPTIONS(t)}
