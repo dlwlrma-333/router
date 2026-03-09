@@ -545,6 +545,12 @@
         "cancel": "取消"
       }
     },
+    "detail": {
+      "code": "兑换码",
+      "buttons": {
+        "back": "返回"
+      }
+    },
     "messages": {
       "update_success": "兑换码更新成功！",
       "create_success": "兑换码创建成功！"

@@ -545,6 +545,12 @@
         "cancel": "Cancel"
       }
     },
+    "detail": {
+      "code": "Code",
+      "buttons": {
+        "back": "Back"
+      }
+    },
     "messages": {
       "update_success": "Redemption code updated successfully!",
       "create_success": "Redemption code created successfully!"

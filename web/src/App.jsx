@@ -27,6 +27,7 @@ import EditToken from './pages/Token/EditToken';
 import EditChannel from './pages/Channel/EditChannel';
 import Redemption from './pages/Redemption';
 import EditRedemption from './pages/Redemption/EditRedemption';
+import RedemptionDetail from './pages/Redemption/RedemptionDetail';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
@@ -338,6 +339,14 @@ function App() {
           element={
             <Suspense fallback={<Loading />}>
               <EditRedemption />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/admin/redemption/:id'
+          element={
+            <Suspense fallback={<Loading />}>
+              <RedemptionDetail />
             </Suspense>
           }
         />

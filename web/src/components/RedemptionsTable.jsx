@@ -8,7 +8,7 @@ import {
   Pagination,
   Table,
 } from 'semantic-ui-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   API,
   copy,
@@ -56,6 +56,7 @@ function renderStatus(status, t) {
 
 const RedemptionsTable = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [redemptions, setRedemptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState(1);
@@ -183,19 +184,46 @@ const RedemptionsTable = () => {
 
   return (
     <>
-      <Form onSubmit={searchRedemptions}>
-        <Form.Input
-          icon='search'
-          fluid
-          iconPosition='left'
-          placeholder={t('redemption.search')}
-          value={searchKeyword}
-          loading={searching}
-          onChange={handleKeywordChange}
-        />
-      </Form>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexWrap: 'wrap',
+          marginBottom: '16px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Button
+            size='small'
+            as={Link}
+            to='/redemption/add'
+            loading={loading}
+          >
+            {t('redemption.buttons.add')}
+          </Button>
+          <Button size='small' onClick={refresh} loading={loading}>
+            {t('redemption.buttons.refresh')}
+          </Button>
+        </div>
+        <Form
+          onSubmit={searchRedemptions}
+          style={{ marginLeft: 'auto', width: 'min(360px, 100%)' }}
+        >
+          <Form.Input
+            icon='search'
+            fluid
+            iconPosition='left'
+            placeholder={t('redemption.search')}
+            value={searchKeyword}
+            loading={searching}
+            onChange={handleKeywordChange}
+          />
+        </Form>
+      </div>
 
-      <Table basic={'very'} compact size='small'>
+      <Table basic={'very'} compact size='small' className='router-hover-table'>
         <Table.Header>
           <Table.Row>
             <Table.HeaderCell
@@ -251,7 +279,13 @@ const RedemptionsTable = () => {
             .map((redemption, idx) => {
               if (redemption.deleted) return <></>;
               return (
-                <Table.Row key={redemption.id}>
+                <Table.Row
+                  key={redemption.id}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => {
+                    navigate(`/redemption/${redemption.id}`);
+                  }}
+                >
                   <Table.Cell>
                     {redemption.name ? redemption.name : t('redemption.table.no_name')}
                   </Table.Cell>
@@ -265,7 +299,11 @@ const RedemptionsTable = () => {
                       ? renderTimestamp(redemption.redeemed_time)
                       : t('redemption.table.not_redeemed')}{' '}
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
                     <div>
                       <Button
                         size={'tiny'}
@@ -332,17 +370,6 @@ const RedemptionsTable = () => {
         <Table.Footer>
           <Table.Row>
             <Table.HeaderCell colSpan='6'>
-              <Button
-                size='small'
-                as={Link}
-                to='/redemption/add'
-                loading={loading}
-              >
-                {t('redemption.buttons.add')}
-              </Button>
-              <Button size='small' onClick={refresh} loading={loading}>
-                {t('redemption.buttons.refresh')}
-              </Button>
               <Pagination
                 floated='right'
                 activePage={activePage}
