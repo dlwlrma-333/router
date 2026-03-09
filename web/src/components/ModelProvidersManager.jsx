@@ -304,7 +304,7 @@ const ModelProvidersManager = () => {
     setEditRow(createEmptyRow());
   };
 
-  const openCreateModal = () => {
+  const openCreatePanel = () => {
     if (editing || creating || saving) return;
     setViewingProvider('');
     setViewRow(null);
@@ -312,7 +312,7 @@ const ModelProvidersManager = () => {
     setCreating(true);
   };
 
-  const closeCreateModal = () => {
+  const closeCreatePanel = () => {
     setCreating(false);
     setCreateRow(createEmptyRow());
   };
@@ -508,7 +508,7 @@ const ModelProvidersManager = () => {
     };
     const saved = await saveProvider('post', '/api/v1/admin/provider', normalizedRow);
     if (saved) {
-      closeCreateModal();
+      closeCreatePanel();
       setViewingProvider(saved.id || '');
       setViewRow(saved);
     }
@@ -802,7 +802,7 @@ const ModelProvidersManager = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Button type='button' size='tiny' disabled={saving || loading} onClick={openCreateModal}>
+          <Button type='button' size='tiny' disabled={saving || loading} onClick={openCreatePanel}>
             {t('channel.providers.buttons.add_provider')}
           </Button>
         </div>
@@ -1021,42 +1021,19 @@ const ModelProvidersManager = () => {
     );
   };
 
-  const renderCreateModal = () => (
-    <Modal
-      open={creating}
-      onClose={closeCreateModal}
-      size='large'
-      closeOnDimmerClick={false}
-    >
-      <Modal.Header>{t('channel.providers.dialog.title_create')}</Modal.Header>
-      <Modal.Content>
-        <Form>
-          <Form.Group widths='equal'>
-            <Form.Input
-              label={t('channel.providers.dialog.provider')}
-              placeholder={t('channel.providers.dialog.provider_placeholder')}
-              value={createRow.id}
-              onChange={(e, { value }) => setCreateValue('id', normalizeProvider(value || ''))}
-            />
-            <Form.Input
-              label={t('channel.providers.dialog.name')}
-              placeholder={t('channel.providers.dialog.name_placeholder')}
-              value={createRow.name}
-              onChange={(e, { value }) => setCreateValue('name', value || '')}
-            />
-          </Form.Group>
-          <Form.Input
-            label={t('channel.providers.dialog.base_url')}
-            placeholder={t('channel.providers.dialog.base_url_placeholder')}
-            value={createRow.base_url}
-            onChange={(e, { value }) => setCreateValue('base_url', value || '')}
-          />
-        </Form>
-
-        {renderModelDetailsTable(createRow, setCreateValue, saving)}
-      </Modal.Content>
-      <Modal.Actions>
-        <Button type='button' onClick={closeCreateModal} disabled={saving}>
+  const renderCreatePanel = () => (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          gap: '8px',
+          flexWrap: 'wrap',
+          marginBottom: 12,
+        }}
+      >
+        <Button type='button' onClick={closeCreatePanel} disabled={saving}>
           <Icon name='undo' />
           {t('channel.providers.dialog.cancel_create')}
         </Button>
@@ -1064,8 +1041,32 @@ const ModelProvidersManager = () => {
           <Icon name='check' />
           {t('channel.providers.dialog.confirm')}
         </Button>
-      </Modal.Actions>
-    </Modal>
+      </div>
+      <Form>
+        <Form.Group widths='equal'>
+          <Form.Input
+            label={t('channel.providers.dialog.provider')}
+            placeholder={t('channel.providers.dialog.provider_placeholder')}
+            value={createRow.id}
+            onChange={(e, { value }) => setCreateValue('id', normalizeProvider(value || ''))}
+          />
+          <Form.Input
+            label={t('channel.providers.dialog.name')}
+            placeholder={t('channel.providers.dialog.name_placeholder')}
+            value={createRow.name}
+            onChange={(e, { value }) => setCreateValue('name', value || '')}
+          />
+        </Form.Group>
+        <Form.Input
+          label={t('channel.providers.dialog.base_url')}
+          placeholder={t('channel.providers.dialog.base_url_placeholder')}
+          value={createRow.base_url}
+          onChange={(e, { value }) => setCreateValue('base_url', value || '')}
+        />
+      </Form>
+
+      {renderModelDetailsTable(createRow, setCreateValue, saving)}
+    </div>
   );
 
   const renderDeleteModal = () => {
@@ -1102,9 +1103,14 @@ const ModelProvidersManager = () => {
 
   return (
     <div>
-      {renderCreateModal()}
       {renderDeleteModal()}
-      {editing ? renderEditor() : viewingProvider && viewRow ? renderViewer() : renderRows()}
+      {creating
+        ? renderCreatePanel()
+        : editing
+        ? renderEditor()
+        : viewingProvider && viewRow
+        ? renderViewer()
+        : renderRows()}
     </div>
   );
 };
