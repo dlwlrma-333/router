@@ -1762,9 +1762,7 @@ const EditChannel = () => {
           return false;
         }
         const nextConfigs = normalizeChannelModelConfigs(data?.model_configs);
-        const nextInputs = buildNextInputsWithModelConfigs(inputs, nextConfigs);
-        const ids = nextInputs.models;
-        if (ids.length === 0) {
+        if (nextConfigs.length === 0) {
           const message = t('channel.edit.messages.models_empty');
           setModelsSyncError(message);
           setVerifiedModelSignature('');
@@ -1773,6 +1771,7 @@ const EditChannel = () => {
           }
           return false;
         }
+        const nextInputs = buildNextInputsWithModelConfigs(inputs, nextConfigs);
 
         setInputs(nextInputs);
         setModelsSyncError('');

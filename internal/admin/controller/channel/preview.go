@@ -1082,9 +1082,7 @@ func PreviewChannelModels(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"model_configs":    modelConfigs,
-			"available_models": savedChannel.AvailableModels,
-			"selected_models":  savedChannel.SelectedModelIDs(),
+			"model_configs": modelConfigs,
 		},
 		"meta": gin.H{
 			"source":     "channel",
