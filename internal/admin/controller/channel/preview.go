@@ -559,9 +559,17 @@ func runChannelModelTests(channel *model.Channel, mode string, requestedModel st
 	if len(targetRows) == 0 {
 		return nil, fmt.Errorf("未找到可用于测试的模型")
 	}
+	channelID := ""
+	if channel != nil {
+		channelID = strings.TrimSpace(channel.Id)
+	}
 	results := make([]model.ChannelTest, 0, len(targetRows))
 	for _, row := range targetRows {
-		results = append(results, runSingleChannelModelTest(channel, row))
+		testResult := runSingleChannelModelTest(channel, row)
+		if strings.TrimSpace(testResult.ChannelId) == "" {
+			testResult.ChannelId = channelID
+		}
+		results = append(results, testResult)
 	}
 	return model.NormalizeChannelTestRows(results), nil
 }
@@ -1244,7 +1252,6 @@ func TestChannelModels(c *gin.Context) {
 		})
 		return
 	}
-	modelConfigs := previewChannel.GetModelConfigs()
 	if err := persistPreviewChannelTests(channelID, previewChannel.GetModelConfigs(), results); err != nil {
 		logChannelAdminWarn(c, "test_models_save", stringField("channel_id", channelID), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
@@ -1262,20 +1269,13 @@ func TestChannelModels(c *gin.Context) {
 		})
 		return
 	}
-	modelConfigs = savedChannel.GetModelConfigs()
 	results = savedChannel.Tests
 	logChannelAdminInfo(c, "test_models", stringField("source", keySource), stringField("channel_id", channelID), stringField("base_url", previewChannel.GetBaseURL()), intField("results", len(results)))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"results":       results,
-			"model_configs": modelConfigs,
-		},
-		"meta": gin.H{
-			"source":     "channel",
-			"key_source": keySource,
-			"channel_id": channelID,
+			"results": results,
 		},
 	})
 }

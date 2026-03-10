@@ -2222,12 +2222,20 @@ const EditChannel = () => {
           return;
         }
         const nextResults = normalizeModelTestResults(data?.results);
-        const nextModelConfigs = normalizeChannelModelConfigs(
-          data?.model_configs
-        );
+        let nextModelConfigs = visibleModelConfigs;
+        try {
+          const refreshedModelConfigs = await loadChannelModelConfigsFromServer(
+            targetChannelId
+          );
+          if (refreshedModelConfigs.length > 0) {
+            nextModelConfigs = refreshedModelConfigs;
+          }
+        } catch {
+          nextModelConfigs = visibleModelConfigs;
+        }
         const nextInputs = buildNextInputsWithModelConfigs(
           inputs,
-          nextModelConfigs.length > 0 ? nextModelConfigs : visibleModelConfigs
+          nextModelConfigs
         );
         const nextSignature = buildChannelModelTestSignature({
           protocol: inputs.protocol,
@@ -2271,6 +2279,7 @@ const EditChannel = () => {
       persistWorkingChannel,
       previewChannelID,
       t,
+      loadChannelModelConfigsFromServer,
       visibleModelConfigs,
     ]
   );
