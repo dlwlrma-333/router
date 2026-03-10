@@ -121,14 +121,14 @@ type OpenRouterResponse struct {
 	} `json:"data"`
 }
 
-// GetAuthHeader get auth header
-func GetAuthHeader(token string) http.Header {
+// buildBearerAuthHeader get auth header
+func buildBearerAuthHeader(token string) http.Header {
 	h := http.Header{}
 	h.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	return h
 }
 
-func GetResponseBody(method, url string, channel *model.Channel, headers http.Header) ([]byte, error) {
+func fetchChannelBillingResponseBody(method, url string, channel *model.Channel, headers http.Header) ([]byte, error) {
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		return nil, err
@@ -177,7 +177,7 @@ func GetResponseBody(method, url string, channel *model.Channel, headers http.He
 
 func updateChannelCloseAIBalance(channel *model.Channel) (float64, error) {
 	url := fmt.Sprintf("%s/dashboard/billing/credit_grants", channel.GetBaseURL())
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := fetchChannelBillingResponseBody("GET", url, channel, buildBearerAuthHeader(channel.Key))
 
 	if err != nil {
 		return 0, err
@@ -193,7 +193,7 @@ func updateChannelCloseAIBalance(channel *model.Channel) (float64, error) {
 
 func updateChannelOpenAISBBalance(channel *model.Channel) (float64, error) {
 	url := fmt.Sprintf("https://api.openai-sb.com/sb-api/user/status?api_key=%s", channel.Key)
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := fetchChannelBillingResponseBody("GET", url, channel, buildBearerAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
 	}
@@ -217,7 +217,7 @@ func updateChannelAIProxyBalance(channel *model.Channel) (float64, error) {
 	url := "https://aiproxy.io/api/report/getUserOverview"
 	headers := http.Header{}
 	headers.Add("Api-Key", channel.Key)
-	body, err := GetResponseBody("GET", url, channel, headers)
+	body, err := fetchChannelBillingResponseBody("GET", url, channel, headers)
 	if err != nil {
 		return 0, err
 	}
@@ -235,7 +235,7 @@ func updateChannelAIProxyBalance(channel *model.Channel) (float64, error) {
 
 func updateChannelAPI2GPTBalance(channel *model.Channel) (float64, error) {
 	url := "https://api.api2gpt.com/dashboard/billing/credit_grants"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := fetchChannelBillingResponseBody("GET", url, channel, buildBearerAuthHeader(channel.Key))
 
 	if err != nil {
 		return 0, err
@@ -251,7 +251,7 @@ func updateChannelAPI2GPTBalance(channel *model.Channel) (float64, error) {
 
 func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
 	url := "https://api.aigc2d.com/dashboard/billing/credit_grants"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := fetchChannelBillingResponseBody("GET", url, channel, buildBearerAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
 	}
@@ -266,7 +266,7 @@ func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
 
 func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 	url := "https://api.siliconflow.cn/v1/user/info"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := fetchChannelBillingResponseBody("GET", url, channel, buildBearerAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
 	}
@@ -288,7 +288,7 @@ func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 
 func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	url := "https://api.deepseek.com/user/balance"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := fetchChannelBillingResponseBody("GET", url, channel, buildBearerAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
 	}
@@ -317,7 +317,7 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 
 func updateChannelOpenRouterBalance(channel *model.Channel) (float64, error) {
 	url := "https://openrouter.ai/api/v1/credits"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := fetchChannelBillingResponseBody("GET", url, channel, buildBearerAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
 	}
@@ -367,7 +367,7 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 	}
 	url := fmt.Sprintf("%s/v1/dashboard/billing/subscription", baseURL)
 
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := fetchChannelBillingResponseBody("GET", url, channel, buildBearerAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
 	}
@@ -383,7 +383,7 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 		startDate = now.AddDate(0, 0, -100).Format("2006-01-02")
 	}
 	url = fmt.Sprintf("%s/v1/dashboard/billing/usage?start_date=%s&end_date=%s", baseURL, startDate, endDate)
-	body, err = GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err = fetchChannelBillingResponseBody("GET", url, channel, buildBearerAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
 	}

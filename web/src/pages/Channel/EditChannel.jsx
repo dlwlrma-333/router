@@ -1572,9 +1572,7 @@ const EditChannel = () => {
         return false;
       }
       try {
-        const remoteConfigs = await loadChannelModelConfigsFromServer(
-          targetChannelID
-        );
+        const remoteConfigs = await fetchAllChannelModelConfigs(targetChannelID);
         const remoteModels = normalizeModelIDs(
           remoteConfigs
             .filter((row) => row && row.selected === true)
@@ -1594,7 +1592,7 @@ const EditChannel = () => {
         return false;
       }
     },
-    [creatingChannelId, loadChannelModelConfigsFromServer]
+    [creatingChannelId]
   );
 
   const ensureCreatingChannel = useCallback(async () => {

@@ -112,7 +112,7 @@ func executeChannelModelTest(ctx context.Context, channel *model.Channel, option
 		return nil, false, "", 0, "", nil, 0, fmt.Errorf("渠道不存在")
 	}
 	targetChannel := *channel
-	testMode := normalizePreviewModelTestMode(options.Mode)
+	testMode := normalizeChannelModelTestMode(options.Mode)
 	testModel := strings.TrimSpace(options.Model)
 	if testModel != "" {
 		targetChannel.TestModel = testModel
@@ -128,7 +128,7 @@ func executeChannelModelTest(ctx context.Context, channel *model.Channel, option
 		return nil, false, err.Error(), 0, modelName, nil, 0, err
 	}
 	if options.PersistResults {
-		if err := persistPreviewChannelTests(channel.Id, channel.GetModelConfigs(), results); err != nil {
+		if err := persistChannelModelTests(channel.Id, channel.GetModelConfigs(), results); err != nil {
 			modelName := testModel
 			if modelName == "" {
 				modelName = strings.TrimSpace(targetChannel.TestModel)
@@ -186,7 +186,7 @@ func TestChannel(c *gin.Context) {
 		return
 	}
 	testModel := strings.TrimSpace(c.Query("model"))
-	testMode := normalizePreviewModelTestMode(c.Query("mode"))
+	testMode := normalizeChannelModelTestMode(c.Query("mode"))
 	results, success, responseMessage, milliseconds, modelName, _, _, err := executeChannelModelTest(ctx, channel, channelTestOptions{
 		Mode:           testMode,
 		Model:          testModel,
@@ -265,7 +265,7 @@ func testChannels(ctx context.Context, notify bool, scope string) error {
 		for _, channel := range channels {
 			isChannelEnabled := channel.Status == model.ChannelStatusEnabled
 			_, success, responseMessage, milliseconds, _, relayErr, statusCode, _ := executeChannelModelTest(ctx, channel, channelTestOptions{
-				Mode:           previewChannelTestModeBatch,
+				Mode:           channelModelTestModeBatch,
 				PersistResults: true,
 			})
 			if isChannelEnabled && success && milliseconds > disableThreshold {

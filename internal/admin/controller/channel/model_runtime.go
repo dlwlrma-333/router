@@ -29,27 +29,6 @@ import (
 	"github.com/yeying-community/router/internal/transport/http/middleware"
 )
 
-type previewModelsRequest struct {
-	Protocol     string               `json:"protocol"`
-	Key          string               `json:"key"`
-	BaseURL      string               `json:"base_url"`
-	ChannelID    string               `json:"channel_id"`
-	Config       json.RawMessage      `json:"config"`
-	ModelConfigs []model.ChannelModel `json:"model_configs"`
-}
-
-type previewModelTestsRequest struct {
-	Protocol     string               `json:"protocol"`
-	Key          string               `json:"key"`
-	BaseURL      string               `json:"base_url"`
-	ChannelID    string               `json:"channel_id"`
-	Config       json.RawMessage      `json:"config"`
-	Models       []string             `json:"models"`
-	ModelConfigs []model.ChannelModel `json:"model_configs"`
-	TestModel    string               `json:"test_model"`
-	TargetModels []string             `json:"target_models"`
-}
-
 type openAIModelCard struct {
 	ID               string         `json:"id"`
 	OwnedBy          string         `json:"owned_by"`
@@ -75,7 +54,7 @@ type openAIModelsResponse struct {
 	} `json:"error,omitempty"`
 }
 
-type previewModelFetchTrace struct {
+type channelModelFetchTrace struct {
 	ModelsURL       string
 	RequestPayload  string
 	ResponsePayload string
@@ -101,7 +80,7 @@ type channelTestListData struct {
 	LastTestedAt int64               `json:"last_tested_at"`
 }
 
-type previewModelTestExecution struct {
+type channelModelTestExecution struct {
 	LatencyMs     int64
 	Message       string
 	InputPayload  string
@@ -110,8 +89,8 @@ type previewModelTestExecution struct {
 }
 
 const (
-	previewChannelTestModeBatch  = "batch"
-	previewChannelTestModeSingle = "model"
+	channelModelTestModeBatch  = "batch"
+	channelModelTestModeSingle = "model"
 
 	defaultChannelModelPageSize = 10
 	maxChannelModelPageSize     = 100
@@ -128,7 +107,7 @@ func resolveModelsURL(baseURL string) string {
 	return resolvedBaseURL + "/v1/models"
 }
 
-func normalizePreviewModelType(raw string) string {
+func normalizeChannelModelTypeHint(raw string) string {
 	lower := strings.TrimSpace(strings.ToLower(raw))
 	switch {
 	case lower == "":
@@ -166,7 +145,7 @@ func inferUpstreamModelCardType(item openAIModelCard) string {
 		item.Architecture.Modality,
 	}
 	for _, candidate := range candidates {
-		if normalized := normalizePreviewModelType(candidate); normalized != "" {
+		if normalized := normalizeChannelModelTypeHint(candidate); normalized != "" {
 			return normalized
 		}
 	}
@@ -182,7 +161,7 @@ func inferUpstreamModelCardType(item openAIModelCard) string {
 	}
 	for _, values := range multiValueCandidates {
 		for _, value := range values {
-			if normalized := normalizePreviewModelType(value); normalized != "" {
+			if normalized := normalizeChannelModelTypeHint(value); normalized != "" {
 				switch normalized {
 				case model.ProviderModelTypeVideo:
 					return normalized
@@ -208,7 +187,7 @@ func inferUpstreamModelCardType(item openAIModelCard) string {
 		if !ok || !enabled {
 			continue
 		}
-		if normalized := normalizePreviewModelType(key); normalized != "" {
+		if normalized := normalizeChannelModelTypeHint(key); normalized != "" {
 			switch normalized {
 			case model.ProviderModelTypeVideo:
 				return normalized
@@ -226,8 +205,8 @@ func inferUpstreamModelCardType(item openAIModelCard) string {
 	return fallback
 }
 
-func fetchModelsByConfiguredChannelDetailed(key, baseURL, providerFilter string) ([]model.ChannelModel, previewModelFetchTrace, error) {
-	trace := previewModelFetchTrace{}
+func fetchChannelModelsDetailed(key, baseURL, providerFilter string) ([]model.ChannelModel, channelModelFetchTrace, error) {
+	trace := channelModelFetchTrace{}
 	trimmedKey := strings.TrimSpace(key)
 	if trimmedKey == "" {
 		return nil, trace, fmt.Errorf("请先填写 Key")
@@ -302,7 +281,7 @@ func fetchModelsByConfiguredChannelDetailed(key, baseURL, providerFilter string)
 	return modelRows, trace, nil
 }
 
-func resolvePreviewBaseURL(protocol string, baseURL string) string {
+func resolveChannelBaseURL(protocol string, baseURL string) string {
 	trimmedBaseURL := strings.TrimSpace(baseURL)
 	if trimmedBaseURL != "" {
 		return trimmedBaseURL
@@ -314,7 +293,7 @@ func resolvePreviewBaseURL(protocol string, baseURL string) string {
 	return relaychannel.BaseURLByProtocol(normalized)
 }
 
-func loadPreviewChannel(protocol string, key string, baseURL string, channelID string, configRaw json.RawMessage, selectedModels []string, modelConfigs []model.ChannelModel, testModel string) (*model.Channel, string, error) {
+func loadChannelRuntimeState(protocol string, key string, baseURL string, channelID string, configRaw json.RawMessage, selectedModels []string, modelConfigs []model.ChannelModel, testModel string) (*model.Channel, string, error) {
 	normalizedProtocol := relaychannel.NormalizeProtocolName(protocol)
 	trimmedKey := strings.TrimSpace(key)
 	trimmedBaseURL := strings.TrimSpace(baseURL)
@@ -323,7 +302,7 @@ func loadPreviewChannel(protocol string, key string, baseURL string, channelID s
 	normalizedModelConfigs := model.NormalizeChannelModelConfigsPreserveOrder(modelConfigs)
 	keySource := "request"
 
-	previewChannel := &model.Channel{
+	runtimeChannel := &model.Channel{
 		Protocol: normalizedProtocol,
 		Key:      trimmedKey,
 	}
@@ -333,7 +312,7 @@ func loadPreviewChannel(protocol string, key string, baseURL string, channelID s
 		if err != nil {
 			return nil, keySource, fmt.Errorf("渠道不存在或已删除")
 		}
-		previewChannel = savedChannel
+		runtimeChannel = savedChannel
 		if trimmedKey == "" {
 			trimmedKey = strings.TrimSpace(savedChannel.Key)
 			keySource = "channel"
@@ -353,41 +332,41 @@ func loadPreviewChannel(protocol string, key string, baseURL string, channelID s
 	}
 
 	if normalizedProtocol == "" {
-		normalizedProtocol = previewChannel.GetProtocol()
+		normalizedProtocol = runtimeChannel.GetProtocol()
 	}
-	previewChannel.Protocol = normalizedProtocol
-	previewChannel.NormalizeProtocol()
-	previewChannel.Key = trimmedKey
+	runtimeChannel.Protocol = normalizedProtocol
+	runtimeChannel.NormalizeProtocol()
+	runtimeChannel.Key = trimmedKey
 	if trimmedBaseURL != "" {
-		previewChannel.BaseURL = &trimmedBaseURL
+		runtimeChannel.BaseURL = &trimmedBaseURL
 	} else {
-		resolvedBaseURL := resolvePreviewBaseURL(previewChannel.GetProtocol(), previewChannel.GetBaseURL())
+		resolvedBaseURL := resolveChannelBaseURL(runtimeChannel.GetProtocol(), runtimeChannel.GetBaseURL())
 		if resolvedBaseURL != "" {
-			previewChannel.BaseURL = &resolvedBaseURL
+			runtimeChannel.BaseURL = &resolvedBaseURL
 		}
 	}
 	if len(configRaw) > 0 && string(configRaw) != "null" {
-		previewChannel.Config = string(configRaw)
+		runtimeChannel.Config = string(configRaw)
 	}
 	if len(normalizedModelConfigs) > 0 {
-		previewChannel.SetModelConfigs(normalizedModelConfigs)
+		runtimeChannel.SetModelConfigs(normalizedModelConfigs)
 	} else if len(normalizedModels) > 0 {
-		previewChannel.SetSelectedModelIDs(normalizedModels)
+		runtimeChannel.SetSelectedModelIDs(normalizedModels)
 	}
 	if strings.TrimSpace(testModel) != "" {
-		previewChannel.TestModel = strings.TrimSpace(testModel)
+		runtimeChannel.TestModel = strings.TrimSpace(testModel)
 	}
-	return previewChannel, keySource, nil
+	return runtimeChannel, keySource, nil
 }
 
-func normalizePreviewModelTestMode(raw string) string {
+func normalizeChannelModelTestMode(raw string) string {
 	switch strings.TrimSpace(strings.ToLower(raw)) {
-	case previewChannelTestModeSingle:
-		return previewChannelTestModeSingle
-	case previewChannelTestModeBatch:
-		return previewChannelTestModeBatch
+	case channelModelTestModeSingle:
+		return channelModelTestModeSingle
+	case channelModelTestModeBatch:
+		return channelModelTestModeBatch
 	default:
-		return previewChannelTestModeBatch
+		return channelModelTestModeBatch
 	}
 }
 
@@ -421,7 +400,7 @@ func resolveSelectionModelType(row model.ChannelModel) string {
 	return model.InferModelType(referenceModel)
 }
 
-func resolvePreviewTargetModels(channel *model.Channel, mode string, requestedModel string, requestedModels []string) []model.ChannelModel {
+func resolveChannelTestTargetModels(channel *model.Channel, mode string, requestedModel string, requestedModels []string) []model.ChannelModel {
 	if channel == nil {
 		return nil
 	}
@@ -432,7 +411,7 @@ func resolvePreviewTargetModels(channel *model.Channel, mode string, requestedMo
 	selectedRows := selectedChannelModelConfigs(channel)
 
 	targets := model.NormalizeChannelModelIDsPreserveOrder(requestedModels)
-	if len(targets) == 0 && normalizePreviewModelTestMode(mode) == previewChannelTestModeSingle {
+	if len(targets) == 0 && normalizeChannelModelTestMode(mode) == channelModelTestModeSingle {
 		targetModel := strings.TrimSpace(requestedModel)
 		if targetModel == "" && channel != nil {
 			targetModel = strings.TrimSpace(channel.TestModel)
@@ -465,7 +444,7 @@ func resolvePreviewTargetModels(channel *model.Channel, mode string, requestedMo
 	return result
 }
 
-func buildPreviewChannelTestResult(row model.ChannelModel, execution previewModelTestExecution) model.ChannelTest {
+func buildChannelModelTestResult(row model.ChannelModel, execution channelModelTestExecution) model.ChannelTest {
 	modelType := resolveSelectionModelType(row)
 	endpoint := model.NormalizeChannelModelEndpoint(modelType, row.Endpoint)
 	result := model.ChannelTest{
@@ -496,30 +475,30 @@ func buildPreviewChannelTestResult(row model.ChannelModel, execution previewMode
 	return result
 }
 
-func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) (model.ChannelTest, previewModelTestExecution) {
+func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) (model.ChannelTest, channelModelTestExecution) {
 	modelType := resolveSelectionModelType(row)
 	endpoint := model.NormalizeChannelModelEndpoint(modelType, row.Endpoint)
 
 	switch modelType {
 	case model.ProviderModelTypeImage:
-		execution := executePreviewImageModelTest(channel, row.Model)
-		return buildPreviewChannelTestResult(model.ChannelModel{
+		execution := executeChannelImageModelTest(channel, row.Model)
+		return buildChannelModelTestResult(model.ChannelModel{
 			Model:         row.Model,
 			UpstreamModel: row.UpstreamModel,
 			Type:          modelType,
 			Endpoint:      model.ChannelModelEndpointImages,
 		}, execution), execution
 	case model.ProviderModelTypeAudio:
-		execution := executePreviewAudioModelTest(channel, row.Model)
-		return buildPreviewChannelTestResult(model.ChannelModel{
+		execution := executeChannelAudioModelTest(channel, row.Model)
+		return buildChannelModelTestResult(model.ChannelModel{
 			Model:         row.Model,
 			UpstreamModel: row.UpstreamModel,
 			Type:          modelType,
 			Endpoint:      model.ChannelModelEndpointAudio,
 		}, execution), execution
 	case model.ProviderModelTypeVideo:
-		execution := executePreviewVideoModelTest(channel, row.Model)
-		return buildPreviewChannelTestResult(model.ChannelModel{
+		execution := executeChannelVideoModelTest(channel, row.Model)
+		return buildChannelModelTestResult(model.ChannelModel{
 			Model:         row.Model,
 			UpstreamModel: row.UpstreamModel,
 			Type:          modelType,
@@ -527,28 +506,28 @@ func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) (
 		}, execution), execution
 	default:
 		if endpoint == model.ChannelModelEndpointChat {
-			execution := executePreviewTextModelTest(channel, endpoint, &relaymodel.GeneralOpenAIRequest{
+			execution := executeChannelTextModelTest(channel, endpoint, &relaymodel.GeneralOpenAIRequest{
 				Model: row.Model,
 				Messages: []relaymodel.Message{{
 					Role:    "user",
 					Content: config.TestPrompt,
 				}},
 			})
-			return buildPreviewChannelTestResult(model.ChannelModel{
+			return buildChannelModelTestResult(model.ChannelModel{
 				Model:         row.Model,
 				UpstreamModel: row.UpstreamModel,
 				Type:          modelType,
 				Endpoint:      endpoint,
 			}, execution), execution
 		}
-		execution := executePreviewTextModelTest(channel, model.ChannelModelEndpointResponses, &relaymodel.GeneralOpenAIRequest{
+		execution := executeChannelTextModelTest(channel, model.ChannelModelEndpointResponses, &relaymodel.GeneralOpenAIRequest{
 			Model: row.Model,
 			Input: []relaymodel.Message{{
 				Role:    "user",
 				Content: config.TestPrompt,
 			}},
 		})
-		return buildPreviewChannelTestResult(model.ChannelModel{
+		return buildChannelModelTestResult(model.ChannelModel{
 			Model:         row.Model,
 			UpstreamModel: row.UpstreamModel,
 			Type:          modelType,
@@ -557,7 +536,7 @@ func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) (
 	}
 }
 
-func logChannelModelTestExecution(c *gin.Context, channelID string, result model.ChannelTest, execution previewModelTestExecution) {
+func logChannelModelTestExecution(c *gin.Context, channelID string, result model.ChannelTest, execution channelModelTestExecution) {
 	if c == nil {
 		return
 	}
@@ -581,7 +560,7 @@ func logChannelModelTestExecution(c *gin.Context, channelID string, result model
 }
 
 func runChannelModelTests(c *gin.Context, channel *model.Channel, mode string, requestedModel string, requestedModels []string) ([]model.ChannelTest, error) {
-	targetRows := resolvePreviewTargetModels(channel, mode, requestedModel, requestedModels)
+	targetRows := resolveChannelTestTargetModels(channel, mode, requestedModel, requestedModels)
 	if len(targetRows) == 0 {
 		return nil, fmt.Errorf("未找到可用于测试的模型")
 	}
@@ -601,7 +580,7 @@ func runChannelModelTests(c *gin.Context, channel *model.Channel, mode string, r
 	return model.NormalizeChannelTestRows(results), nil
 }
 
-func resolvePreviewModelName(channel *model.Channel, requestedModel string) string {
+func resolveChannelUpstreamModelName(channel *model.Channel, requestedModel string) string {
 	modelName := strings.TrimSpace(requestedModel)
 	if channel == nil {
 		return modelName
@@ -618,7 +597,7 @@ func resolvePreviewModelName(channel *model.Channel, requestedModel string) stri
 	return modelName
 }
 
-func newPreviewRelayContext(path string, channel *model.Channel) (*gin.Context, *meta.Meta, error) {
+func newChannelRelayRuntimeContext(path string, channel *model.Channel) (*gin.Context, *meta.Meta, error) {
 	if channel == nil {
 		return nil, nil, fmt.Errorf("渠道不能为空")
 	}
@@ -636,7 +615,7 @@ func newPreviewRelayContext(path string, channel *model.Channel) (*gin.Context, 
 	return c, meta.GetByContext(c), nil
 }
 
-func resolvePreviewEndpointURL(baseURL string, path string) string {
+func resolveChannelEndpointURL(baseURL string, path string) string {
 	trimmedBaseURL := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	normalizedPath := "/" + strings.TrimLeft(strings.TrimSpace(path), "/")
 	if trimmedBaseURL == "" {
@@ -656,7 +635,7 @@ func resolvePreviewEndpointURL(baseURL string, path string) string {
 	return trimmedBaseURL + normalizedPath
 }
 
-func parsePreviewUpstreamError(statusCode int, body []byte) error {
+func parseChannelUpstreamError(statusCode int, body []byte) error {
 	type upstreamErrorEnvelope struct {
 		Error *struct {
 			Message string `json:"message"`
@@ -682,14 +661,14 @@ func parsePreviewUpstreamError(statusCode int, body []byte) error {
 	return fmt.Errorf("http status code: %d, error message: %s", statusCode, message)
 }
 
-func executePreviewTextModelTest(channel *model.Channel, path string, request *relaymodel.GeneralOpenAIRequest) previewModelTestExecution {
-	execution := previewModelTestExecution{}
+func executeChannelTextModelTest(channel *model.Channel, path string, request *relaymodel.GeneralOpenAIRequest) channelModelTestExecution {
+	execution := channelModelTestExecution{}
 	if request == nil {
 		execution.Err = fmt.Errorf("请求不能为空")
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
 		return execution
 	}
-	c, relayMeta, err := newPreviewRelayContext(path, channel)
+	c, relayMeta, err := newChannelRelayRuntimeContext(path, channel)
 	if err != nil {
 		execution.Err = err
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
@@ -702,7 +681,7 @@ func executePreviewTextModelTest(channel *model.Channel, path string, request *r
 		return execution
 	}
 	adaptor.Init(relayMeta)
-	request.Model = resolvePreviewModelName(channel, request.Model)
+	request.Model = resolveChannelUpstreamModelName(channel, request.Model)
 	if request.Model == "" {
 		execution.Err = fmt.Errorf("未找到可用于测试的模型")
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
@@ -722,7 +701,7 @@ func executePreviewTextModelTest(channel *model.Channel, path string, request *r
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
 		return execution
 	}
-	requestURL := resolvePreviewEndpointURL(resolvePreviewBaseURL(channel.GetProtocol(), channel.GetBaseURL()), path)
+	requestURL := resolveChannelEndpointURL(resolveChannelBaseURL(channel.GetProtocol(), channel.GetBaseURL()), path)
 	requestHeader := http.Header{}
 	requestHeader.Set("Content-Type", "application/json")
 	execution.InputPayload = buildHTTPRequestPayloadForLog(http.MethodPost, requestURL, requestHeader, requestBody)
@@ -748,7 +727,7 @@ func executePreviewTextModelTest(channel *model.Channel, path string, request *r
 	}
 	execution.OutputPayload = buildHTTPResponsePayloadForLog(resp.StatusCode, resp.Header, body)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		execution.Err = parsePreviewUpstreamError(resp.StatusCode, body)
+		execution.Err = parseChannelUpstreamError(resp.StatusCode, body)
 		return execution
 	}
 	message, parseErr := parseTextModelTestResponse(string(body))
@@ -760,9 +739,9 @@ func executePreviewTextModelTest(channel *model.Channel, path string, request *r
 	return execution
 }
 
-func executePreviewImageModelTest(channel *model.Channel, modelName string) previewModelTestExecution {
-	execution := previewModelTestExecution{}
-	c, relayMeta, err := newPreviewRelayContext("/v1/images/generations", channel)
+func executeChannelImageModelTest(channel *model.Channel, modelName string) channelModelTestExecution {
+	execution := channelModelTestExecution{}
+	c, relayMeta, err := newChannelRelayRuntimeContext("/v1/images/generations", channel)
 	if err != nil {
 		execution.Err = err
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
@@ -775,7 +754,7 @@ func executePreviewImageModelTest(channel *model.Channel, modelName string) prev
 		return execution
 	}
 	adaptor.Init(relayMeta)
-	actualModelName := resolvePreviewModelName(channel, modelName)
+	actualModelName := resolveChannelUpstreamModelName(channel, modelName)
 	if actualModelName == "" {
 		execution.Err = fmt.Errorf("未找到可用于图片模型测试的模型")
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
@@ -801,7 +780,7 @@ func executePreviewImageModelTest(channel *model.Channel, modelName string) prev
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
 		return execution
 	}
-	requestURL := resolvePreviewEndpointURL(resolvePreviewBaseURL(channel.GetProtocol(), channel.GetBaseURL()), "/v1/images/generations")
+	requestURL := resolveChannelEndpointURL(resolveChannelBaseURL(channel.GetProtocol(), channel.GetBaseURL()), "/v1/images/generations")
 	requestHeader := http.Header{}
 	requestHeader.Set("Content-Type", "application/json")
 	execution.InputPayload = buildHTTPRequestPayloadForLog(http.MethodPost, requestURL, requestHeader, requestBody)
@@ -826,7 +805,7 @@ func executePreviewImageModelTest(channel *model.Channel, modelName string) prev
 	}
 	execution.OutputPayload = buildHTTPResponsePayloadForLog(resp.StatusCode, resp.Header, body)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		execution.Err = parsePreviewUpstreamError(resp.StatusCode, body)
+		execution.Err = parseChannelUpstreamError(resp.StatusCode, body)
 		return execution
 	}
 	preview := "图片接口返回成功"
@@ -838,9 +817,9 @@ func executePreviewImageModelTest(channel *model.Channel, modelName string) prev
 	return execution
 }
 
-func executePreviewAudioModelTest(channel *model.Channel, modelName string) previewModelTestExecution {
-	execution := previewModelTestExecution{}
-	actualModelName := resolvePreviewModelName(channel, modelName)
+func executeChannelAudioModelTest(channel *model.Channel, modelName string) channelModelTestExecution {
+	execution := channelModelTestExecution{}
+	actualModelName := resolveChannelUpstreamModelName(channel, modelName)
 	if actualModelName == "" {
 		execution.Err = fmt.Errorf("未找到可用于音频模型测试的模型")
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
@@ -851,7 +830,7 @@ func executePreviewAudioModelTest(channel *model.Channel, modelName string) prev
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
 		return execution
 	}
-	c, relayMeta, err := newPreviewRelayContext("/v1/audio/speech", channel)
+	c, relayMeta, err := newChannelRelayRuntimeContext("/v1/audio/speech", channel)
 	if err != nil {
 		execution.Err = err
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
@@ -878,7 +857,7 @@ func executePreviewAudioModelTest(channel *model.Channel, modelName string) prev
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
 		return execution
 	}
-	requestURL := resolvePreviewEndpointURL(resolvePreviewBaseURL(channel.GetProtocol(), channel.GetBaseURL()), "/v1/audio/speech")
+	requestURL := resolveChannelEndpointURL(resolveChannelBaseURL(channel.GetProtocol(), channel.GetBaseURL()), "/v1/audio/speech")
 	requestHeader := http.Header{}
 	requestHeader.Set("Content-Type", "application/json")
 	requestHeader.Set("Accept", "audio/mpeg")
@@ -904,7 +883,7 @@ func executePreviewAudioModelTest(channel *model.Channel, modelName string) prev
 	}
 	execution.OutputPayload = buildHTTPResponsePayloadForLog(resp.StatusCode, resp.Header, body)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		execution.Err = parsePreviewUpstreamError(resp.StatusCode, body)
+		execution.Err = parseChannelUpstreamError(resp.StatusCode, body)
 		return execution
 	}
 	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
@@ -919,9 +898,9 @@ func executePreviewAudioModelTest(channel *model.Channel, modelName string) prev
 	return execution
 }
 
-func executePreviewVideoModelTest(channel *model.Channel, modelName string) previewModelTestExecution {
-	execution := previewModelTestExecution{}
-	actualModelName := resolvePreviewModelName(channel, modelName)
+func executeChannelVideoModelTest(channel *model.Channel, modelName string) channelModelTestExecution {
+	execution := channelModelTestExecution{}
+	actualModelName := resolveChannelUpstreamModelName(channel, modelName)
 	if actualModelName == "" {
 		execution.Err = fmt.Errorf("未找到可用于视频模型测试的模型")
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
@@ -932,7 +911,7 @@ func executePreviewVideoModelTest(channel *model.Channel, modelName string) prev
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
 		return execution
 	}
-	baseURL := resolvePreviewBaseURL(channel.GetProtocol(), channel.GetBaseURL())
+	baseURL := resolveChannelBaseURL(channel.GetProtocol(), channel.GetBaseURL())
 	if strings.TrimSpace(baseURL) == "" {
 		execution.Err = fmt.Errorf("未找到可用于视频模型测试的 Base URL")
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
@@ -957,7 +936,7 @@ func executePreviewVideoModelTest(channel *model.Channel, modelName string) prev
 		return execution
 	}
 
-	requestURL := resolvePreviewEndpointURL(baseURL, "/v1/videos")
+	requestURL := resolveChannelEndpointURL(baseURL, "/v1/videos")
 	httpReq, err := http.NewRequest(http.MethodPost, requestURL, bodyBuffer)
 	if err != nil {
 		execution.Err = err
@@ -987,15 +966,15 @@ func executePreviewVideoModelTest(channel *model.Channel, modelName string) prev
 	}
 	execution.OutputPayload = buildHTTPResponsePayloadForLog(resp.StatusCode, resp.Header, body)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		execution.Err = parsePreviewUpstreamError(resp.StatusCode, body)
+		execution.Err = parseChannelUpstreamError(resp.StatusCode, body)
 		return execution
 	}
 
-	type previewVideoResponse struct {
+	type channelVideoResponse struct {
 		ID     string `json:"id"`
 		Status string `json:"status"`
 	}
-	parsed := previewVideoResponse{}
+	parsed := channelVideoResponse{}
 	if err := json.Unmarshal(body, &parsed); err == nil {
 		if strings.TrimSpace(parsed.ID) != "" && strings.TrimSpace(parsed.Status) != "" {
 			execution.Message = fmt.Sprintf("返回任务 %s（%s）", strings.TrimSpace(parsed.ID), strings.TrimSpace(parsed.Status))
@@ -1014,7 +993,7 @@ func executePreviewVideoModelTest(channel *model.Channel, modelName string) prev
 	return execution
 }
 
-func persistPreviewChannelTests(channelID string, rows []model.ChannelModel, results []model.ChannelTest) error {
+func persistChannelModelTests(channelID string, rows []model.ChannelModel, results []model.ChannelTest) error {
 	normalizedChannelID := strings.TrimSpace(channelID)
 	if normalizedChannelID == "" {
 		return nil
@@ -1195,7 +1174,7 @@ func RefreshChannelModels(c *gin.Context) {
 		})
 		return
 	}
-	previewChannel, keySource, err := loadPreviewChannel("", "", "", channelID, nil, nil, nil, "")
+	runtimeChannel, keySource, err := loadChannelRuntimeState("", "", "", channelID, nil, nil, nil, "")
 	if err != nil {
 		logChannelAdminWarn(c, "refresh_models", stringField("channel_id", channelID), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
@@ -1204,8 +1183,8 @@ func RefreshChannelModels(c *gin.Context) {
 		})
 		return
 	}
-	baseURL := resolvePreviewBaseURL(previewChannel.GetProtocol(), previewChannel.GetBaseURL())
-	fetchedRows, fetchTrace, err := fetchModelsByConfiguredChannelDetailed(previewChannel.Key, baseURL, "")
+	baseURL := resolveChannelBaseURL(runtimeChannel.GetProtocol(), runtimeChannel.GetBaseURL())
+	fetchedRows, fetchTrace, err := fetchChannelModelsDetailed(runtimeChannel.Key, baseURL, "")
 	if err != nil {
 		logChannelAdminWarn(
 			c,
@@ -1233,7 +1212,7 @@ func RefreshChannelModels(c *gin.Context) {
 		structuredPayloadField("response_payload", fetchTrace.ResponsePayload),
 		intField("count", len(fetchedRows)),
 	)
-	if err := model.SyncFetchedChannelModelConfigsFromBaseWithDB(model.DB, channelID, previewChannel.GetModelConfigs(), fetchedRows); err != nil {
+	if err := model.SyncFetchedChannelModelConfigsFromBaseWithDB(model.DB, channelID, runtimeChannel.GetModelConfigs(), fetchedRows); err != nil {
 		logChannelAdminWarn(c, "refresh_models_save", stringField("channel_id", channelID), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -1302,7 +1281,7 @@ func TestChannelModels(c *gin.Context) {
 		})
 		return
 	}
-	previewChannel, keySource, err := loadPreviewChannel("", "", "", channelID, nil, nil, nil, strings.TrimSpace(req.TestModel))
+	runtimeChannel, keySource, err := loadChannelRuntimeState("", "", "", channelID, nil, nil, nil, strings.TrimSpace(req.TestModel))
 	if err != nil {
 		logChannelAdminWarn(c, "test_models", stringField("channel_id", channelID), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
@@ -1311,20 +1290,20 @@ func TestChannelModels(c *gin.Context) {
 		})
 		return
 	}
-	testMode := previewChannelTestModeBatch
+	testMode := channelModelTestModeBatch
 	if len(req.TargetModels) == 1 || strings.TrimSpace(req.TestModel) != "" {
-		testMode = previewChannelTestModeSingle
+		testMode = channelModelTestModeSingle
 	}
-	results, err := runChannelModelTests(c, previewChannel, testMode, req.TestModel, req.TargetModels)
+	results, err := runChannelModelTests(c, runtimeChannel, testMode, req.TestModel, req.TargetModels)
 	if err != nil {
-		logChannelAdminWarn(c, "test_models", stringField("source", keySource), stringField("channel_id", channelID), stringField("base_url", previewChannel.GetBaseURL()), stringField("reason", err.Error()))
+		logChannelAdminWarn(c, "test_models", stringField("source", keySource), stringField("channel_id", channelID), stringField("base_url", runtimeChannel.GetBaseURL()), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	if err := persistPreviewChannelTests(channelID, previewChannel.GetModelConfigs(), results); err != nil {
+	if err := persistChannelModelTests(channelID, runtimeChannel.GetModelConfigs(), results); err != nil {
 		logChannelAdminWarn(c, "test_models_save", stringField("channel_id", channelID), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -1342,7 +1321,7 @@ func TestChannelModels(c *gin.Context) {
 		return
 	}
 	results = savedChannel.Tests
-	logChannelAdminInfo(c, "test_models", stringField("source", keySource), stringField("channel_id", channelID), stringField("base_url", previewChannel.GetBaseURL()), intField("results", len(results)))
+	logChannelAdminInfo(c, "test_models", stringField("source", keySource), stringField("channel_id", channelID), stringField("base_url", runtimeChannel.GetBaseURL()), intField("results", len(results)))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
