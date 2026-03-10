@@ -41,15 +41,6 @@ type ProviderCatalogSeed struct {
 	ModelDetails []ProviderModelDetail
 }
 
-func ProviderModelNames(details []ProviderModelDetail) []string {
-	normalized := NormalizeProviderModelDetails(details)
-	names := make([]string, 0, len(normalized))
-	for _, item := range normalized {
-		names = append(names, item.Model)
-	}
-	return names
-}
-
 func NormalizeProviderModelDetails(details []ProviderModelDetail) []ProviderModelDetail {
 	index := make(map[string]int, len(details))
 	normalized := make([]ProviderModelDetail, 0, len(details))
@@ -122,85 +113,6 @@ func NormalizeProviderModelDetails(details []ProviderModelDetail) []ProviderMode
 		return normalized[i].Model < normalized[j].Model
 	})
 	return normalized
-}
-
-func MergeProviderDetails(provider string, current []ProviderModelDetail, fallbackModels []string, includeDefaults bool, now int64) []ProviderModelDetail {
-	normalizedProvider := commonutils.NormalizeProvider(provider)
-	if normalizedProvider == "" {
-		normalizedProvider = strings.TrimSpace(strings.ToLower(provider))
-	}
-
-	merged := make(map[string]ProviderModelDetail)
-	if includeDefaults {
-		defaultIndex := buildDefaultProviderModelDetailIndex(now)
-		if providerDefaults, ok := defaultIndex[normalizedProvider]; ok {
-			for modelName, detail := range providerDefaults {
-				merged[modelName] = detail
-			}
-		}
-	}
-
-	for _, detail := range NormalizeProviderModelDetails(current) {
-		existing, ok := merged[detail.Model]
-		if !ok {
-			merged[detail.Model] = detail
-			continue
-		}
-		if detail.Type != "" {
-			existing.Type = detail.Type
-		}
-		if detail.PriceUnit != "" {
-			existing.PriceUnit = detail.PriceUnit
-		}
-		if detail.Currency != "" {
-			existing.Currency = detail.Currency
-		}
-		if detail.InputPrice >= 0 {
-			existing.InputPrice = detail.InputPrice
-		}
-		if detail.OutputPrice >= 0 {
-			existing.OutputPrice = detail.OutputPrice
-		}
-		if strings.TrimSpace(detail.Source) != "" {
-			existing.Source = detail.Source
-		}
-		if detail.UpdatedAt > existing.UpdatedAt {
-			existing.UpdatedAt = detail.UpdatedAt
-		}
-		merged[detail.Model] = existing
-	}
-
-	for _, modelName := range fallbackModels {
-		name := strings.TrimSpace(modelName)
-		if name == "" {
-			continue
-		}
-		if _, ok := merged[name]; ok {
-			continue
-		}
-		merged[name] = ProviderModelDetail{
-			Model:       name,
-			Type:        normalizeModelType("", name),
-			PriceUnit:   defaultPriceUnitByType("", name),
-			Currency:    ProviderPriceCurrencyUSD,
-			Source:      "manual",
-			UpdatedAt:   now,
-			InputPrice:  0,
-			OutputPrice: 0,
-		}
-	}
-
-	result := make([]ProviderModelDetail, 0, len(merged))
-	for _, detail := range merged {
-		if detail.Model == "" {
-			continue
-		}
-		if detail.UpdatedAt == 0 {
-			detail.UpdatedAt = now
-		}
-		result = append(result, detail)
-	}
-	return NormalizeProviderModelDetails(result)
 }
 
 func inferProviderByModel(modelName string, channelProtocol int, hasChannelProtocol bool) string {

@@ -108,27 +108,3 @@ func normalizeDefaultProviderSeedModelDetails(provider string, details []Provide
 	}
 	return NormalizeProviderModelDetails(cloned)
 }
-
-func buildDefaultProviderModelDetailIndex(now int64) map[string]map[string]ProviderModelDetail {
-	seeds := BuildDefaultProviderCatalogSeeds(now)
-	index := make(map[string]map[string]ProviderModelDetail, len(seeds))
-	for _, seed := range seeds {
-		provider := commonutils.NormalizeProvider(seed.Provider)
-		if provider == "" || provider == "unknown" {
-			provider = strings.TrimSpace(strings.ToLower(seed.Provider))
-		}
-		if provider == "" || provider == "unknown" {
-			continue
-		}
-		if index[provider] == nil {
-			index[provider] = make(map[string]ProviderModelDetail, len(seed.ModelDetails))
-		}
-		for _, detail := range seed.ModelDetails {
-			if strings.TrimSpace(detail.Model) == "" {
-				continue
-			}
-			index[provider][detail.Model] = detail
-		}
-	}
-	return index
-}

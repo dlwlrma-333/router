@@ -1,7 +1,6 @@
 package model
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/yeying-community/router/common/helper"
@@ -10,57 +9,11 @@ import (
 	"gorm.io/gorm"
 )
 
-type providerCatalogMigrationItem struct {
-	Provider     string                `json:"provider"`
-	Name         string                `json:"name,omitempty"`
-	Models       []string              `json:"models"`
-	ModelDetails []ProviderModelDetail `json:"model_details,omitempty"`
-	BaseURL      string                `json:"base_url,omitempty"`
-	SortOrder    int                   `json:"sort_order,omitempty"`
-	Source       string                `json:"source,omitempty"`
-	UpdatedAt    int64                 `json:"updated_at,omitempty"`
-}
-
 func normalizeProviderSortOrderValue(sortOrder int) int {
 	if sortOrder > 0 {
 		return sortOrder
 	}
 	return 0
-}
-
-func finalizeProviderCatalogSortOrders(items []providerCatalogMigrationItem) []providerCatalogMigrationItem {
-	sort.SliceStable(items, func(i, j int) bool {
-		leftOrder := normalizeProviderSortOrderValue(items[i].SortOrder)
-		rightOrder := normalizeProviderSortOrderValue(items[j].SortOrder)
-		if leftOrder > 0 && rightOrder > 0 {
-			if leftOrder != rightOrder {
-				return leftOrder < rightOrder
-			}
-			return items[i].Provider < items[j].Provider
-		}
-		if leftOrder > 0 {
-			return true
-		}
-		if rightOrder > 0 {
-			return false
-		}
-		return items[i].Provider < items[j].Provider
-	})
-
-	nextOrder := 10
-	for i := range items {
-		order := normalizeProviderSortOrderValue(items[i].SortOrder)
-		if order > 0 {
-			items[i].SortOrder = order
-			if order >= nextOrder {
-				nextOrder = order + 10
-			}
-			continue
-		}
-		items[i].SortOrder = nextOrder
-		nextOrder += 10
-	}
-	return items
 }
 
 func syncProviderCatalogWithDB(db *gorm.DB) error {
@@ -74,37 +27,28 @@ func syncProviderCatalogWithDB(db *gorm.DB) error {
 	if count > 0 {
 		return nil
 	}
-	items := buildDefaultProviderCatalogMigration(helper.GetTimestamp())
-	logger.SysLogf("migration: initialized model provider catalog with %d default providers", len(items))
-	return saveProviderCatalogToTable(db, items)
+	seeds := BuildDefaultProviderCatalogSeeds(helper.GetTimestamp())
+	logger.SysLogf("migration: initialized model provider catalog with %d default providers", len(seeds))
+	return saveProviderCatalogSeedsToTable(db, seeds)
 }
 
-func saveProviderCatalogToTable(db *gorm.DB, items []providerCatalogMigrationItem) error {
+func saveProviderCatalogSeedsToTable(db *gorm.DB, seeds []ProviderCatalogSeed) error {
 	now := helper.GetTimestamp()
-	items = finalizeProviderCatalogSortOrders(items)
-	providerRows := make([]Provider, 0, len(items))
+	providerRows := make([]Provider, 0, len(seeds))
 	modelRows := make([]ProviderModel, 0)
-	for _, item := range items {
-		provider := commonutils.NormalizeProvider(item.Provider)
+	for _, seed := range seeds {
+		provider := commonutils.NormalizeProvider(seed.Provider)
 		if provider == "" {
 			continue
 		}
-		details := MergeProviderDetails(provider, item.ModelDetails, item.Models, false, now)
-		updatedAt := item.UpdatedAt
-		if updatedAt == 0 {
-			updatedAt = now
-		}
-		source := strings.TrimSpace(strings.ToLower(item.Source))
-		if source == "" {
-			source = "manual"
-		}
+		details := normalizeDefaultProviderSeedModelDetails(provider, seed.ModelDetails, now)
 		providerRows = append(providerRows, Provider{
 			Id:        provider,
-			Name:      strings.TrimSpace(item.Name),
-			BaseURL:   strings.TrimSpace(item.BaseURL),
-			SortOrder: item.SortOrder,
-			Source:    source,
-			UpdatedAt: updatedAt,
+			Name:      strings.TrimSpace(seed.Name),
+			BaseURL:   strings.TrimSpace(seed.BaseURL),
+			SortOrder: normalizeProviderSortOrderValue(seed.SortOrder),
+			Source:    "default",
+			UpdatedAt: now,
 		})
 		modelRows = append(modelRows, BuildProviderModelRows(provider, details, now)...)
 	}
@@ -127,22 +71,4 @@ func saveProviderCatalogToTable(db *gorm.DB, items []providerCatalogMigrationIte
 		}
 		return nil
 	})
-}
-
-func buildDefaultProviderCatalogMigration(now int64) []providerCatalogMigrationItem {
-	seeds := BuildDefaultProviderCatalogSeeds(now)
-	items := make([]providerCatalogMigrationItem, 0, len(seeds))
-	for _, seed := range seeds {
-		items = append(items, providerCatalogMigrationItem{
-			Provider:     seed.Provider,
-			Name:         seed.Name,
-			Models:       ProviderModelNames(seed.ModelDetails),
-			ModelDetails: seed.ModelDetails,
-			BaseURL:      seed.BaseURL,
-			SortOrder:    seed.SortOrder,
-			Source:       "default",
-			UpdatedAt:    now,
-		})
-	}
-	return items
 }
