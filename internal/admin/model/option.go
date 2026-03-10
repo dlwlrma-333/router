@@ -1,7 +1,6 @@
 package model
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -13,19 +12,6 @@ import (
 type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
 	Value string `json:"value"`
-}
-
-func IsLegacyPricingOptionKey(key string) bool {
-	switch strings.TrimSpace(key) {
-	case "ModelRatio", "CompletionRatio", "GroupRatio":
-		return true
-	default:
-		return false
-	}
-}
-
-func legacyPricingOptionError(key string) error {
-	return fmt.Errorf("%s 已废弃，请在模型、渠道、分组页面维护定价", strings.TrimSpace(key))
 }
 
 func AllOption() ([]*Option, error) {
@@ -76,9 +62,6 @@ func InitOptionMap() {
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
 	for _, option := range options {
-		if IsLegacyPricingOptionKey(option.Key) {
-			continue
-		}
 		err := UpdateOptionMap(option.Key, option.Value)
 		if err != nil {
 			logger.SysError("failed to update option map: " + err.Error())
@@ -102,9 +85,6 @@ func UpdateOption(key string, value string) error {
 }
 
 func UpdateOptionMap(key string, value string) (err error) {
-	if IsLegacyPricingOptionKey(key) {
-		return legacyPricingOptionError(key)
-	}
 	config.OptionMapRWMutex.Lock()
 	defer config.OptionMapRWMutex.Unlock()
 	switch key {
