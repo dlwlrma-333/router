@@ -47,9 +47,6 @@ func GetAll(startIdx int, num int, status string) ([]*model.Channel, error) {
 	if err := model.HydrateChannelsWithModels(model.DB, channels); err != nil {
 		return nil, err
 	}
-	if err := model.HydrateChannelsWithAbilities(model.DB, channels); err != nil {
-		return nil, err
-	}
 	return channels, model.HydrateChannelsWithTests(model.DB, channels)
 }
 
@@ -69,9 +66,6 @@ func Search(keyword string) ([]*model.Channel, error) {
 	if err := model.HydrateChannelsWithModels(model.DB, channels); err != nil {
 		return nil, err
 	}
-	if err := model.HydrateChannelsWithAbilities(model.DB, channels); err != nil {
-		return nil, err
-	}
 	return channels, model.HydrateChannelsWithTests(model.DB, channels)
 }
 
@@ -88,9 +82,6 @@ func GetByID(id string, selectAll bool) (*model.Channel, error) {
 		return nil, err
 	}
 	if err := model.HydrateChannelWithModels(model.DB, &channel); err != nil {
-		return nil, err
-	}
-	if err := model.HydrateChannelWithAbilities(model.DB, &channel); err != nil {
 		return nil, err
 	}
 	return &channel, model.HydrateChannelWithTests(model.DB, &channel)
@@ -156,9 +147,6 @@ func Insert(channel *model.Channel) error {
 	if err := model.HydrateChannelWithModels(model.DB, channel); err != nil {
 		return err
 	}
-	if err := model.HydrateChannelWithAbilities(model.DB, channel); err != nil {
-		return err
-	}
 	if err := model.HydrateChannelWithTests(model.DB, channel); err != nil {
 		return err
 	}
@@ -208,9 +196,6 @@ func buildSelectedModelTestSignature(channel *model.Channel) string {
 func shouldResetChannelTests(existing *model.Channel, incoming *model.Channel) bool {
 	if existing == nil || incoming == nil {
 		return false
-	}
-	if incoming.TestsStale {
-		return true
 	}
 	if strings.TrimSpace(incoming.Protocol) != "" && existing.GetProtocol() != incoming.GetProtocol() {
 		return true
@@ -306,9 +291,6 @@ func Update(channel *model.Channel) error {
 		return err
 	}
 	if err := model.HydrateChannelWithModels(model.DB, channel); err != nil {
-		return err
-	}
-	if err := model.HydrateChannelWithAbilities(model.DB, channel); err != nil {
 		return err
 	}
 	if err := model.HydrateChannelWithTests(model.DB, channel); err != nil {

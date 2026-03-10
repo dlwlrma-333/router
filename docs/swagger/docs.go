@@ -200,7 +200,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/channel/preview/capabilities": {
+        "/api/v1/admin/channel/preview/model-tests": {
             "post": {
                 "security": [
                     {
@@ -216,7 +216,7 @@ const docTemplate = `{
                 "tags": [
                     "admin"
                 ],
-                "summary": "Preview channel capabilities (admin)",
+                "summary": "Preview channel model tests (admin)",
                 "parameters": [
                     {
                         "description": "Preview payload",

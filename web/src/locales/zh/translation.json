@@ -73,9 +73,9 @@
     },
     "buttons": {
       "test": "测试",
-      "test_capability": "测能力",
+      "test_models": "测试模型",
       "test_model": "测模型",
-      "test_channel": "测试能力",
+      "test_channel": "测试渠道",
       "disable_channel": "禁用渠道",
       "delete_channel": "删除渠道",
       "delete": "删除",
@@ -91,11 +91,11 @@
       "refresh": "刷新"
     },
     "messages": {
-      "test_capability_success": "渠道 {{name}} 能力测试成功，耗时 {{time}} 秒，结果：{{message}}",
+      "test_models_success": "渠道 {{name}} 模型测试成功，耗时 {{time}} 秒，结果：{{message}}",
       "test_model_success": "渠道 {{name}} 模型测试成功，测试模型 {{model}}，耗时 {{time}} 秒，结果：{{message}}",
       "test_all_started": "已成功开始测试渠道，请刷新页面查看结果。",
       "batch_test_select_required": "请先选择至少一个渠道。",
-      "batch_test_done": "批量能力测试完成：成功 {{success}}，失败 {{failed}}。",
+      "batch_test_done": "批量模型测试完成：成功 {{success}}，失败 {{failed}}。",
       "select_model_test_required": "请先选择一个单测模型。",
       "batch_disable_select_required": "请先选择至少一个待禁用渠道。",
       "batch_disable_done": "批量禁用完成：成功 {{success}}，失败 {{failed}}。",
@@ -287,8 +287,8 @@
         "empty_filtered": "当前筛选条件下暂无模型",
         "last_synced": "最近同步时间：{{time}}"
       },
-      "capability_tester": {
-        "title": "能力测试",
+      "model_tester": {
+        "title": "模型测试",
         "hint": "展示第二步中已选模型，并为每个模型配置实际测试端点。文本模型默认测试 /v1/responses，也可以切换为 /v1/chat/completions；其他类型使用固定端点。支持单条测试，也支持勾选多条批量测试。",
         "button": "测试选中模型",
         "single": "测试",
@@ -341,7 +341,7 @@
       "wizard": {
         "step_basic": "步骤 1：连接信息",
         "step_models": "步骤 2：模型选择",
-        "step_capabilities": "步骤 3：能力测试",
+        "step_model_tests": "步骤 3：模型测试",
         "step_advanced": "步骤 4：高级配置"
       },
       "aws_region_placeholder": "region，例如：us-west-2",

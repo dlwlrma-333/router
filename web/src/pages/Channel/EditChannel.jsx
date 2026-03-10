@@ -629,7 +629,7 @@ const buildChannelConnectionSignature = ({
   return `${protocol}|${normalizeBaseURL(baseURL)}|${keyPart}`;
 };
 
-const buildChannelCapabilitySignature = ({
+const buildChannelModelTestSignature = ({
   protocol,
   key,
   baseURL,
@@ -649,7 +649,7 @@ const buildChannelCapabilitySignature = ({
     .map((row) => `${row.model}:${row.type}:${row.endpoint || ''}`)
     .join(',')}`;
 
-const normalizeCapabilityResults = (results) => {
+const normalizeModelTestResults = (results) => {
   if (!Array.isArray(results)) {
     return [];
   }
@@ -801,13 +801,13 @@ const EditChannel = () => {
   const [modelsSyncError, setModelsSyncError] = useState('');
   const [modelsLastSyncedAt, setModelsLastSyncedAt] = useState(0);
   const [verifiedModelSignature, setVerifiedModelSignature] = useState('');
-  const [capabilityResults, setCapabilityResults] = useState([]);
-  const [capabilityTesting, setCapabilityTesting] = useState(false);
-  const [capabilityTestError, setCapabilityTestError] = useState('');
-  const [capabilityTestedAt, setCapabilityTestedAt] = useState(0);
-  const [capabilityTestedSignature, setCapabilityTestedSignature] =
+  const [modelTestResults, setModelTestResults] = useState([]);
+  const [modelTesting, setModelTesting] = useState(false);
+  const [modelTestError, setModelTestError] = useState('');
+  const [modelTestedAt, setModelTestedAt] = useState(0);
+  const [modelTestedSignature, setModelTestedSignature] =
     useState('');
-  const [capabilityTargetModels, setCapabilityTargetModels] = useState([]);
+  const [modelTestTargetModels, setModelTestTargetModels] = useState([]);
   const [config, setConfig] = useState(CHANNEL_DEFAULT_CONFIG);
   const [providerOptions, setProviderOptions] = useState([]);
   const [providerModelOwners, setProviderModelOwners] = useState({});
@@ -883,9 +883,9 @@ const EditChannel = () => {
       }),
     [effectivePreviewKey, inputs.base_url, inputs.protocol, previewChannelID],
   );
-  const currentCapabilitySignature = useMemo(
+  const currentModelTestSignature = useMemo(
     () =>
-      buildChannelCapabilitySignature({
+      buildChannelModelTestSignature({
         protocol: inputs.protocol,
         key: effectivePreviewKey,
         baseURL: inputs.base_url,
@@ -922,33 +922,33 @@ const EditChannel = () => {
     () => normalizeChannelModelConfigs(inputs.model_configs),
     [inputs.model_configs],
   );
-  const capabilityResultsByModel = useMemo(() => {
+  const modelTestResultsByModel = useMemo(() => {
     const index = new Map();
-    normalizeCapabilityResults(capabilityResults).forEach((item) => {
+    normalizeModelTestResults(modelTestResults).forEach((item) => {
       if (!item.model) {
         return;
       }
       index.set(item.model, item);
     });
     return index;
-  }, [capabilityResults]);
-  const capabilityRows = useMemo(() => {
+  }, [modelTestResults]);
+  const modelTestRows = useMemo(() => {
     return visibleModelConfigs.filter((row) => {
       if (row.selected) {
         return true;
       }
-      return capabilityResultsByModel.has(row.model);
+      return modelTestResultsByModel.has(row.model);
     });
-  }, [capabilityResultsByModel, visibleModelConfigs]);
-  const allCapabilityTargetsSelected = useMemo(() => {
-    if (capabilityRows.length === 0) {
+  }, [modelTestResultsByModel, visibleModelConfigs]);
+  const allModelTestTargetsSelected = useMemo(() => {
+    if (modelTestRows.length === 0) {
       return false;
     }
-    return capabilityRows.every((row) => capabilityTargetModels.includes(row.model));
-  }, [capabilityRows, capabilityTargetModels]);
-  const isCapabilitySignatureFresh =
-    capabilityTestedSignature !== '' &&
-    capabilityTestedSignature === currentCapabilitySignature;
+    return modelTestRows.every((row) => modelTestTargetModels.includes(row.model));
+  }, [modelTestRows, modelTestTargetModels]);
+  const isModelTestSignatureFresh =
+    modelTestedSignature !== '' &&
+    modelTestedSignature === currentModelTestSignature;
   const getProviderOwnersForModel = useCallback(
     (row) => {
       const owners = new Set();
@@ -1246,22 +1246,53 @@ const EditChannel = () => {
       if (typeof draft.verifiedModelSignature === 'string') {
         setVerifiedModelSignature(draft.verifiedModelSignature);
       }
-      if (Array.isArray(draft.capabilityResults)) {
-        setCapabilityResults(
-          normalizeCapabilityResults(draft.capabilityResults),
+      const restoredModelTestResults = Array.isArray(draft.modelTestResults)
+        ? draft.modelTestResults
+        : Array.isArray(draft.capabilityResults)
+          ? draft.capabilityResults
+          : [];
+      const restoredModelTestTargetModels = Array.isArray(
+        draft.modelTestTargetModels,
+      )
+        ? draft.modelTestTargetModels
+        : Array.isArray(draft.capabilityTargetModels)
+          ? draft.capabilityTargetModels
+          : [];
+      const restoredModelTestError =
+        typeof draft.modelTestError === 'string'
+          ? draft.modelTestError
+          : typeof draft.capabilityTestError === 'string'
+            ? draft.capabilityTestError
+            : '';
+      const restoredModelTestedAt = Number.isFinite(draft.modelTestedAt)
+        ? draft.modelTestedAt
+        : Number.isFinite(draft.capabilityTestedAt)
+          ? draft.capabilityTestedAt
+          : 0;
+      const restoredModelTestedSignature =
+        typeof draft.modelTestedSignature === 'string'
+          ? draft.modelTestedSignature
+          : typeof draft.capabilityTestedSignature === 'string'
+            ? draft.capabilityTestedSignature
+            : '';
+      if (restoredModelTestResults.length > 0) {
+        setModelTestResults(
+          normalizeModelTestResults(restoredModelTestResults),
         );
       }
-      if (Array.isArray(draft.capabilityTargetModels)) {
-        setCapabilityTargetModels(normalizeModelIDs(draft.capabilityTargetModels));
+      if (restoredModelTestTargetModels.length > 0) {
+        setModelTestTargetModels(
+          normalizeModelIDs(restoredModelTestTargetModels),
+        );
       }
-      if (typeof draft.capabilityTestError === 'string') {
-        setCapabilityTestError(draft.capabilityTestError);
+      if (restoredModelTestError !== '') {
+        setModelTestError(restoredModelTestError);
       }
-      if (Number.isFinite(draft.capabilityTestedAt)) {
-        setCapabilityTestedAt(draft.capabilityTestedAt);
+      if (restoredModelTestedAt > 0) {
+        setModelTestedAt(restoredModelTestedAt);
       }
-      if (typeof draft.capabilityTestedSignature === 'string') {
-        setCapabilityTestedSignature(draft.capabilityTestedSignature);
+      if (restoredModelTestedSignature !== '') {
+        setModelTestedSignature(restoredModelTestedSignature);
       }
       if (typeof draft.draft_channel_id === 'string') {
         const restoredDraftID = draft.draft_channel_id.trim();
@@ -1533,8 +1564,8 @@ const EditChannel = () => {
         return;
       }
     }
-    if (inputs.protocol !== 'proxy' && inputs.models.length > 0 && !isCapabilitySignatureFresh) {
-      showInfo(t('channel.edit.capability_tester.verify_required'));
+    if (inputs.protocol !== 'proxy' && inputs.models.length > 0 && !isModelTestSignatureFresh) {
+      showInfo(t('channel.edit.model_tester.verify_required'));
       return;
     }
     goToCreateStep(4);
@@ -1544,7 +1575,7 @@ const EditChannel = () => {
     goToCreateStep,
     inputs.models.length,
     inputs.protocol,
-    isCapabilitySignatureFresh,
+    isModelTestSignatureFresh,
     t,
   ]);
 
@@ -1565,10 +1596,10 @@ const EditChannel = () => {
         const availableModels = Array.isArray(data.available_models)
           ? data.available_models
           : [];
-        const storedCapabilityResults = normalizeCapabilityResults(
+        const storedModelTestResults = normalizeModelTestResults(
           data.channel_tests,
         );
-        const storedCapabilityTestedAt =
+        const storedModelTestedAt =
           Number(data.channel_tests_last_tested_at || 0) > 0
             ? Number(data.channel_tests_last_tested_at) * 1000
             : 0;
@@ -1590,7 +1621,7 @@ const EditChannel = () => {
             currency: data.currency || '',
           }),
         );
-        const loadedCapabilitySignature = buildChannelCapabilitySignature({
+        const loadedModelTestSignature = buildChannelModelTestSignature({
           protocol: normalizedProtocol,
           key: '',
           baseURL: data.base_url || '',
@@ -1612,11 +1643,11 @@ const EditChannel = () => {
             models: modelState.selectedModels,
             test_model: data.test_model || modelState.selectedModels[0] || '',
           });
-          setCapabilityResults([]);
-          setCapabilityTestError('');
-          setCapabilityTestedAt(0);
-          setCapabilityTestedSignature('');
-          setCapabilityTargetModels([]);
+          setModelTestResults([]);
+          setModelTestError('');
+          setModelTestedAt(0);
+          setModelTestedSignature('');
+          setModelTestTargetModels([]);
         } else {
           setInputs({
             id: data.id,
@@ -1633,15 +1664,15 @@ const EditChannel = () => {
             weight: data.weight,
             priority: data.priority,
           });
-          setCapabilityResults(storedCapabilityResults);
-          setCapabilityTestError('');
-          setCapabilityTestedAt(storedCapabilityTestedAt);
-          setCapabilityTestedSignature(
-            storedCapabilityResults.length > 0 && storedCapabilityTestedAt > 0
-              ? loadedCapabilitySignature
+          setModelTestResults(storedModelTestResults);
+          setModelTestError('');
+          setModelTestedAt(storedModelTestedAt);
+          setModelTestedSignature(
+            storedModelTestResults.length > 0 && storedModelTestedAt > 0
+              ? loadedModelTestSignature
               : '',
           );
-          setCapabilityTargetModels(
+          setModelTestTargetModels(
             modelState.modelConfigs
               .filter((row) => row.selected)
               .map((row) => row.model),
@@ -1966,14 +1997,14 @@ const EditChannel = () => {
     visibleModelConfigs,
   ]);
 
-  const handleTestCapabilities = useCallback(async (targetModels = []) => {
+  const handleRunModelTests = useCallback(async (targetModels = []) => {
     if (inputs.protocol === 'proxy') {
       return;
     }
     const normalizedTargets = normalizeModelIDs(
       Array.isArray(targetModels) && targetModels.length > 0
         ? targetModels
-        : capabilityTargetModels,
+        : modelTestTargetModels,
     );
     if (normalizedTargets.length === 0) {
       showInfo(t('channel.edit.messages.models_required'));
@@ -1983,9 +2014,9 @@ const EditChannel = () => {
     if (!ok) {
       return;
     }
-    setCapabilityTesting(true);
+    setModelTesting(true);
     try {
-      const res = await API.post('/api/v1/admin/channel/preview/capabilities', {
+      const res = await API.post('/api/v1/admin/channel/preview/model-tests', {
         protocol: inputs.protocol,
         key: effectivePreviewKey,
         base_url: normalizeBaseURL(inputs.base_url),
@@ -1999,21 +2030,21 @@ const EditChannel = () => {
       const { success, message, data } = res.data || {};
       if (!success) {
         const errorMessage =
-          message || t('channel.edit.capability_tester.test_failed');
-        setCapabilityResults([]);
-        setCapabilityTestError(errorMessage);
-        setCapabilityTestedAt(0);
-        setCapabilityTestedSignature('');
+          message || t('channel.edit.model_tester.test_failed');
+        setModelTestResults([]);
+        setModelTestError(errorMessage);
+        setModelTestedAt(0);
+        setModelTestedSignature('');
         showError(errorMessage);
         return;
       }
-      const nextResults = normalizeCapabilityResults(data?.results);
+      const nextResults = normalizeModelTestResults(data?.results);
       const nextModelConfigs = normalizeChannelModelConfigs(data?.model_configs);
       const nextInputs = buildNextInputsWithModelConfigs(
         inputs,
         nextModelConfigs.length > 0 ? nextModelConfigs : visibleModelConfigs,
       );
-      const nextSignature = buildChannelCapabilitySignature({
+      const nextSignature = buildChannelModelTestSignature({
         protocol: inputs.protocol,
         key: effectivePreviewKey,
         baseURL: inputs.base_url,
@@ -2022,24 +2053,24 @@ const EditChannel = () => {
         modelConfigs: nextInputs.model_configs,
       });
       setInputs(nextInputs);
-      setCapabilityResults(nextResults);
-      setCapabilityTestError('');
-      setCapabilityTestedAt(Date.now());
-      setCapabilityTestedSignature(nextSignature);
-      showSuccess(t('channel.edit.capability_tester.test_success'));
+      setModelTestResults(nextResults);
+      setModelTestError('');
+      setModelTestedAt(Date.now());
+      setModelTestedSignature(nextSignature);
+      showSuccess(t('channel.edit.model_tester.test_success'));
     } catch (error) {
       const errorMessage =
-        error?.message || t('channel.edit.capability_tester.test_failed');
-      setCapabilityResults([]);
-      setCapabilityTestError(errorMessage);
-      setCapabilityTestedAt(0);
-      setCapabilityTestedSignature('');
+        error?.message || t('channel.edit.model_tester.test_failed');
+      setModelTestResults([]);
+      setModelTestError(errorMessage);
+      setModelTestedAt(0);
+      setModelTestedSignature('');
       showError(errorMessage);
     } finally {
-      setCapabilityTesting(false);
+      setModelTesting(false);
     }
   }, [
-    capabilityTargetModels,
+    modelTestTargetModels,
     config,
     effectivePreviewKey,
     inputs.base_url,
@@ -2053,8 +2084,8 @@ const EditChannel = () => {
     t,
   ]);
 
-  const toggleCapabilityTarget = useCallback((modelName, checked) => {
-    setCapabilityTargetModels((prev) => {
+  const toggleModelTestTarget = useCallback((modelName, checked) => {
+    setModelTestTargetModels((prev) => {
       const normalized = (modelName || '').toString().trim();
       if (normalized === '') {
         return prev;
@@ -2066,15 +2097,15 @@ const EditChannel = () => {
     });
   }, []);
 
-  const toggleAllCapabilityTargets = useCallback((checked) => {
+  const toggleAllModelTestTargets = useCallback((checked) => {
     if (!checked) {
-      setCapabilityTargetModels([]);
+      setModelTestTargetModels([]);
       return;
     }
-    setCapabilityTargetModels(capabilityRows.map((row) => row.model));
-  }, [capabilityRows]);
+    setModelTestTargetModels(modelTestRows.map((row) => row.model));
+  }, [modelTestRows]);
 
-  const updateCapabilityEndpoint = useCallback((modelName, endpoint) => {
+  const updateModelTestEndpoint = useCallback((modelName, endpoint) => {
     setInputs((prev) =>
       buildNextInputsWithModelConfigs(
         prev,
@@ -2205,7 +2236,7 @@ const EditChannel = () => {
     }
     if (draftIdFromQuery !== '') {
       setLoading(true);
-      loadChannelById(draftIdFromQuery, true, true, true).then();
+      loadChannelById(draftIdFromQuery, false, true, true).then();
       return;
     }
     setChannelKeySet(false);
@@ -2303,11 +2334,11 @@ const EditChannel = () => {
       modelsSyncError,
       modelsLastSyncedAt,
       verifiedModelSignature,
-      capabilityResults,
-      capabilityTargetModels,
-      capabilityTestError,
-      capabilityTestedAt,
-      capabilityTestedSignature,
+      modelTestResults,
+      modelTestTargetModels,
+      modelTestError,
+      modelTestedAt,
+      modelTestedSignature,
       draft_channel_id: draftChannelId,
       channel_key_set: channelKeySet,
       savedAt: Date.now(),
@@ -2321,11 +2352,11 @@ const EditChannel = () => {
     inputs,
     hasChannelID,
     loading,
-    capabilityResults,
-    capabilityTargetModels,
-    capabilityTestError,
-    capabilityTestedAt,
-    capabilityTestedSignature,
+    modelTestResults,
+    modelTestTargetModels,
+    modelTestError,
+    modelTestedAt,
+    modelTestedSignature,
     modelsLastSyncedAt,
     modelsSyncError,
     verifiedModelSignature,
@@ -2361,17 +2392,17 @@ const EditChannel = () => {
   }, [requiresConnectionVerification, verifiedModelSignature]);
 
   useEffect(() => {
-    if (capabilityTestedSignature === '') {
+    if (modelTestedSignature === '') {
       return;
     }
-    if (capabilityTestedSignature === currentCapabilitySignature) {
+    if (modelTestedSignature === currentModelTestSignature) {
       return;
     }
-    setCapabilityResults([]);
-    setCapabilityTestError(t('channel.edit.capability_tester.stale'));
-    setCapabilityTestedAt(0);
-    setCapabilityTestedSignature('');
-  }, [capabilityTestedSignature, currentCapabilitySignature, t]);
+    setModelTestResults([]);
+    setModelTestError(t('channel.edit.model_tester.stale'));
+    setModelTestedAt(0);
+    setModelTestedSignature('');
+  }, [modelTestedSignature, currentModelTestSignature, t]);
 
   useEffect(() => {
     fetchChannelTypes().then();
@@ -2402,19 +2433,19 @@ const EditChannel = () => {
   }, [detailModelFilter, isDetailMode]);
 
   useEffect(() => {
-    if (capabilityRows.length === 0) {
-      setCapabilityTargetModels([]);
+    if (modelTestRows.length === 0) {
+      setModelTestTargetModels([]);
       return;
     }
-    setCapabilityTargetModels((prev) => {
-      const available = capabilityRows.map((row) => row.model);
+    setModelTestTargetModels((prev) => {
+      const available = modelTestRows.map((row) => row.model);
       const next = prev.filter((item) => available.includes(item));
       if (next.length > 0) {
         return next;
       }
       return available;
     });
-  }, [capabilityRows]);
+  }, [modelTestRows]);
 
   const submit = async () => {
     const effectiveKey = buildEffectiveKey();
@@ -2446,8 +2477,8 @@ const EditChannel = () => {
       showInfo(t('channel.edit.messages.models_required'));
       return;
     }
-    if (inputs.protocol !== 'proxy' && inputs.models.length > 0 && !isCapabilitySignatureFresh) {
-      showInfo(t('channel.edit.capability_tester.verify_required'));
+    if (inputs.protocol !== 'proxy' && inputs.models.length > 0 && !isModelTestSignatureFresh) {
+      showInfo(t('channel.edit.model_tester.verify_required'));
       return;
     }
     if (modelConfigError) {
@@ -2630,7 +2661,7 @@ const EditChannel = () => {
                     color={createStep === 3 ? 'blue' : undefined}
                     onClick={moveToStepThree}
                   >
-                    {t('channel.edit.wizard.step_capabilities')}
+                    {t('channel.edit.wizard.step_model_tests')}
                   </Button>
                   <Button
                     type='button'
@@ -3119,9 +3150,9 @@ const EditChannel = () => {
             )}
             {showStepThree && inputs.protocol !== 'proxy' && (
               <Form.Field>
-                <label>{t('channel.edit.capability_tester.title')}</label>
+                <label>{t('channel.edit.model_tester.title')}</label>
                 <Message info className='router-section-message'>
-                  {t('channel.edit.capability_tester.hint')}
+                  {t('channel.edit.model_tester.hint')}
                 </Message>
                 <div
                   className={`${isDetailMode ? 'router-toolbar-end' : 'router-toolbar'} router-block-gap-sm`}
@@ -3132,31 +3163,31 @@ const EditChannel = () => {
                         type='button'
                         className='router-section-button'
                         color='blue'
-                        loading={capabilityTesting}
-                        disabled={capabilityTesting || capabilityTargetModels.length === 0}
-                        onClick={() => handleTestCapabilities()}
+                        loading={modelTesting}
+                        disabled={modelTesting || modelTestTargetModels.length === 0}
+                        onClick={() => handleRunModelTests()}
                       >
-                        {t('channel.edit.capability_tester.button')}
+                        {t('channel.edit.model_tester.button')}
                       </Button>
                       <Label basic className='router-tag'>
-                        {t('channel.edit.capability_tester.selection', {
-                          selected: capabilityTargetModels.length,
-                          total: capabilityRows.length,
+                        {t('channel.edit.model_tester.selection', {
+                          selected: modelTestTargetModels.length,
+                          total: modelTestRows.length,
                         })}
                       </Label>
                     </>
                   )}
-                  {capabilityTestedAt > 0 && (
+                  {modelTestedAt > 0 && (
                     <span className='router-toolbar-meta'>
-                      {t('channel.edit.capability_tester.last_tested', {
-                        time: new Date(capabilityTestedAt).toLocaleString(),
+                      {t('channel.edit.model_tester.last_tested', {
+                        time: new Date(modelTestedAt).toLocaleString(),
                       })}
                     </span>
                   )}
                 </div>
-                {capabilityTestError && (
+                {modelTestError && (
                   <div className='router-error-text router-block-gap-sm'>
-                    {capabilityTestError}
+                    {modelTestError}
                   </div>
                 )}
                 <Table celled stackable className='router-detail-table'>
@@ -3165,51 +3196,51 @@ const EditChannel = () => {
                       {!isDetailMode && (
                         <Table.HeaderCell collapsing textAlign='center'>
                           <Checkbox
-                            checked={allCapabilityTargetsSelected}
+                            checked={allModelTestTargetsSelected}
                             onChange={(e, { checked }) =>
-                              toggleAllCapabilityTargets(!!checked)
+                              toggleAllModelTestTargets(!!checked)
                             }
                           />
                         </Table.HeaderCell>
                       )}
                       <Table.HeaderCell>
-                        {t('channel.edit.capability_tester.table.model')}
+                        {t('channel.edit.model_tester.table.model')}
                       </Table.HeaderCell>
                       <Table.HeaderCell>
-                        {t('channel.edit.capability_tester.table.type')}
+                        {t('channel.edit.model_tester.table.type')}
                       </Table.HeaderCell>
                       <Table.HeaderCell>
-                        {t('channel.edit.capability_tester.table.endpoint')}
+                        {t('channel.edit.model_tester.table.endpoint')}
                       </Table.HeaderCell>
                       <Table.HeaderCell collapsing>
-                        {t('channel.edit.capability_tester.table.status')}
+                        {t('channel.edit.model_tester.table.status')}
                       </Table.HeaderCell>
                       <Table.HeaderCell collapsing>
-                        {t('channel.edit.capability_tester.table.latency')}
+                        {t('channel.edit.model_tester.table.latency')}
                       </Table.HeaderCell>
                       <Table.HeaderCell>
-                        {t('channel.edit.capability_tester.table.message')}
+                        {t('channel.edit.model_tester.table.message')}
                       </Table.HeaderCell>
                       {!isDetailMode && (
                         <Table.HeaderCell collapsing>
-                          {t('channel.edit.capability_tester.table.actions')}
+                          {t('channel.edit.model_tester.table.actions')}
                         </Table.HeaderCell>
                       )}
                     </Table.Row>
                   </Table.Header>
                   <Table.Body>
-                    {capabilityRows.length === 0 ? (
+                    {modelTestRows.length === 0 ? (
                       <Table.Row>
                         <Table.Cell
                           className='router-empty-cell'
                           colSpan={isDetailMode ? '6' : '8'}
                         >
-                          {t('channel.edit.capability_tester.empty')}
+                          {t('channel.edit.model_tester.empty')}
                         </Table.Cell>
                       </Table.Row>
                     ) : (
-                      capabilityRows.map((row) => {
-                        const item = capabilityResultsByModel.get(row.model);
+                      modelTestRows.map((row) => {
+                        const item = modelTestResultsByModel.get(row.model);
                         const labelColor =
                           item?.status === 'supported'
                             ? 'green'
@@ -3221,9 +3252,9 @@ const EditChannel = () => {
                             {!isDetailMode && (
                               <Table.Cell textAlign='center'>
                                 <Checkbox
-                                  checked={capabilityTargetModels.includes(row.model)}
+                                  checked={modelTestTargetModels.includes(row.model)}
                                   onChange={(e, { checked }) =>
-                                    toggleCapabilityTarget(row.model, !!checked)
+                                    toggleModelTestTarget(row.model, !!checked)
                                   }
                                 />
                               </Table.Cell>
@@ -3240,7 +3271,7 @@ const EditChannel = () => {
                                   options={TEXT_MODEL_ENDPOINT_OPTIONS}
                                   value={row.endpoint || defaultChannelModelEndpoint(row.type)}
                                   onChange={(e, { value }) =>
-                                    updateCapabilityEndpoint(row.model, value)
+                                    updateModelTestEndpoint(row.model, value)
                                   }
                                 />
                               )}
@@ -3248,7 +3279,7 @@ const EditChannel = () => {
                             <Table.Cell>
                               <Label basic color={labelColor} className='router-tag'>
                                 {t(
-                                  `channel.edit.capability_tester.status.${item?.status || 'unsupported'}`,
+                                  `channel.edit.model_tester.status.${item?.status || 'unsupported'}`,
                                 )}
                               </Label>
                             </Table.Cell>
@@ -3264,11 +3295,11 @@ const EditChannel = () => {
                                   type='button'
                                   className='router-inline-button'
                                   basic
-                                  loading={capabilityTesting}
-                                  disabled={capabilityTesting}
-                                  onClick={() => handleTestCapabilities([row.model])}
+                                  loading={modelTesting}
+                                  disabled={modelTesting}
+                                  onClick={() => handleRunModelTests([row.model])}
                                 >
-                                  {t('channel.edit.capability_tester.single')}
+                                  {t('channel.edit.model_tester.single')}
                                 </Button>
                               </Table.Cell>
                             )}

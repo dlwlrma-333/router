@@ -27,18 +27,20 @@ func TestResolveChannelTextUpstreamPrefersSelectedModelEndpoint(t *testing.T) {
 	}
 }
 
-func TestResolveChannelTextUpstreamFallsBackToAbilities(t *testing.T) {
+func TestResolveChannelTextUpstreamFallsBackToSelectedModels(t *testing.T) {
 	meta := &meta.Meta{
 		Mode: relaymode.ChatCompletions,
-		ChannelAbilities: []adminmodel.ChannelAbility{{
+		ChannelModelConfigs: []adminmodel.ChannelModel{{
+			Model:    "gpt-4.1",
 			Type:     adminmodel.ProviderModelTypeText,
+			Selected: true,
 			Endpoint: adminmodel.ChannelModelEndpointResponses,
 		}},
 	}
 
 	mode, path := resolveChannelTextUpstream(meta, "unknown", "unknown")
 	if mode != relaymode.Responses || path != adminmodel.ChannelModelEndpointResponses {
-		t.Fatalf("resolveChannelTextUpstream ability fallback = (%d, %q), want (%d, %q)", mode, path, relaymode.Responses, adminmodel.ChannelModelEndpointResponses)
+		t.Fatalf("resolveChannelTextUpstream selected-model fallback = (%d, %q), want (%d, %q)", mode, path, relaymode.Responses, adminmodel.ChannelModelEndpointResponses)
 	}
 }
 

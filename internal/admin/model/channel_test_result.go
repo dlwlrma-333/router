@@ -330,24 +330,3 @@ func CalcChannelTestsLastTestedAt(rows []ChannelTest) int64 {
 	}
 	return testedAt
 }
-
-func BuildChannelAbilitiesFromTests(channelID string, tests []ChannelTest) []ChannelAbility {
-	supported := make([]ChannelAbility, 0, len(tests))
-	sortOrder := int64(1)
-	for _, row := range NormalizeChannelTestRows(tests) {
-		if !row.Supported || NormalizeChannelTestStatus(row.Status) != ChannelTestStatusSupported {
-			continue
-		}
-		supported = append(supported, ChannelAbility{
-			ChannelId: channelID,
-			Type:      normalizeModelType(row.Type, row.Model),
-			Endpoint:  NormalizeChannelModelEndpoint(row.Type, row.Endpoint),
-			Model:     strings.TrimSpace(row.Model),
-			LatencyMs: row.LatencyMs,
-			SortOrder: sortOrder,
-			UpdatedAt: row.TestedAt,
-		})
-		sortOrder++
-	}
-	return NormalizeChannelAbilityRows(supported)
-}

@@ -21,7 +21,7 @@ import (
 	relaymodel "github.com/yeying-community/router/internal/relay/model"
 )
 
-func summarizeCapabilityTestResults(results []model.ChannelTest) (bool, string, int64, string) {
+func summarizeModelTestResults(results []model.ChannelTest) (bool, string, int64, string) {
 	if len(results) == 0 {
 		return false, "未返回模型测试结果", 0, ""
 	}
@@ -71,7 +71,7 @@ func parseHTTPStatusCodeFromMessage(message string) int {
 	return statusCode
 }
 
-func extractFailureSignalFromCapabilityResults(results []model.ChannelTest) (*relaymodel.Error, int) {
+func extractFailureSignalFromModelTests(results []model.ChannelTest) (*relaymodel.Error, int) {
 	for _, item := range results {
 		if item.Supported || item.Status == model.ChannelTestStatusSkipped {
 			continue
@@ -85,7 +85,7 @@ func extractFailureSignalFromCapabilityResults(results []model.ChannelTest) (*re
 	return nil, 0
 }
 
-func recordCapabilityTestLog(ctx context.Context, channel *model.Channel, modelName string, success bool, responseMessage string, startedAt time.Time) {
+func recordModelTestLog(ctx context.Context, channel *model.Channel, modelName string, success bool, responseMessage string, startedAt time.Time) {
 	if channel == nil {
 		return
 	}
@@ -107,24 +107,24 @@ type channelTestOptions struct {
 	PersistResults bool
 }
 
-func executeChannelCapabilityTest(ctx context.Context, channel *model.Channel, options channelTestOptions) ([]model.ChannelTest, bool, string, int64, string, *relaymodel.Error, int, error) {
+func executeChannelModelTest(ctx context.Context, channel *model.Channel, options channelTestOptions) ([]model.ChannelTest, bool, string, int64, string, *relaymodel.Error, int, error) {
 	if channel == nil {
 		return nil, false, "", 0, "", nil, 0, fmt.Errorf("渠道不存在")
 	}
 	targetChannel := *channel
-	testMode := normalizePreviewCapabilityTestMode(options.Mode)
+	testMode := normalizePreviewModelTestMode(options.Mode)
 	testModel := strings.TrimSpace(options.Model)
 	if testModel != "" {
 		targetChannel.TestModel = testModel
 	}
 	startedAt := time.Now()
-	results, err := runChannelCapabilityTests(&targetChannel, testMode, testModel, nil)
+	results, err := runChannelModelTests(&targetChannel, testMode, testModel, nil)
 	if err != nil {
 		modelName := testModel
 		if modelName == "" {
 			modelName = strings.TrimSpace(targetChannel.TestModel)
 		}
-		recordCapabilityTestLog(ctx, channel, modelName, false, err.Error(), startedAt)
+		recordModelTestLog(ctx, channel, modelName, false, err.Error(), startedAt)
 		return nil, false, err.Error(), 0, modelName, nil, 0, err
 	}
 	if options.PersistResults {
@@ -134,22 +134,22 @@ func executeChannelCapabilityTest(ctx context.Context, channel *model.Channel, o
 				modelName = strings.TrimSpace(targetChannel.TestModel)
 			}
 			message := "保存模型测试结果失败: " + err.Error()
-			recordCapabilityTestLog(ctx, channel, modelName, false, message, startedAt)
+			recordModelTestLog(ctx, channel, modelName, false, message, startedAt)
 			return nil, false, message, 0, modelName, nil, 0, err
 		}
 		if savedChannel, getErr := channelsvc.GetByID(channel.Id, true); getErr == nil {
 			_ = savedChannel.UpdateAbilities()
 		}
 	}
-	success, responseMessage, latencyMs, modelName := summarizeCapabilityTestResults(results)
+	success, responseMessage, latencyMs, modelName := summarizeModelTestResults(results)
 	if strings.TrimSpace(modelName) == "" {
 		modelName = strings.TrimSpace(targetChannel.TestModel)
 		if strings.TrimSpace(testModel) != "" {
 			modelName = strings.TrimSpace(testModel)
 		}
 	}
-	relayErr, statusCode := extractFailureSignalFromCapabilityResults(results)
-	recordCapabilityTestLog(ctx, channel, modelName, success, responseMessage, startedAt)
+	relayErr, statusCode := extractFailureSignalFromModelTests(results)
+	recordModelTestLog(ctx, channel, modelName, success, responseMessage, startedAt)
 	return results, success, responseMessage, latencyMs, modelName, relayErr, statusCode, nil
 }
 
@@ -160,7 +160,7 @@ func executeChannelCapabilityTest(ctx context.Context, channel *model.Channel, o
 // @Produce json
 // @Param id path string true "Channel ID"
 // @Param model query string false "Model name"
-// @Param mode query string false "Test mode (capability|model)"
+// @Param mode query string false "Test mode (batch|model)"
 // @Success 200 {object} docs.StandardResponse
 // @Failure 401 {object} docs.ErrorResponse
 // @Router /api/v1/admin/channel/test/{id} [get]
@@ -186,8 +186,8 @@ func TestChannel(c *gin.Context) {
 		return
 	}
 	testModel := strings.TrimSpace(c.Query("model"))
-	testMode := normalizePreviewCapabilityTestMode(c.Query("mode"))
-	results, success, responseMessage, milliseconds, modelName, _, _, err := executeChannelCapabilityTest(ctx, channel, channelTestOptions{
+	testMode := normalizePreviewModelTestMode(c.Query("mode"))
+	results, success, responseMessage, milliseconds, modelName, _, _, err := executeChannelModelTest(ctx, channel, channelTestOptions{
 		Mode:           testMode,
 		Model:          testModel,
 		PersistResults: true,
@@ -264,8 +264,8 @@ func testChannels(ctx context.Context, notify bool, scope string) error {
 		}()
 		for _, channel := range channels {
 			isChannelEnabled := channel.Status == model.ChannelStatusEnabled
-			_, success, responseMessage, milliseconds, _, relayErr, statusCode, _ := executeChannelCapabilityTest(ctx, channel, channelTestOptions{
-				Mode:           previewCapabilityTestModeCapability,
+			_, success, responseMessage, milliseconds, _, relayErr, statusCode, _ := executeChannelModelTest(ctx, channel, channelTestOptions{
+				Mode:           previewChannelTestModeBatch,
 				PersistResults: true,
 			})
 			if isChannelEnabled && success && milliseconds > disableThreshold {

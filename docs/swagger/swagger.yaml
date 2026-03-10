@@ -1800,7 +1800,7 @@ paths:
       summary: Create channel draft (admin)
       tags:
       - admin
-  /api/v1/admin/channel/preview/capabilities:
+  /api/v1/admin/channel/preview/model-tests:
     post:
       consumes:
       - application/json
@@ -1824,7 +1824,7 @@ paths:
             $ref: '#/definitions/docs.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Preview channel capabilities (admin)
+      summary: Preview channel model tests (admin)
       tags:
       - admin
   /api/v1/admin/channel/preview/models:

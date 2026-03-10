@@ -19,7 +19,7 @@ type responsesEnvelope struct {
 	} `json:"output"`
 }
 
-func parseChatCapabilityResponse(resp string) (*openaiadaptor.TextResponse, string, error) {
+func parseChatModelTestResponse(resp string) (*openaiadaptor.TextResponse, string, error) {
 	var response openaiadaptor.TextResponse
 	err := json.Unmarshal([]byte(resp), &response)
 	if err != nil {
@@ -35,7 +35,7 @@ func parseChatCapabilityResponse(resp string) (*openaiadaptor.TextResponse, stri
 	return &response, stringContent, nil
 }
 
-func parseResponsesCapabilityResponse(resp string) (string, error) {
+func parseResponsesModelTestResponse(resp string) (string, error) {
 	var env responsesEnvelope
 	if err := json.Unmarshal([]byte(resp), &env); err != nil {
 		return "", err
@@ -59,12 +59,12 @@ func parseResponsesCapabilityResponse(resp string) (string, error) {
 	return "", errors.New("response has no output text, content types: " + strings.Join(contentTypes, ","))
 }
 
-func parseTextCapabilityResponse(resp string) (string, error) {
-	_, chatText, chatErr := parseChatCapabilityResponse(resp)
+func parseTextModelTestResponse(resp string) (string, error) {
+	_, chatText, chatErr := parseChatModelTestResponse(resp)
 	if chatErr == nil {
 		return chatText, nil
 	}
-	responsesText, responsesErr := parseResponsesCapabilityResponse(resp)
+	responsesText, responsesErr := parseResponsesModelTestResponse(resp)
 	if responsesErr == nil {
 		return responsesText, nil
 	}

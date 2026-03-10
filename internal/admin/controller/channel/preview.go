@@ -37,7 +37,7 @@ type previewModelsRequest struct {
 	Config   json.RawMessage `json:"config"`
 }
 
-type previewCapabilitiesRequest struct {
+type previewModelTestsRequest struct {
 	Protocol     string               `json:"protocol"`
 	Key          string               `json:"key"`
 	BaseURL      string               `json:"base_url"`
@@ -75,8 +75,8 @@ type openAIModelsResponse struct {
 }
 
 const (
-	previewCapabilityTestModeCapability = "capability"
-	previewCapabilityTestModeModel      = "model"
+	previewChannelTestModeBatch  = "batch"
+	previewChannelTestModeSingle = "model"
 )
 
 func resolveModelsURL(baseURL string) string {
@@ -90,7 +90,7 @@ func resolveModelsURL(baseURL string) string {
 	return resolvedBaseURL + "/v1/models"
 }
 
-func normalizeUpstreamCapabilityModelType(raw string) string {
+func normalizePreviewModelType(raw string) string {
 	lower := strings.TrimSpace(strings.ToLower(raw))
 	switch {
 	case lower == "":
@@ -128,7 +128,7 @@ func inferUpstreamModelCardType(item openAIModelCard) string {
 		item.Architecture.Modality,
 	}
 	for _, candidate := range candidates {
-		if normalized := normalizeUpstreamCapabilityModelType(candidate); normalized != "" {
+		if normalized := normalizePreviewModelType(candidate); normalized != "" {
 			return normalized
 		}
 	}
@@ -144,7 +144,7 @@ func inferUpstreamModelCardType(item openAIModelCard) string {
 	}
 	for _, values := range multiValueCandidates {
 		for _, value := range values {
-			if normalized := normalizeUpstreamCapabilityModelType(value); normalized != "" {
+			if normalized := normalizePreviewModelType(value); normalized != "" {
 				switch normalized {
 				case model.ProviderModelTypeVideo:
 					return normalized
@@ -170,7 +170,7 @@ func inferUpstreamModelCardType(item openAIModelCard) string {
 		if !ok || !enabled {
 			continue
 		}
-		if normalized := normalizeUpstreamCapabilityModelType(key); normalized != "" {
+		if normalized := normalizePreviewModelType(key); normalized != "" {
 			switch normalized {
 			case model.ProviderModelTypeVideo:
 				return normalized
@@ -337,12 +337,14 @@ func loadPreviewChannel(protocol string, key string, baseURL string, draftID str
 	return previewChannel, keySource, nil
 }
 
-func normalizePreviewCapabilityTestMode(raw string) string {
+func normalizePreviewModelTestMode(raw string) string {
 	switch strings.TrimSpace(strings.ToLower(raw)) {
-	case previewCapabilityTestModeModel:
-		return previewCapabilityTestModeModel
+	case previewChannelTestModeSingle:
+		return previewChannelTestModeSingle
+	case previewChannelTestModeBatch:
+		return previewChannelTestModeBatch
 	default:
-		return previewCapabilityTestModeCapability
+		return previewChannelTestModeBatch
 	}
 }
 
@@ -383,7 +385,7 @@ func resolvePreviewTargetModels(channel *model.Channel, mode string, requestedMo
 	}
 
 	targets := model.NormalizeChannelModelIDsPreserveOrder(requestedModels)
-	if len(targets) == 0 && normalizePreviewCapabilityTestMode(mode) == previewCapabilityTestModeModel {
+	if len(targets) == 0 && normalizePreviewModelTestMode(mode) == previewChannelTestModeSingle {
 		targetModel := strings.TrimSpace(requestedModel)
 		if targetModel == "" && channel != nil {
 			targetModel = strings.TrimSpace(channel.TestModel)
@@ -434,7 +436,7 @@ func buildPreviewChannelTestResult(row model.ChannelModel, latencyMs int64, mess
 	}
 	errMessage := strings.TrimSpace(err.Error())
 	if errMessage == "" {
-		errMessage = "能力测试失败"
+		errMessage = "模型测试失败"
 	}
 	result.Message = errMessage
 	result.Status = model.ChannelTestStatusUnsupported
@@ -450,7 +452,7 @@ func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) m
 
 	switch modelType {
 	case model.ProviderModelTypeImage:
-		latencyMs, message, execErr := executePreviewImageCapability(channel, row.Model)
+		latencyMs, message, execErr := executePreviewImageModelTest(channel, row.Model)
 		return buildPreviewChannelTestResult(model.ChannelModel{
 			Model:         row.Model,
 			UpstreamModel: row.UpstreamModel,
@@ -458,7 +460,7 @@ func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) m
 			Endpoint:      model.ChannelModelEndpointImages,
 		}, latencyMs, message, execErr)
 	case model.ProviderModelTypeAudio:
-		latencyMs, message, execErr := executePreviewAudioCapability(channel, row.Model)
+		latencyMs, message, execErr := executePreviewAudioModelTest(channel, row.Model)
 		return buildPreviewChannelTestResult(model.ChannelModel{
 			Model:         row.Model,
 			UpstreamModel: row.UpstreamModel,
@@ -466,7 +468,7 @@ func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) m
 			Endpoint:      model.ChannelModelEndpointAudio,
 		}, latencyMs, message, execErr)
 	case model.ProviderModelTypeVideo:
-		latencyMs, message, execErr := executePreviewVideoCapability(channel, row.Model)
+		latencyMs, message, execErr := executePreviewVideoModelTest(channel, row.Model)
 		return buildPreviewChannelTestResult(model.ChannelModel{
 			Model:         row.Model,
 			UpstreamModel: row.UpstreamModel,
@@ -475,7 +477,7 @@ func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) m
 		}, latencyMs, message, execErr)
 	default:
 		if endpoint == model.ChannelModelEndpointChat {
-			latencyMs, message, execErr := executePreviewTextCapability(channel, endpoint, &relaymodel.GeneralOpenAIRequest{
+			latencyMs, message, execErr := executePreviewTextModelTest(channel, endpoint, &relaymodel.GeneralOpenAIRequest{
 				Model: row.Model,
 				Messages: []relaymodel.Message{{
 					Role:    "user",
@@ -489,7 +491,7 @@ func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) m
 				Endpoint:      endpoint,
 			}, latencyMs, message, execErr)
 		}
-		latencyMs, message, execErr := executePreviewTextCapability(channel, model.ChannelModelEndpointResponses, &relaymodel.GeneralOpenAIRequest{
+		latencyMs, message, execErr := executePreviewTextModelTest(channel, model.ChannelModelEndpointResponses, &relaymodel.GeneralOpenAIRequest{
 			Model: row.Model,
 			Input: []relaymodel.Message{{
 				Role:    "user",
@@ -505,7 +507,7 @@ func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) m
 	}
 }
 
-func runChannelCapabilityTests(channel *model.Channel, mode string, requestedModel string, requestedModels []string) ([]model.ChannelTest, error) {
+func runChannelModelTests(channel *model.Channel, mode string, requestedModel string, requestedModels []string) ([]model.ChannelTest, error) {
 	targetRows := resolvePreviewTargetModels(channel, mode, requestedModel, requestedModels)
 	if len(targetRows) == 0 {
 		return nil, fmt.Errorf("未找到可用于测试的模型")
@@ -598,7 +600,7 @@ func parsePreviewUpstreamError(statusCode int, body []byte) error {
 	return fmt.Errorf("http status code: %d, error message: %s", statusCode, message)
 }
 
-func executePreviewTextCapability(channel *model.Channel, path string, request *relaymodel.GeneralOpenAIRequest) (int64, string, error) {
+func executePreviewTextModelTest(channel *model.Channel, path string, request *relaymodel.GeneralOpenAIRequest) (int64, string, error) {
 	if request == nil {
 		return 0, "", fmt.Errorf("请求不能为空")
 	}
@@ -645,14 +647,14 @@ func executePreviewTextCapability(channel *model.Channel, path string, request *
 	if err := resp.Body.Close(); err != nil {
 		return latencyMs, "", err
 	}
-	message, err := parseTextCapabilityResponse(string(body))
+	message, err := parseTextModelTestResponse(string(body))
 	if err != nil {
 		return latencyMs, "", err
 	}
 	return latencyMs, message, nil
 }
 
-func executePreviewImageCapability(channel *model.Channel, modelName string) (int64, string, error) {
+func executePreviewImageModelTest(channel *model.Channel, modelName string) (int64, string, error) {
 	c, relayMeta, err := newPreviewRelayContext("/v1/images/generations", channel)
 	if err != nil {
 		return 0, "", err
@@ -664,7 +666,7 @@ func executePreviewImageCapability(channel *model.Channel, modelName string) (in
 	adaptor.Init(relayMeta)
 	actualModelName := resolvePreviewModelName(channel, modelName)
 	if actualModelName == "" {
-		return 0, "", fmt.Errorf("未找到可用于图片能力测试的模型")
+		return 0, "", fmt.Errorf("未找到可用于图片模型测试的模型")
 	}
 	relayMeta.OriginModelName = strings.TrimSpace(modelName)
 	relayMeta.ActualModelName = actualModelName
@@ -710,10 +712,10 @@ func executePreviewImageCapability(channel *model.Channel, modelName string) (in
 	return latencyMs, preview, nil
 }
 
-func executePreviewAudioCapability(channel *model.Channel, modelName string) (int64, string, error) {
+func executePreviewAudioModelTest(channel *model.Channel, modelName string) (int64, string, error) {
 	actualModelName := resolvePreviewModelName(channel, modelName)
 	if actualModelName == "" {
-		return 0, "", fmt.Errorf("未找到可用于音频能力测试的模型")
+		return 0, "", fmt.Errorf("未找到可用于音频模型测试的模型")
 	}
 	if strings.Contains(strings.ToLower(actualModelName), "whisper") {
 		return 0, "", fmt.Errorf("当前音频模型更像转录模型，暂不自动探测")
@@ -732,7 +734,7 @@ func executePreviewAudioCapability(channel *model.Channel, modelName string) (in
 	relayMeta.ActualModelName = actualModelName
 	requestBody, err := json.Marshal(openaiadaptor.TextToSpeechRequest{
 		Model:          actualModelName,
-		Input:          "Capability test from Router.",
+		Input:          "Model test from Router.",
 		Voice:          "alloy",
 		ResponseFormat: "mp3",
 	})
@@ -769,17 +771,17 @@ func executePreviewAudioCapability(channel *model.Channel, modelName string) (in
 	return latencyMs, fmt.Sprintf("返回 %d bytes (%s)", len(body), contentType), nil
 }
 
-func executePreviewVideoCapability(channel *model.Channel, modelName string) (int64, string, error) {
+func executePreviewVideoModelTest(channel *model.Channel, modelName string) (int64, string, error) {
 	actualModelName := resolvePreviewModelName(channel, modelName)
 	if actualModelName == "" {
-		return 0, "", fmt.Errorf("未找到可用于视频能力测试的模型")
+		return 0, "", fmt.Errorf("未找到可用于视频模型测试的模型")
 	}
 	if channel == nil {
 		return 0, "", fmt.Errorf("渠道不能为空")
 	}
 	baseURL := resolvePreviewBaseURL(channel.GetProtocol(), channel.GetBaseURL())
 	if strings.TrimSpace(baseURL) == "" {
-		return 0, "", fmt.Errorf("未找到可用于视频能力测试的 Base URL")
+		return 0, "", fmt.Errorf("未找到可用于视频模型测试的 Base URL")
 	}
 
 	bodyBuffer := &bytes.Buffer{}
@@ -953,8 +955,8 @@ func PreviewChannelModels(c *gin.Context) {
 	})
 }
 
-// PreviewChannelCapabilities godoc
-// @Summary Preview channel capabilities (admin)
+// PreviewChannelModelTests godoc
+// @Summary Preview channel model tests (admin)
 // @Tags admin
 // @Security BearerAuth
 // @Accept json
@@ -962,11 +964,11 @@ func PreviewChannelModels(c *gin.Context) {
 // @Param body body docs.ChannelPreviewCapabilitiesRequest true "Preview payload"
 // @Success 200 {object} docs.StandardResponse
 // @Failure 401 {object} docs.ErrorResponse
-// @Router /api/v1/admin/channel/preview/capabilities [post]
-func PreviewChannelCapabilities(c *gin.Context) {
-	var req previewCapabilitiesRequest
+// @Router /api/v1/admin/channel/preview/model-tests [post]
+func PreviewChannelModelTests(c *gin.Context) {
+	var req previewModelTestsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logChannelAdminWarn(c, "preview_capabilities", stringField("reason", err.Error()))
+		logChannelAdminWarn(c, "preview_model_tests", stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -975,7 +977,7 @@ func PreviewChannelCapabilities(c *gin.Context) {
 	}
 	previewChannel, keySource, err := loadPreviewChannel(req.Protocol, req.Key, req.BaseURL, req.DraftID, req.Config, req.Models, req.ModelConfigs, req.TestModel)
 	if err != nil {
-		logChannelAdminWarn(c, "preview_capabilities", stringField("draft_id", strings.TrimSpace(req.DraftID)), stringField("reason", err.Error()))
+		logChannelAdminWarn(c, "preview_model_tests", stringField("draft_id", strings.TrimSpace(req.DraftID)), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -983,7 +985,7 @@ func PreviewChannelCapabilities(c *gin.Context) {
 		return
 	}
 	if strings.TrimSpace(previewChannel.Key) == "" {
-		logChannelAdminWarn(c, "preview_capabilities", stringField("draft_id", strings.TrimSpace(req.DraftID)), stringField("reason", "请先填写 Key"))
+		logChannelAdminWarn(c, "preview_model_tests", stringField("draft_id", strings.TrimSpace(req.DraftID)), stringField("reason", "请先填写 Key"))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "请先填写 Key",
@@ -991,7 +993,7 @@ func PreviewChannelCapabilities(c *gin.Context) {
 		return
 	}
 	if strings.TrimSpace(previewChannel.GetBaseURL()) == "" {
-		logChannelAdminWarn(c, "preview_capabilities", stringField("draft_id", strings.TrimSpace(req.DraftID)), stringField("reason", "请先填写 Base URL"))
+		logChannelAdminWarn(c, "preview_model_tests", stringField("draft_id", strings.TrimSpace(req.DraftID)), stringField("reason", "请先填写 Base URL"))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "请先填写 Base URL",
@@ -999,24 +1001,23 @@ func PreviewChannelCapabilities(c *gin.Context) {
 		return
 	}
 
-	testMode := previewCapabilityTestModeCapability
+	testMode := previewChannelTestModeBatch
 	if len(req.TargetModels) == 1 || strings.TrimSpace(req.TestModel) != "" {
-		testMode = previewCapabilityTestModeModel
+		testMode = previewChannelTestModeSingle
 	}
-	results, err := runChannelCapabilityTests(previewChannel, testMode, req.TestModel, req.TargetModels)
+	results, err := runChannelModelTests(previewChannel, testMode, req.TestModel, req.TargetModels)
 	if err != nil {
-		logChannelAdminWarn(c, "preview_capabilities", stringField("source", keySource), stringField("draft_id", strings.TrimSpace(req.DraftID)), stringField("base_url", previewChannel.GetBaseURL()), stringField("reason", err.Error()))
+		logChannelAdminWarn(c, "preview_model_tests", stringField("source", keySource), stringField("draft_id", strings.TrimSpace(req.DraftID)), stringField("base_url", previewChannel.GetBaseURL()), stringField("reason", err.Error()))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	abilities := model.BuildChannelAbilitiesFromTests(strings.TrimSpace(req.DraftID), results)
 	modelConfigs := previewChannel.GetModelConfigs()
 	if draftID := strings.TrimSpace(req.DraftID); draftID != "" {
 		if err := persistPreviewChannelTests(draftID, previewChannel.GetModelConfigs(), results); err != nil {
-			logChannelAdminWarn(c, "preview_capabilities_save", stringField("draft_id", draftID), stringField("reason", err.Error()))
+			logChannelAdminWarn(c, "preview_model_tests_save", stringField("draft_id", draftID), stringField("reason", err.Error()))
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "保存模型测试结果失败",
@@ -1025,7 +1026,7 @@ func PreviewChannelCapabilities(c *gin.Context) {
 		}
 		savedChannel, getErr := channelsvc.GetByID(draftID, true)
 		if getErr != nil {
-			logChannelAdminWarn(c, "preview_capabilities_reload", stringField("draft_id", draftID), stringField("reason", getErr.Error()))
+			logChannelAdminWarn(c, "preview_model_tests_reload", stringField("draft_id", draftID), stringField("reason", getErr.Error()))
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "读取渠道测试结果失败",
@@ -1034,16 +1035,14 @@ func PreviewChannelCapabilities(c *gin.Context) {
 		}
 		modelConfigs = savedChannel.GetModelConfigs()
 		results = savedChannel.Tests
-		abilities = savedChannel.Abilities
 	}
 
-	logChannelAdminInfo(c, "preview_capabilities", stringField("source", keySource), stringField("draft_id", strings.TrimSpace(req.DraftID)), stringField("base_url", previewChannel.GetBaseURL()), intField("results", len(results)))
+	logChannelAdminInfo(c, "preview_model_tests", stringField("source", keySource), stringField("draft_id", strings.TrimSpace(req.DraftID)), stringField("base_url", previewChannel.GetBaseURL()), intField("results", len(results)))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
 			"results":       results,
-			"abilities":     abilities,
 			"model_configs": modelConfigs,
 		},
 		"meta": gin.H{

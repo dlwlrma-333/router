@@ -22,7 +22,6 @@ type Meta struct {
 	Group               string
 	ModelMapping        map[string]string
 	ChannelModelConfigs []model.ChannelModel
-	ChannelAbilities    []model.ChannelAbility
 	// BaseURL is the proxy url set in the channel config
 	BaseURL  string
 	APIKey   string
@@ -68,11 +67,6 @@ func GetByContext(c *gin.Context) *Meta {
 	if channelModelConfigs, ok := c.Get(ctxkey.ChannelModelConfigs); ok {
 		if rows, castOK := channelModelConfigs.([]model.ChannelModel); castOK {
 			meta.ChannelModelConfigs = rows
-		}
-	}
-	if channelAbilities, ok := c.Get(ctxkey.ChannelAbilities); ok {
-		if rows, castOK := channelAbilities.([]model.ChannelAbility); castOK {
-			meta.ChannelAbilities = rows
 		}
 	}
 	if meta.BaseURL == "" {

@@ -73,9 +73,9 @@
     },
     "buttons": {
       "test": "Test",
-      "test_capability": "Test Capability",
+      "test_models": "Test Models",
       "test_model": "Test Model",
-      "test_channel": "Test Capability",
+      "test_channel": "Test Channel",
       "disable_channel": "Disable Channels",
       "delete_channel": "Delete Channels",
       "delete": "Delete",
@@ -91,11 +91,11 @@
       "refresh": "Refresh"
     },
     "messages": {
-      "test_capability_success": "Channel {{name}} capability test successful, time {{time}}s, result: {{message}}",
+      "test_models_success": "Channel {{name}} model test successful, time {{time}}s, result: {{message}}",
       "test_model_success": "Channel {{name}} model test successful, model {{model}}, time {{time}}s, result: {{message}}",
       "test_all_started": "Channel testing started successfully, please refresh page to see results.",
       "batch_test_select_required": "Please select at least one channel first.",
-      "batch_test_done": "Batch capability testing finished: {{success}} succeeded, {{failed}} failed.",
+      "batch_test_done": "Batch model testing finished: {{success}} succeeded, {{failed}} failed.",
       "select_model_test_required": "Please select a model to test first.",
       "batch_disable_select_required": "Please select at least one channel to disable.",
       "batch_disable_done": "Batch disable finished: {{success}} succeeded, {{failed}} failed.",
@@ -287,8 +287,8 @@
         "empty_filtered": "No models match the current filter",
         "last_synced": "Last synced at: {{time}}"
       },
-      "capability_tester": {
-        "title": "Capability Test",
+      "model_tester": {
+        "title": "Model Test",
         "hint": "Shows the models selected in step 2 and lets you choose the real upstream endpoint for each model. Text models default to /v1/responses and can be switched to /v1/chat/completions. Other model types use fixed endpoints. Supports both single-row and bulk testing.",
         "button": "Test Selected Models",
         "single": "Test",
@@ -341,7 +341,7 @@
       "wizard": {
         "step_basic": "Step 1: Connection",
         "step_models": "Step 2: Model Selection",
-        "step_capabilities": "Step 3: Capability Test",
+        "step_model_tests": "Step 3: Model Test",
         "step_advanced": "Step 4: Advanced Settings"
       },
       "aws_region_placeholder": "region, e.g.: us-west-2",

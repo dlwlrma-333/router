@@ -449,7 +449,7 @@ const ChannelsTable = () => {
     channel,
     absoluteIndex,
     silent = false,
-    mode = 'capability',
+    mode = 'batch',
   ) => {
     if (!channel || absoluteIndex < 0) {
       return false;
@@ -474,7 +474,7 @@ const ChannelsTable = () => {
         }
         return false;
       }
-      const testMode = mode === 'model' ? 'model' : 'capability';
+      const testMode = mode === 'model' ? 'model' : 'batch';
       const modelName = (channel.test_model || '').toString().trim();
       if (testMode === 'model' && modelName === '') {
         if (!silent) {
@@ -495,7 +495,7 @@ const ChannelsTable = () => {
             t(
               testMode === 'model'
                 ? 'channel.messages.test_model_success'
-                : 'channel.messages.test_capability_success',
+                : 'channel.messages.test_models_success',
               {
               name: getChannelDisplayName(channel),
               model: testedModelName || channel.test_model || '-',
@@ -530,7 +530,7 @@ const ChannelsTable = () => {
 
   const testChannel = async (channel, idx) => {
     const absoluteIndex = (activePage - 1) * ITEMS_PER_PAGE + idx;
-    await runChannelTest(channel, absoluteIndex, false, 'capability');
+    await runChannelTest(channel, absoluteIndex, false, 'batch');
   };
 
   const testChannelModel = async (channel, idx) => {
@@ -1099,7 +1099,7 @@ const ChannelsTable = () => {
                           testChannel(channel, idx);
                         }}
                       >
-                        {t('channel.buttons.test_capability')}
+                        {t('channel.buttons.test_models')}
                       </Button>
                       <Button
                         className='router-inline-button'

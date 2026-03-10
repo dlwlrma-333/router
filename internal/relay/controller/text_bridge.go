@@ -102,15 +102,22 @@ func resolveChannelTextUpstream(meta *meta.Meta, originModelName string, actualM
 	}
 
 	fallbackEndpoint := ""
-	for _, ability := range meta.ChannelAbilities {
-		if ability.Type != adminmodel.ProviderModelTypeText {
+	for _, row := range adminmodel.NormalizeChannelModelConfigsPreserveOrder(meta.ChannelModelConfigs) {
+		if !row.Selected {
 			continue
 		}
-		if ability.Endpoint == adminmodel.ChannelModelEndpointResponses {
+		if adminmodel.InferModelType(row.Model) != adminmodel.ProviderModelTypeText &&
+			adminmodel.InferModelType(row.UpstreamModel) != adminmodel.ProviderModelTypeText &&
+			adminmodel.NormalizeChannelModelEndpoint(row.Type, row.Endpoint) != adminmodel.ChannelModelEndpointChat &&
+			adminmodel.NormalizeChannelModelEndpoint(row.Type, row.Endpoint) != adminmodel.ChannelModelEndpointResponses {
+			continue
+		}
+		endpoint := adminmodel.NormalizeChannelModelEndpoint(row.Type, row.Endpoint)
+		if endpoint == adminmodel.ChannelModelEndpointResponses {
 			return relaymode.Responses, adminmodel.ChannelModelEndpointResponses
 		}
 		if fallbackEndpoint == "" {
-			fallbackEndpoint = ability.Endpoint
+			fallbackEndpoint = endpoint
 		}
 	}
 	if fallbackEndpoint == adminmodel.ChannelModelEndpointChat {
