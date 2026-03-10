@@ -16,7 +16,7 @@ func normalizeProviderSortOrderValue(sortOrder int) int {
 	return 0
 }
 
-func syncProviderCatalogWithDB(db *gorm.DB) error {
+func ensureProviderCatalogSeededWithDB(db *gorm.DB) error {
 	if err := db.AutoMigrate(&Provider{}, &ProviderModel{}); err != nil {
 		return err
 	}

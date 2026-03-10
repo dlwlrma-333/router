@@ -28,10 +28,10 @@ func runMainBaselineMigrationWithDB(tx *gorm.DB) error {
 		return err
 	}
 
-	if err := syncChannelProtocolCatalogWithDB(tx); err != nil {
+	if err := ensureChannelProtocolCatalogSeededWithDB(tx); err != nil {
 		return err
 	}
-	if err := syncProviderCatalogWithDB(tx); err != nil {
+	if err := ensureProviderCatalogSeededWithDB(tx); err != nil {
 		return err
 	}
 	return nil

@@ -70,7 +70,7 @@ var defaultChannelProtocolSeeds = []channelProtocolSeed{
 	{ID: 13, Label: "代理：AIGC2D", Color: "purple"},
 }
 
-func syncChannelProtocolCatalogWithDB(db *gorm.DB) error {
+func ensureChannelProtocolCatalogSeededWithDB(db *gorm.DB) error {
 	if err := db.AutoMigrate(&ChannelProtocolCatalog{}); err != nil {
 		return err
 	}

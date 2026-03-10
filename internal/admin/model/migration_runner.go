@@ -35,7 +35,7 @@ type versionedMigration struct {
 func runMainVersionedMigrations(db *gorm.DB) error {
 	migrations := []versionedMigration{
 		{
-			Version:     "202603102430_main_baseline_v20",
+			Version:     "202603101930_main_baseline_v21",
 			Description: "baseline: create current main schema and seed current catalogs",
 			Up: func(tx *gorm.DB) error {
 				return runMainBaselineMigrationWithDB(tx)
@@ -48,7 +48,7 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 func runLogVersionedMigrations(db *gorm.DB) error {
 	migrations := []versionedMigration{
 		{
-			Version:     "202603102430_log_baseline_v5",
+			Version:     "202603101930_log_baseline_v6",
 			Description: "baseline: create current log schema",
 			Up: func(tx *gorm.DB) error {
 				return runLogBaselineMigrationWithDB(tx)
