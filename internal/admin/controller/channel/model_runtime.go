@@ -2,6 +2,8 @@ package channel
 
 import (
 	"bytes"
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -478,20 +480,38 @@ func buildChannelModelTestResult(row model.ChannelModel, execution channelModelT
 }
 
 func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) (model.ChannelTest, channelModelTestExecution) {
+	return runSingleChannelModelTestWithContext(context.Background(), channel, row)
+}
+
+func runSingleChannelModelTestWithContext(ctx context.Context, channel *model.Channel, row model.ChannelModel) (model.ChannelTest, channelModelTestExecution) {
 	modelType := resolveSelectionModelType(row)
 	endpoint := model.NormalizeChannelModelEndpoint(modelType, row.Endpoint)
 
 	switch modelType {
 	case model.ProviderModelTypeImage:
-		execution := executeChannelImageModelTest(channel, row.Model)
+		var execution channelModelTestExecution
+		switch endpoint {
+		case model.ChannelModelEndpointResponses:
+			execution = executeChannelImageResponsesModelTest(ctx, channel, row.Model)
+		case model.ChannelModelEndpointImageEdit:
+			execution = executeChannelImageEditModelTest(ctx, channel, row.Model)
+		case model.ChannelModelEndpointBatches:
+			execution = channelModelTestExecution{
+				Message:       "Batch API 需要先上传 JSONL 文件，暂不自动探测",
+				Err:           fmt.Errorf("Batch API 需要先上传 JSONL 文件，暂不自动探测"),
+				OutputPayload: marshalJSONForLog(map[string]any{"error": "Batch API 需要先上传 JSONL 文件，暂不自动探测"}),
+			}
+		default:
+			execution = executeChannelImageModelTest(ctx, channel, row.Model)
+		}
 		return buildChannelModelTestResult(model.ChannelModel{
 			Model:         row.Model,
 			UpstreamModel: row.UpstreamModel,
 			Type:          modelType,
-			Endpoint:      model.ChannelModelEndpointImages,
+			Endpoint:      endpoint,
 		}, execution), execution
 	case model.ProviderModelTypeAudio:
-		execution := executeChannelAudioModelTest(channel, row.Model)
+		execution := executeChannelAudioModelTest(ctx, channel, row.Model)
 		return buildChannelModelTestResult(model.ChannelModel{
 			Model:         row.Model,
 			UpstreamModel: row.UpstreamModel,
@@ -499,7 +519,7 @@ func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) (
 			Endpoint:      model.ChannelModelEndpointAudio,
 		}, execution), execution
 	case model.ProviderModelTypeVideo:
-		execution := executeChannelVideoModelTest(channel, row.Model)
+		execution := executeChannelVideoModelTest(ctx, channel, row.Model)
 		return buildChannelModelTestResult(model.ChannelModel{
 			Model:         row.Model,
 			UpstreamModel: row.UpstreamModel,
@@ -508,7 +528,7 @@ func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) (
 		}, execution), execution
 	default:
 		if endpoint == model.ChannelModelEndpointChat {
-			execution := executeChannelTextModelTest(channel, endpoint, &relaymodel.GeneralOpenAIRequest{
+			execution := executeChannelTextModelTest(ctx, channel, endpoint, &relaymodel.GeneralOpenAIRequest{
 				Model: row.Model,
 				Messages: []relaymodel.Message{{
 					Role:    "user",
@@ -522,7 +542,7 @@ func runSingleChannelModelTest(channel *model.Channel, row model.ChannelModel) (
 				Endpoint:      endpoint,
 			}, execution), execution
 		}
-		execution := executeChannelTextModelTest(channel, model.ChannelModelEndpointResponses, &relaymodel.GeneralOpenAIRequest{
+		execution := executeChannelTextModelTest(ctx, channel, model.ChannelModelEndpointResponses, &relaymodel.GeneralOpenAIRequest{
 			Model: row.Model,
 			Input: []relaymodel.Message{{
 				Role:    "user",
@@ -599,19 +619,23 @@ func resolveChannelUpstreamModelName(channel *model.Channel, requestedModel stri
 	return modelName
 }
 
-func newChannelRelayRuntimeContext(path string, channel *model.Channel) (*gin.Context, *meta.Meta, error) {
+func newChannelRelayRuntimeContext(path string, channel *model.Channel, requestCtx context.Context) (*gin.Context, *meta.Meta, error) {
 	if channel == nil {
 		return nil, nil, fmt.Errorf("渠道不能为空")
+	}
+	if requestCtx == nil {
+		requestCtx = context.Background()
 	}
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	requestURL := &url.URL{Path: path}
-	c.Request = &http.Request{
+	req := &http.Request{
 		Method: "POST",
 		URL:    requestURL,
 		Body:   io.NopCloser(bytes.NewBuffer(nil)),
 		Header: make(http.Header),
 	}
+	c.Request = req.WithContext(requestCtx)
 	c.Request.Header.Set("Content-Type", "application/json")
 	middleware.SetupContextForSelectedChannel(c, channel, "")
 	return c, meta.GetByContext(c), nil
@@ -663,14 +687,14 @@ func parseChannelUpstreamError(statusCode int, body []byte) error {
 	return fmt.Errorf("http status code: %d, error message: %s", statusCode, message)
 }
 
-func executeChannelTextModelTest(channel *model.Channel, path string, request *relaymodel.GeneralOpenAIRequest) channelModelTestExecution {
+func executeChannelTextModelTest(ctx context.Context, channel *model.Channel, path string, request *relaymodel.GeneralOpenAIRequest) channelModelTestExecution {
 	execution := channelModelTestExecution{}
 	if request == nil {
 		execution.Err = fmt.Errorf("请求不能为空")
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
 		return execution
 	}
-	c, relayMeta, err := newChannelRelayRuntimeContext(path, channel)
+	c, relayMeta, err := newChannelRelayRuntimeContext(path, channel, ctx)
 	if err != nil {
 		execution.Err = err
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
@@ -741,9 +765,85 @@ func executeChannelTextModelTest(channel *model.Channel, path string, request *r
 	return execution
 }
 
-func executeChannelImageModelTest(channel *model.Channel, modelName string) channelModelTestExecution {
+const tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WnSUs8AAAAASUVORK5CYII="
+
+func executeChannelImageResponsesModelTest(ctx context.Context, channel *model.Channel, modelName string) channelModelTestExecution {
 	execution := channelModelTestExecution{}
-	c, relayMeta, err := newChannelRelayRuntimeContext("/v1/images/generations", channel)
+	request := map[string]any{
+		"model": resolveChannelUpstreamModelName(channel, modelName),
+		"input": "Generate a simple blue square on a white background.",
+		"tools": []map[string]any{
+			{
+				"type": "image_generation",
+			},
+		},
+	}
+	if strings.TrimSpace(request["model"].(string)) == "" {
+		execution.Err = fmt.Errorf("未找到可用于图片模型测试的模型")
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
+		return execution
+	}
+	c, relayMeta, err := newChannelRelayRuntimeContext(model.ChannelModelEndpointResponses, channel, ctx)
+	if err != nil {
+		execution.Err = err
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
+		return execution
+	}
+	adaptor := relay.GetAdaptor(relayMeta.APIType)
+	if adaptor == nil {
+		execution.Err = fmt.Errorf("invalid api type: %d", relayMeta.APIType)
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
+		return execution
+	}
+	adaptor.Init(relayMeta)
+	relayMeta.OriginModelName = strings.TrimSpace(modelName)
+	relayMeta.ActualModelName = request["model"].(string)
+	requestBody, err := json.Marshal(request)
+	if err != nil {
+		execution.Err = err
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
+		return execution
+	}
+	requestURL := resolveChannelEndpointURL(resolveChannelBaseURL(channel.GetProtocol(), channel.GetBaseURL()), model.ChannelModelEndpointResponses)
+	requestHeader := http.Header{}
+	requestHeader.Set("Content-Type", "application/json")
+	execution.InputPayload = buildHTTPRequestPayloadForLog(http.MethodPost, requestURL, requestHeader, requestBody)
+	startedAt := time.Now()
+	resp, err := adaptor.DoRequest(c, relayMeta, bytes.NewBuffer(requestBody))
+	execution.LatencyMs = time.Since(startedAt).Milliseconds()
+	if err != nil {
+		execution.Err = err
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
+		return execution
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		execution.Err = err
+		execution.OutputPayload = buildHTTPResponsePayloadForLog(resp.StatusCode, resp.Header, nil)
+		return execution
+	}
+	if closeErr := resp.Body.Close(); closeErr != nil {
+		execution.Err = closeErr
+		execution.OutputPayload = buildHTTPResponsePayloadForLog(resp.StatusCode, resp.Header, body)
+		return execution
+	}
+	execution.OutputPayload = buildHTTPResponsePayloadForLog(resp.StatusCode, resp.Header, body)
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		execution.Err = parseChannelUpstreamError(resp.StatusCode, body)
+		return execution
+	}
+	message, parseErr := parseResponsesImageTestResponse(string(body))
+	if parseErr != nil {
+		execution.Err = parseErr
+		return execution
+	}
+	execution.Message = message
+	return execution
+}
+
+func executeChannelImageModelTest(ctx context.Context, channel *model.Channel, modelName string) channelModelTestExecution {
+	execution := channelModelTestExecution{}
+	c, relayMeta, err := newChannelRelayRuntimeContext("/v1/images/generations", channel, ctx)
 	if err != nil {
 		execution.Err = err
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
@@ -819,7 +919,94 @@ func executeChannelImageModelTest(channel *model.Channel, modelName string) chan
 	return execution
 }
 
-func executeChannelAudioModelTest(channel *model.Channel, modelName string) channelModelTestExecution {
+func executeChannelImageEditModelTest(ctx context.Context, channel *model.Channel, modelName string) channelModelTestExecution {
+	execution := channelModelTestExecution{}
+	actualModelName := resolveChannelUpstreamModelName(channel, modelName)
+	if actualModelName == "" {
+		execution.Err = fmt.Errorf("未找到可用于图片编辑测试的模型")
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
+		return execution
+	}
+	imageBytes, err := base64.StdEncoding.DecodeString(tinyPNGBase64)
+	if err != nil {
+		execution.Err = err
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
+		return execution
+	}
+	bodyBuffer := &bytes.Buffer{}
+	writer := multipart.NewWriter(bodyBuffer)
+	if err := writer.WriteField("model", actualModelName); err != nil {
+		execution.Err = err
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
+		return execution
+	}
+	if err := writer.WriteField("prompt", "Replace the image with a simple blue square on a white background."); err != nil {
+		execution.Err = err
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
+		return execution
+	}
+	part, err := writer.CreateFormFile("image", "test.png")
+	if err != nil {
+		execution.Err = err
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
+		return execution
+	}
+	if _, err := part.Write(imageBytes); err != nil {
+		execution.Err = err
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
+		return execution
+	}
+	if err := writer.Close(); err != nil {
+		execution.Err = err
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
+		return execution
+	}
+
+	requestURL := resolveChannelEndpointURL(resolveChannelBaseURL(channel.GetProtocol(), channel.GetBaseURL()), model.ChannelModelEndpointImageEdit)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bodyBuffer)
+	if err != nil {
+		execution.Err = err
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
+		return execution
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+strings.TrimSpace(channel.Key))
+	httpReq.Header.Set("Content-Type", writer.FormDataContentType())
+	httpReq.Header.Set("Accept", "application/json")
+	execution.InputPayload = buildHTTPRequestPayloadForLog(httpReq.Method, requestURL, httpReq.Header, bodyBuffer.Bytes())
+	startedAt := time.Now()
+	resp, err := client.HTTPClient.Do(httpReq)
+	execution.LatencyMs = time.Since(startedAt).Milliseconds()
+	if err != nil {
+		execution.Err = err
+		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
+		return execution
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		execution.Err = err
+		execution.OutputPayload = buildHTTPResponsePayloadForLog(resp.StatusCode, resp.Header, nil)
+		return execution
+	}
+	execution.OutputPayload = buildHTTPResponsePayloadForLog(resp.StatusCode, resp.Header, body)
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		execution.Err = parseChannelUpstreamError(resp.StatusCode, body)
+		return execution
+	}
+	preview := "图片编辑接口返回成功"
+	imageResponse := openaiadaptor.ImageResponse{}
+	if err := json.Unmarshal(body, &imageResponse); err == nil && len(imageResponse.Data) > 0 {
+		preview = fmt.Sprintf("返回 %d 个图片结果", len(imageResponse.Data))
+	}
+	execution.Message = preview
+	return execution
+}
+
+func executeChannelAudioModelTest(ctx context.Context, channel *model.Channel, modelName string) channelModelTestExecution {
 	execution := channelModelTestExecution{}
 	actualModelName := resolveChannelUpstreamModelName(channel, modelName)
 	if actualModelName == "" {
@@ -832,7 +1019,7 @@ func executeChannelAudioModelTest(channel *model.Channel, modelName string) chan
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": execution.Err.Error()})
 		return execution
 	}
-	c, relayMeta, err := newChannelRelayRuntimeContext("/v1/audio/speech", channel)
+	c, relayMeta, err := newChannelRelayRuntimeContext("/v1/audio/speech", channel, ctx)
 	if err != nil {
 		execution.Err = err
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})
@@ -900,7 +1087,7 @@ func executeChannelAudioModelTest(channel *model.Channel, modelName string) chan
 	return execution
 }
 
-func executeChannelVideoModelTest(channel *model.Channel, modelName string) channelModelTestExecution {
+func executeChannelVideoModelTest(ctx context.Context, channel *model.Channel, modelName string) channelModelTestExecution {
 	execution := channelModelTestExecution{}
 	actualModelName := resolveChannelUpstreamModelName(channel, modelName)
 	if actualModelName == "" {
@@ -939,7 +1126,10 @@ func executeChannelVideoModelTest(channel *model.Channel, modelName string) chan
 	}
 
 	requestURL := resolveChannelEndpointURL(baseURL, "/v1/videos")
-	httpReq, err := http.NewRequest(http.MethodPost, requestURL, bodyBuffer)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bodyBuffer)
 	if err != nil {
 		execution.Err = err
 		execution.OutputPayload = marshalJSONForLog(map[string]any{"error": err.Error()})

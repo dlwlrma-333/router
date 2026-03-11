@@ -232,7 +232,9 @@ const TaskDetail = () => {
   const canRetry = ['failed', 'canceled'].includes(
     normalizeTaskStatus(task?.status)
   );
-  const canCancel = normalizeTaskStatus(task?.status) === 'pending';
+  const canCancel = ['pending', 'running'].includes(
+    normalizeTaskStatus(task?.status)
+  );
   const channelDetailPath = task?.channel_id
     ? `/admin/channel/detail/${task.channel_id}`
     : '';

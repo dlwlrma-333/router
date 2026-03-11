@@ -333,7 +333,8 @@ const Task = () => {
               ) : (
                 items.map((item) => {
                   const status = normalizeTaskStatus(item?.status);
-                  const canCancel = status === 'pending';
+                  const canCancel =
+                    status === 'pending' || status === 'running';
                   const canRetry =
                     status === 'failed' || status === 'canceled';
                   const message =

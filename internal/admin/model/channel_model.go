@@ -537,9 +537,6 @@ func ApplyChannelTestResultsToModelConfigs(rows []ChannelModel, results []Channe
 		if item, ok := resultByModel[strings.TrimSpace(row.Model)]; ok {
 			row.Type = item.Type
 			row.Endpoint = item.Endpoint
-			if row.Selected {
-				row.Selected = item.Supported && item.Status == ChannelTestStatusSupported
-			}
 		}
 		next = append(next, row)
 	}
@@ -765,7 +762,9 @@ func cloneNormalizedChannelModelPrice(value *float64) *float64 {
 const (
 	ChannelModelEndpointChat      = "/v1/chat/completions"
 	ChannelModelEndpointResponses = "/v1/responses"
+	ChannelModelEndpointBatches   = "/v1/batches"
 	ChannelModelEndpointImages    = "/v1/images/generations"
+	ChannelModelEndpointImageEdit = "/v1/images/edits"
 	ChannelModelEndpointAudio     = "/v1/audio/speech"
 	ChannelModelEndpointVideos    = "/v1/videos"
 )
@@ -788,10 +787,18 @@ func NormalizeChannelModelEndpoint(modelType string, endpoint string) string {
 	normalizedEndpoint := strings.TrimSpace(strings.ToLower(endpoint))
 	switch normalizedType {
 	case ProviderModelTypeImage:
-		if normalizedEndpoint == ChannelModelEndpointImages {
+		switch normalizedEndpoint {
+		case ChannelModelEndpointResponses:
+			return ChannelModelEndpointResponses
+		case ChannelModelEndpointBatches:
+			return ChannelModelEndpointBatches
+		case ChannelModelEndpointImageEdit:
+			return ChannelModelEndpointImageEdit
+		case ChannelModelEndpointImages:
+			return ChannelModelEndpointImages
+		default:
 			return ChannelModelEndpointImages
 		}
-		return ChannelModelEndpointImages
 	case ProviderModelTypeAudio:
 		if normalizedEndpoint == ChannelModelEndpointAudio {
 			return ChannelModelEndpointAudio

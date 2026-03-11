@@ -102,7 +102,30 @@ func GetTask(c *gin.Context) {
 // @Router /api/v1/admin/tasks/{id}/cancel [post]
 func CancelTask(c *gin.Context) {
 	taskID := strings.TrimSpace(c.Param("id"))
-	taskRow, err := model.CancelAsyncTaskWithDB(model.DB, taskID)
+	taskRow, err := model.GetAsyncTaskByIDWithDB(model.DB, taskID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	if taskRow.Status == model.AsyncTaskStatusRunning {
+		if !CancelRunningTask(taskID) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "运行中的任务当前不可取消",
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    taskRow,
+		})
+		return
+	}
+	taskRow, err = model.CancelAsyncTaskWithDB(model.DB, taskID)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

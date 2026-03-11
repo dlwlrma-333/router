@@ -304,6 +304,7 @@
         "single": "测试",
         "task_created": "已提交 {{count}} 个测试任务，其中复用 {{reused}} 个运行中任务。",
         "selection": "已勾选 {{selected}} / {{total}}",
+        "selection_notice": "模型测试结果仅用于诊断渠道能力，不会改变已选模型是否可用。只要模型已被选中，创建或编辑分组时都可以继续使用。",
         "verify_required": "请先完成当前模型测试后再继续。",
         "empty": "当前没有可测试的模型，请先在第二步选择模型。",
         "last_tested": "最近测试时间：{{time}}",

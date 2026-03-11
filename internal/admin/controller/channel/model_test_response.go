@@ -15,6 +15,7 @@ type responsesEnvelope struct {
 			Type       string `json:"type"`
 			Text       string `json:"text"`
 			OutputText string `json:"output_text"`
+			Result     string `json:"result"`
 		} `json:"content"`
 	} `json:"output"`
 }
@@ -57,6 +58,35 @@ func parseResponsesModelTestResponse(resp string) (string, error) {
 		}
 	}
 	return "", errors.New("response has no output text, content types: " + strings.Join(contentTypes, ","))
+}
+
+func parseResponsesImageTestResponse(resp string) (string, error) {
+	var env responsesEnvelope
+	if err := json.Unmarshal([]byte(resp), &env); err != nil {
+		return "", err
+	}
+	contentTypes := make([]string, 0)
+	imageCount := 0
+	for _, output := range env.Output {
+		for _, content := range output.Content {
+			contentType := strings.TrimSpace(content.Type)
+			if contentType == "" {
+				contentType = "<empty>"
+			}
+			contentTypes = append(contentTypes, contentType)
+			if content.Text != "" || content.OutputText != "" {
+				return "responses 接口返回成功", nil
+			}
+			switch contentType {
+			case "image_generation_call", "output_image", "image":
+				imageCount++
+			}
+		}
+	}
+	if imageCount > 0 {
+		return fmt.Sprintf("responses 接口返回 %d 个图片结果", imageCount), nil
+	}
+	return "", errors.New("response has no image output, content types: " + strings.Join(contentTypes, ","))
 }
 
 func parseTextModelTestResponse(resp string) (string, error) {

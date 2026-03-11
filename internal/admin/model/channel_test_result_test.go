@@ -12,10 +12,22 @@ func TestNormalizeChannelModelEndpoint(t *testing.T) {
 		}
 	})
 
-	t.Run("non-text endpoints are fixed by type", func(t *testing.T) {
-		if got := NormalizeChannelModelEndpoint(ProviderModelTypeImage, ChannelModelEndpointChat); got != ChannelModelEndpointImages {
-			t.Fatalf("NormalizeChannelModelEndpoint(image, chat) = %q, want %q", got, ChannelModelEndpointImages)
+	t.Run("image supports multiple endpoints", func(t *testing.T) {
+		if got := NormalizeChannelModelEndpoint(ProviderModelTypeImage, ""); got != ChannelModelEndpointImages {
+			t.Fatalf("NormalizeChannelModelEndpoint(image, empty) = %q, want %q", got, ChannelModelEndpointImages)
 		}
+		if got := NormalizeChannelModelEndpoint(ProviderModelTypeImage, ChannelModelEndpointResponses); got != ChannelModelEndpointResponses {
+			t.Fatalf("NormalizeChannelModelEndpoint(image, responses) = %q, want %q", got, ChannelModelEndpointResponses)
+		}
+		if got := NormalizeChannelModelEndpoint(ProviderModelTypeImage, ChannelModelEndpointImageEdit); got != ChannelModelEndpointImageEdit {
+			t.Fatalf("NormalizeChannelModelEndpoint(image, edits) = %q, want %q", got, ChannelModelEndpointImageEdit)
+		}
+		if got := NormalizeChannelModelEndpoint(ProviderModelTypeImage, ChannelModelEndpointBatches); got != ChannelModelEndpointBatches {
+			t.Fatalf("NormalizeChannelModelEndpoint(image, batches) = %q, want %q", got, ChannelModelEndpointBatches)
+		}
+	})
+
+	t.Run("other non-text endpoints are fixed by type", func(t *testing.T) {
 		if got := NormalizeChannelModelEndpoint(ProviderModelTypeAudio, ""); got != ChannelModelEndpointAudio {
 			t.Fatalf("NormalizeChannelModelEndpoint(audio, empty) = %q, want %q", got, ChannelModelEndpointAudio)
 		}

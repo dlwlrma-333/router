@@ -304,6 +304,7 @@
         "single": "Test",
         "task_created": "{{count}} test tasks submitted, {{reused}} active tasks reused.",
         "selection": "Selected {{selected}} / {{total}}",
+        "selection_notice": "Model test results are only used to diagnose channel capability and do not change whether a selected model can be used. As long as the model is selected, it can still be used when creating or editing groups.",
         "verify_required": "Please finish the current model tests before continuing.",
         "empty": "No testable models yet. Please select models in step 2 first.",
         "last_tested": "Last tested at: {{time}}",

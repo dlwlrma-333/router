@@ -156,6 +156,18 @@ const defaultChannelModelEndpoint = (type) => {
 const normalizeChannelModelEndpoint = (type, value) => {
   const normalizedType = normalizeChannelModelType(type);
   const normalized = (value || '').toString().trim().toLowerCase();
+  if (normalizedType === 'image') {
+    switch (normalized) {
+      case '/v1/responses':
+        return '/v1/responses';
+      case '/v1/batches':
+        return '/v1/batches';
+      case '/v1/images/edits':
+        return '/v1/images/edits';
+      default:
+        return '/v1/images/generations';
+    }
+  }
   if (normalizedType === 'text') {
     return normalized === '/v1/chat/completions'
       ? '/v1/chat/completions'
@@ -174,6 +186,13 @@ const CHANNEL_MODEL_TYPE_OPTIONS = [
 const TEXT_MODEL_ENDPOINT_OPTIONS = [
   { key: 'responses', value: '/v1/responses', text: '/v1/responses' },
   { key: 'chat', value: '/v1/chat/completions', text: '/v1/chat/completions' },
+];
+
+const IMAGE_MODEL_ENDPOINT_OPTIONS = [
+  { key: 'responses', value: '/v1/responses', text: '/v1/responses' },
+  { key: 'images_generations', value: '/v1/images/generations', text: '/v1/images/generations' },
+  { key: 'images_edits', value: '/v1/images/edits', text: '/v1/images/edits' },
+  { key: 'batches', value: '/v1/batches', text: '/v1/batches' },
 ];
 
 const CHANNEL_MODEL_PAGE_SIZE = 10;
@@ -3776,6 +3795,9 @@ const EditChannel = () => {
                 <Message info className='router-section-message'>
                   {t('channel.edit.model_tester.hint')}
                 </Message>
+                <Message className='router-section-message'>
+                  {t('channel.edit.model_tester.selection_notice')}
+                </Message>
                 <div
                   className={`${
                     isDetailMode ? 'router-toolbar-end' : 'router-toolbar'
@@ -3937,9 +3959,9 @@ const EditChannel = () => {
                             <Table.Cell>{row.model || '-'}</Table.Cell>
                             <Table.Cell>{row.type || '-'}</Table.Cell>
                             <Table.Cell>
-                              {isDetailMode || row.type !== 'text' ? (
+                              {isDetailMode ? (
                                 row.endpoint || '-'
-                              ) : (
+                              ) : row.type === 'text' ? (
                                 <Dropdown
                                   selection
                                   className='router-mini-dropdown'
@@ -3952,6 +3974,21 @@ const EditChannel = () => {
                                     updateModelTestEndpoint(row.model, value)
                                   }
                                 />
+                              ) : row.type === 'image' ? (
+                                <Dropdown
+                                  selection
+                                  className='router-mini-dropdown'
+                                  options={IMAGE_MODEL_ENDPOINT_OPTIONS}
+                                  value={
+                                    row.endpoint ||
+                                    defaultChannelModelEndpoint(row.type)
+                                  }
+                                  onChange={(e, { value }) =>
+                                    updateModelTestEndpoint(row.model, value)
+                                  }
+                                />
+                              ) : (
+                                row.endpoint || '-'
                               )}
                             </Table.Cell>
                             <Table.Cell>

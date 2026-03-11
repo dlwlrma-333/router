@@ -86,7 +86,7 @@ func TestBuildFetchedChannelModelConfigsPreservesExistingSelectionsAndMarksMissi
 	}
 }
 
-func TestApplyChannelTestResultsToModelConfigsAppliesSupportDecision(t *testing.T) {
+func TestApplyChannelTestResultsToModelConfigsKeepsSelection(t *testing.T) {
 	rows := []ChannelModel{
 		{
 			ChannelId:     "channel-1",
@@ -114,5 +114,39 @@ func TestApplyChannelTestResultsToModelConfigsAppliesSupportDecision(t *testing.
 	}
 	if !updated[0].Selected {
 		t.Fatalf("updated[0].Selected = false, want true")
+	}
+}
+
+func TestApplyChannelTestResultsToModelConfigsKeepsSelectionWhenUnsupported(t *testing.T) {
+	rows := []ChannelModel{
+		{
+			ChannelId:     "channel-1",
+			Model:         "gpt-image-1",
+			UpstreamModel: "gpt-image-1",
+			Type:          ProviderModelTypeImage,
+			Selected:      true,
+		},
+	}
+	results := []ChannelTest{
+		{
+			ChannelId:     "channel-1",
+			Model:         "gpt-image-1",
+			UpstreamModel: "gpt-image-1",
+			Type:          ProviderModelTypeImage,
+			Endpoint:      ChannelModelEndpointImages,
+			Status:        ChannelTestStatusUnsupported,
+			Supported:     false,
+		},
+	}
+
+	updated := ApplyChannelTestResultsToModelConfigs(rows, results)
+	if len(updated) != 1 {
+		t.Fatalf("ApplyChannelTestResultsToModelConfigs returned %d rows, want 1", len(updated))
+	}
+	if !updated[0].Selected {
+		t.Fatalf("updated[0].Selected = false, want true even when unsupported")
+	}
+	if updated[0].Endpoint != ChannelModelEndpointImages {
+		t.Fatalf("updated[0].Endpoint = %q, want %q", updated[0].Endpoint, ChannelModelEndpointImages)
 	}
 }

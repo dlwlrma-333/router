@@ -134,13 +134,13 @@ func CreateChannelRefreshBalanceTask(channelID string, createdBy string, traceID
 	return task, reused, err
 }
 
-func ExecuteAsyncTask(task *model.AsyncTask) (string, error) {
+func ExecuteAsyncTask(ctx context.Context, task *model.AsyncTask) (string, error) {
 	if task == nil {
 		return "", fmt.Errorf("任务不能为空")
 	}
 	switch model.NormalizeAsyncTaskType(task.Type) {
 	case model.AsyncTaskTypeChannelModelTest:
-		return executeChannelModelTestTask(task)
+		return executeChannelModelTestTask(ctx, task)
 	case model.AsyncTaskTypeChannelRefreshModels:
 		return executeChannelRefreshModelsTask(task)
 	case model.AsyncTaskTypeChannelRefreshBalance:
@@ -150,7 +150,7 @@ func ExecuteAsyncTask(task *model.AsyncTask) (string, error) {
 	}
 }
 
-func executeChannelModelTestTask(task *model.AsyncTask) (string, error) {
+func executeChannelModelTestTask(ctx context.Context, task *model.AsyncTask) (string, error) {
 	payload := channelModelTestTaskPayload{}
 	if err := json.Unmarshal([]byte(task.Payload), &payload); err != nil {
 		return "", err
@@ -175,7 +175,7 @@ func executeChannelModelTestTask(task *model.AsyncTask) (string, error) {
 	if endpoint := strings.TrimSpace(payload.Endpoint); endpoint != "" {
 		row.Endpoint = endpoint
 	}
-	testResult, execution := runSingleChannelModelTest(channelRow, row)
+	testResult, execution := runSingleChannelModelTestWithContext(ctx, channelRow, row)
 	testResult.ChannelId = channelID
 	logChannelAsyncTestExecution(task, testResult, execution)
 	if err := persistChannelModelTests(channelID, []model.ChannelTest{testResult}); err != nil {

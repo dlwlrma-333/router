@@ -1,7 +1,6 @@
 package model
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -14,8 +13,8 @@ import (
 const (
 	TasksTableName = "tasks"
 
-	AsyncTaskTypeChannelModelTest    = "channel_model_test"
-	AsyncTaskTypeChannelRefreshModels = "channel_refresh_models"
+	AsyncTaskTypeChannelModelTest      = "channel_model_test"
+	AsyncTaskTypeChannelRefreshModels  = "channel_refresh_models"
 	AsyncTaskTypeChannelRefreshBalance = "channel_refresh_balance"
 
 	AsyncTaskStatusPending   = "pending"
@@ -239,19 +238,20 @@ func CreateOrReuseAsyncTaskWithDB(db *gorm.DB, task AsyncTask) (AsyncTask, bool,
 	reused := false
 	err := db.Transaction(func(tx *gorm.DB) error {
 		existing := AsyncTask{}
-		err := tx.
+		result := tx.
 			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("dedupe_key = ? AND status IN ?", task.DedupeKey, []string{AsyncTaskStatusPending, AsyncTaskStatusRunning}).
 			Order("created_at desc").
-			First(&existing).Error
-		if err == nil {
+			Limit(1).
+			Find(&existing)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected > 0 {
 			normalizeAsyncTaskRow(&existing)
 			created = existing
 			reused = true
 			return nil
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
 		}
 		return tx.Create(&task).Error
 	})
@@ -386,6 +386,27 @@ func RetryAsyncTaskWithDB(db *gorm.DB, taskID string) (AsyncTask, bool, error) {
 		Attempt:   original.Attempt + 1,
 	}
 	return CreateOrReuseAsyncTaskWithDB(db, nextTask)
+}
+
+func FailRunningAsyncTasksWithDB(db *gorm.DB, errorMessage string) (int64, error) {
+	if db == nil {
+		return 0, fmt.Errorf("database handle is nil")
+	}
+	message := strings.TrimSpace(errorMessage)
+	if message == "" {
+		message = "任务在服务重启前未完成，已标记失败"
+	}
+	result := db.Model(&AsyncTask{}).
+		Where("status = ?", AsyncTaskStatusRunning).
+		Updates(map[string]any{
+			"status":        AsyncTaskStatusFailed,
+			"error_message": message,
+			"finished_at":   helper.GetTimestamp(),
+		})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }
 
 func hydrateAsyncTaskChannelNames(db *gorm.DB, rows []*AsyncTask) error {
