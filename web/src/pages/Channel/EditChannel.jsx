@@ -1852,23 +1852,11 @@ const EditChannel = () => {
         return;
       }
     }
-    if (
-      inputs.protocol !== 'proxy' &&
-      inputs.models.length > 0 &&
-      !isModelTestSignatureFresh
-    ) {
-      showInfo(t('channel.edit.model_tester.verify_required'));
-      return;
-    }
     goToCreateStep(4);
   }, [
     createStep,
     ensureModelsStepCompleted,
     goToCreateStep,
-    inputs.models.length,
-    inputs.protocol,
-    isModelTestSignatureFresh,
-    t,
   ]);
 
   const loadChannelModelConfigsFromServer = useCallback(
@@ -2962,14 +2950,6 @@ const EditChannel = () => {
     }
     if (inputs.protocol !== 'proxy' && inputs.models.length === 0) {
       showInfo(t('channel.edit.messages.models_required'));
-      return;
-    }
-    if (
-      inputs.protocol !== 'proxy' &&
-      inputs.models.length > 0 &&
-      !isModelTestSignatureFresh
-    ) {
-      showInfo(t('channel.edit.model_tester.verify_required'));
       return;
     }
     if (modelConfigError) {
