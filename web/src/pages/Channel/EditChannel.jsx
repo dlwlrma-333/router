@@ -752,6 +752,11 @@ const normalizeModelTestResults = (results) => {
     }));
 };
 
+const buildModelTestResultKey = (modelName, endpoint) =>
+  `${(modelName || '').toString().trim()}::${(endpoint || '')
+    .toString()
+    .trim()}`;
+
 const normalizeAsyncTaskStatus = (value) => {
   const normalized = (value || '').toString().trim().toLowerCase();
   switch (normalized) {
@@ -795,19 +800,23 @@ const normalizeAsyncTasks = (items) => {
 const mergeModelTestResults = (previousResults, nextResults) => {
   const merged = new Map();
   normalizeModelTestResults(previousResults).forEach((item) => {
-    if (!item.model) {
+    const key = buildModelTestResultKey(item.model, item.endpoint);
+    if (!item.model || !item.endpoint || key === '::') {
       return;
     }
-    merged.set(item.model, item);
+    merged.set(key, item);
   });
   normalizeModelTestResults(nextResults).forEach((item) => {
-    if (!item.model) {
+    const key = buildModelTestResultKey(item.model, item.endpoint);
+    if (!item.model || !item.endpoint || key === '::') {
       return;
     }
-    merged.set(item.model, item);
+    merged.set(key, item);
   });
   return Array.from(merged.values()).sort((a, b) =>
-    (a.model || '').localeCompare(b.model || '')
+    buildModelTestResultKey(a.model, a.endpoint).localeCompare(
+      buildModelTestResultKey(b.model, b.endpoint)
+    )
   );
 };
 
@@ -1127,27 +1136,44 @@ const EditChannel = () => {
     () => normalizeChannelModelConfigs(inputs.model_configs),
     [inputs.model_configs]
   );
-  const modelTestResultsByModel = useMemo(() => {
+  const modelTestResultsByKey = useMemo(() => {
     const index = new Map();
     normalizeModelTestResults(modelTestResults).forEach((item) => {
-      if (!item.model) {
+      const key = buildModelTestResultKey(item.model, item.endpoint);
+      if (!item.model || !item.endpoint || key === '::') {
         return;
       }
-      index.set(item.model, item);
+      index.set(key, item);
+    });
+    return index;
+  }, [modelTestResults]);
+  const testedEndpointsByModel = useMemo(() => {
+    const index = new Map();
+    normalizeModelTestResults(modelTestResults).forEach((item) => {
+      const modelName = (item.model || '').toString().trim();
+      const endpoint = (item.endpoint || '').toString().trim();
+      if (modelName === '' || endpoint === '') {
+        return;
+      }
+      const existing = index.get(modelName) || new Set();
+      existing.add(endpoint);
+      index.set(modelName, existing);
     });
     return index;
   }, [modelTestResults]);
   const modelTestRows = useMemo(() => {
     return visibleModelConfigs.filter((row) => {
+      const endpoint = normalizeChannelModelEndpoint(row.type, row.endpoint);
+      const resultKey = buildModelTestResultKey(row.model, endpoint);
       if (row.inactive) {
         return false;
       }
       if (row.selected) {
         return true;
       }
-      return modelTestResultsByModel.has(row.model);
+      return modelTestResultsByKey.has(resultKey);
     });
-  }, [modelTestResultsByModel, visibleModelConfigs]);
+  }, [modelTestResultsByKey, visibleModelConfigs]);
   const allModelTestTargetsSelected = useMemo(() => {
     if (modelTestRows.length === 0) {
       return false;
@@ -2421,6 +2447,12 @@ const EditChannel = () => {
         creatingChannelId ||
         ''
       ).trim();
+      const targetConfigs = visibleModelConfigs
+        .filter((row) => normalizedTargets.includes(row.model))
+        .map((row) => ({
+          model: row.model,
+          endpoint: normalizeChannelModelEndpoint(row.type, row.endpoint),
+        }));
       setModelTesting(true);
       setModelTestingScope(scope === 'single' ? 'single' : 'batch');
       setModelTestingTargets(normalizedTargets);
@@ -2430,6 +2462,7 @@ const EditChannel = () => {
           {
             test_model: inputs.test_model || '',
             target_models: normalizedTargets,
+            target_configs: targetConfigs,
           }
         );
         const { success, message, data, meta } = res.data || {};
@@ -2474,6 +2507,7 @@ const EditChannel = () => {
       persistWorkingChannel,
       previewChannelID,
       t,
+      visibleModelConfigs,
     ]
   );
 
@@ -2875,19 +2909,6 @@ const EditChannel = () => {
     }
     setVerifiedModelSignature('');
   }, [requiresConnectionVerification, verifiedModelSignature]);
-
-  useEffect(() => {
-    if (modelTestedSignature === '') {
-      return;
-    }
-    if (modelTestedSignature === currentModelTestSignature) {
-      return;
-    }
-    setModelTestResults([]);
-    setModelTestError(t('channel.edit.model_tester.stale'));
-    setModelTestedAt(0);
-    setModelTestedSignature('');
-  }, [modelTestedSignature, currentModelTestSignature, t]);
 
   useEffect(() => {
     fetchChannelTypes().then();
@@ -3907,16 +3928,35 @@ const EditChannel = () => {
                       </Table.Row>
                     ) : (
                       modelTestRows.map((row) => {
-                        const item = modelTestResultsByModel.get(row.model);
+                        const normalizedEndpoint = normalizeChannelModelEndpoint(
+                          row.type,
+                          row.endpoint
+                        );
+                        const item = modelTestResultsByKey.get(
+                          buildModelTestResultKey(row.model, normalizedEndpoint)
+                        );
                         const activeTask =
                           activeChannelTasksByModel.get(row.model) || null;
+                        const hasTestedOtherEndpoint = (
+                          testedEndpointsByModel.get(row.model) || new Set()
+                        ).size > 0;
+                        const isStale =
+                          !activeTask &&
+                          !item &&
+                          hasTestedOtherEndpoint;
                         const effectiveStatus =
-                          activeTask?.status || item?.status || 'unsupported';
+                          activeTask?.status ||
+                          item?.status ||
+                          (isStale ? 'stale' : 'untested');
                         const labelColor =
                           effectiveStatus === 'running'
                             ? 'blue'
                             : effectiveStatus === 'pending'
                             ? 'orange'
+                            : effectiveStatus === 'stale'
+                            ? 'yellow'
+                            : effectiveStatus === 'untested'
+                            ? undefined
                             : effectiveStatus === 'supported'
                             ? 'green'
                             : effectiveStatus === 'skipped'
@@ -3989,7 +4029,14 @@ const EditChannel = () => {
                                 ? `${item.latency_ms} ms`
                                 : '-'}
                             </Table.Cell>
-                            <Table.Cell>{item?.message || '-'}</Table.Cell>
+                            <Table.Cell>
+                              {item?.message ||
+                                (isStale
+                                  ? t('channel.edit.model_tester.stale')
+                                  : effectiveStatus === 'untested'
+                                  ? t('channel.edit.model_tester.untested')
+                                  : '-')}
+                            </Table.Cell>
                             {!isDetailMode && (
                               <Table.Cell collapsing>
                                 <Button

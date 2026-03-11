@@ -311,9 +311,12 @@
         "test_success": "模型测试任务已提交",
         "test_failed": "模型测试失败",
         "stale": "连接信息、模型选择或端点已变更，请重新执行模型测试。",
+        "untested": "当前端点尚未执行测试。",
         "status": {
           "pending": "排队中",
           "running": "运行中",
+          "untested": "未测试",
+          "stale": "待重测",
           "supported": "支持",
           "unsupported": "不支持",
           "skipped": "已跳过"

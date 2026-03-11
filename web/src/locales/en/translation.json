@@ -311,9 +311,12 @@
         "test_success": "Model test tasks submitted",
         "test_failed": "Model test failed",
         "stale": "Connection info, model selection, or endpoint changed. Please run model tests again.",
+        "untested": "The current endpoint has not been tested yet.",
         "status": {
           "pending": "Pending",
           "running": "Running",
+          "untested": "Untested",
+          "stale": "Retest Needed",
           "supported": "Supported",
           "unsupported": "Unsupported",
           "skipped": "Skipped"
