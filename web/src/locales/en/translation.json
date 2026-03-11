@@ -24,7 +24,17 @@
     "get_code": {
       "title": "Get Redemption Code",
       "current_quota": "Current Available Quota",
-      "button": "Get Code Now"
+      "button": "Go to Top-up"
+    },
+    "history": {
+      "title": "Top-up History",
+      "refresh": "Refresh",
+      "empty": "No top-up records yet",
+      "columns": {
+        "time": "Time",
+        "quota": "Quota",
+        "detail": "Detail"
+      }
     },
     "redeem_code": {
       "title": "Redeem Code",

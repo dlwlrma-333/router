@@ -6,8 +6,16 @@ import {
   Header,
   Card,
   Statistic,
+  Label,
+  Table,
 } from 'semantic-ui-react';
-import { API, showError, showInfo, showSuccess } from '../../helpers';
+import {
+  API,
+  showError,
+  showInfo,
+  showSuccess,
+  timestamp2string,
+} from '../../helpers';
 import { renderQuota } from '../../helpers/render';
 import { useTranslation } from 'react-i18next';
 
@@ -18,6 +26,8 @@ const TopUp = () => {
   const [userQuota, setUserQuota] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [user, setUser] = useState({});
+  const [topupLogs, setTopupLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   const topUp = async () => {
     if (redemptionCode === '') {
@@ -36,6 +46,7 @@ const TopUp = () => {
           return quota + data;
         });
         setRedemptionCode('');
+        getTopupLogs().then();
       } else {
         showError(message);
       }
@@ -71,6 +82,21 @@ const TopUp = () => {
     }
   };
 
+  const getTopupLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      const res = await API.get('/api/v1/public/log/self/?page=1&type=1');
+      const { success, message, data } = res.data;
+      if (success) {
+        setTopupLogs(Array.isArray(data) ? data : []);
+      } else {
+        showError(message);
+      }
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
   useEffect(() => {
     let status = localStorage.getItem('status');
     if (status) {
@@ -80,6 +106,7 @@ const TopUp = () => {
       }
     }
     getUserQuota().then();
+    getTopupLogs().then();
   }, []);
 
   return (
@@ -198,6 +225,70 @@ const TopUp = () => {
               </Card>
             </Grid.Column>
           </Grid>
+
+          <Card fluid className='router-soft-card' style={{ marginTop: '1rem' }}>
+            <Card.Content>
+              <Card.Header className='router-card-header'>
+                <div className='router-toolbar'>
+                  <Header as='h3' className='router-section-title router-title-accent-secondary'>
+                    <i className='history icon'></i>
+                    {t('topup.history.title')}
+                  </Header>
+                  <Button
+                    className='router-section-button'
+                    onClick={getTopupLogs}
+                    loading={loadingLogs}
+                  >
+                    {t('topup.history.refresh')}
+                  </Button>
+                </div>
+              </Card.Header>
+              <Table basic='very' compact className='router-list-table'>
+                <Table.Header>
+                  <Table.Row>
+                    <Table.HeaderCell width={3}>
+                      {t('topup.history.columns.time')}
+                    </Table.HeaderCell>
+                    <Table.HeaderCell width={2}>
+                      {t('topup.history.columns.quota')}
+                    </Table.HeaderCell>
+                    <Table.HeaderCell>
+                      {t('topup.history.columns.detail')}
+                    </Table.HeaderCell>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {topupLogs.length === 0 ? (
+                    <Table.Row>
+                      <Table.Cell colSpan='3' className='router-text-muted'>
+                        {loadingLogs
+                          ? t('common.loading')
+                          : t('topup.history.empty')}
+                      </Table.Cell>
+                    </Table.Row>
+                  ) : (
+                    topupLogs.map((log) => (
+                      <Table.Row key={log.trace_id || `${log.created_at}-${log.content}`}>
+                        <Table.Cell>
+                          {log.created_at ? timestamp2string(log.created_at) : '-'}
+                        </Table.Cell>
+                        <Table.Cell>
+                          {log.quota ? (
+                            <Label basic color='green' className='router-tag'>
+                              {renderQuota(log.quota, t)}
+                            </Label>
+                          ) : (
+                            '-'
+                          )}
+                        </Table.Cell>
+                        <Table.Cell>{log.content || '-'}</Table.Cell>
+                      </Table.Row>
+                    ))
+                  )}
+                </Table.Body>
+              </Table>
+            </Card.Content>
+          </Card>
         </Card.Content>
       </Card>
     </div>

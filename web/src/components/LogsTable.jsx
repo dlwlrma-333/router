@@ -122,6 +122,13 @@ function renderDetail(log) {
   );
 }
 
+function getLogChannelLabel(log) {
+  if (!log) {
+    return '';
+  }
+  return log.channel_name || log.channel || '';
+}
+
 const LogsTable = () => {
   const { t } = useTranslation();
   const [logs, setLogs] = useState([]);
@@ -514,7 +521,7 @@ const LogsTable = () => {
                           as={Link}
                           to={`/channel/edit/${log.channel}`}
                         >
-                          {log.channel}
+                          {getLogChannelLabel(log)}
                         </Label>
                       ) : (
                         ''

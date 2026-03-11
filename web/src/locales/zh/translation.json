@@ -24,7 +24,17 @@
     "get_code": {
       "title": "获取兑换码",
       "current_quota": "当前可用额度",
-      "button": "立即获取兑换码"
+      "button": "前往充值"
+    },
+    "history": {
+      "title": "充值记录",
+      "refresh": "刷新",
+      "empty": "暂无充值记录",
+      "columns": {
+        "time": "时间",
+        "quota": "额度",
+        "detail": "明细"
+      }
     },
     "redeem_code": {
       "title": "兑换码充值",

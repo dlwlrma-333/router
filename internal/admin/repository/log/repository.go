@@ -12,6 +12,49 @@ import (
 	"github.com/yeying-community/router/internal/admin/model"
 )
 
+func hydrateLogsWithChannelNames(logs []*model.Log) error {
+	if len(logs) == 0 {
+		return nil
+	}
+	channelIDs := make([]string, 0, len(logs))
+	seen := make(map[string]struct{}, len(logs))
+	for _, log := range logs {
+		if log == nil {
+			continue
+		}
+		channelID := strings.TrimSpace(log.ChannelId)
+		if channelID == "" {
+			continue
+		}
+		if _, ok := seen[channelID]; ok {
+			continue
+		}
+		seen[channelID] = struct{}{}
+		channelIDs = append(channelIDs, channelID)
+	}
+	if len(channelIDs) == 0 {
+		return nil
+	}
+	var channels []*model.Channel
+	if err := model.DB.Select("id", "name").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		return err
+	}
+	channelNameByID := make(map[string]string, len(channels))
+	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		channelNameByID[channel.Id] = channel.DisplayName()
+	}
+	for _, log := range logs {
+		if log == nil {
+			continue
+		}
+		log.ChannelName = channelNameByID[log.ChannelId]
+	}
+	return nil
+}
+
 func init() {
 	model.BindLogRepository(model.LogRepository{
 		RecordLog:                  RecordLog,
@@ -111,6 +154,12 @@ func GetAll(logType int, startTimestamp int64, endTimestamp int64, modelName str
 	}
 	var logs []*model.Log
 	err := tx.Order("created_at desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	if err != nil {
+		return nil, err
+	}
+	if err := hydrateLogsWithChannelNames(logs); err != nil {
+		return nil, err
+	}
 	return logs, err
 }
 
@@ -141,7 +190,13 @@ func GetUser(userId string, logType int, startTimestamp int64, endTimestamp int6
 func SearchAll(keyword string) ([]*model.Log, error) {
 	var logs []*model.Log
 	err := model.LOG_DB.Where("type = ? or content LIKE ?", keyword, keyword+"%").Order("created_at desc").Limit(config.MaxRecentItems).Find(&logs).Error
-	return logs, err
+	if err != nil {
+		return nil, err
+	}
+	if err := hydrateLogsWithChannelNames(logs); err != nil {
+		return nil, err
+	}
+	return logs, nil
 }
 
 func SearchUser(userId string, keyword string) ([]*model.Log, error) {
