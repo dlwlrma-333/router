@@ -20,6 +20,38 @@ import (
 	"github.com/yeying-community/router/internal/admin/model"
 )
 
+func computeEffectiveAuthRole(user *model.User) (int, bool) {
+	if user == nil {
+		return model.RoleGuestUser, false
+	}
+	return model.EffectiveRole(user), model.CanManageUsers(user)
+}
+
+func hydrateVideoTaskRelayContext(c *gin.Context, requestModel string) (string, error) {
+	path := normalizeRelayPath(c.Request.URL.Path)
+	if !strings.HasPrefix(path, "/v1/videos/") || c.Request.Method != http.MethodGet {
+		return requestModel, nil
+	}
+	taskID := strings.TrimSpace(c.Param("id"))
+	if taskID == "" {
+		return requestModel, nil
+	}
+	taskRow, err := model.GetUserTaskByTaskIDWithDB(model.DB, taskID)
+	if err != nil {
+		if requestModel != "" {
+			return requestModel, nil
+		}
+		return "", err
+	}
+	if requestModel == "" {
+		requestModel = taskRow.Model
+	}
+	if c.GetString(ctxkey.SpecificChannelId) == "" && strings.TrimSpace(taskRow.ChannelID) != "" {
+		c.Set(ctxkey.SpecificChannelId, strings.TrimSpace(taskRow.ChannelID))
+	}
+	return requestModel, nil
+}
+
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
 	username := session.Get("username")
@@ -74,8 +106,9 @@ func authHelper(c *gin.Context, minRole int) {
 					enabled := user.Status == model.UserStatusEnabled
 					notBanned := !blacklist.IsUserBanned(user.Id)
 					if matched && enabled && notBanned {
+						effectiveRole, _ := computeEffectiveAuthRole(&user)
 						username = user.Username
-						role = user.Role
+						role = effectiveRole
 						id = user.Id
 						status = user.Status
 						logger.Loginf(c.Request.Context(), "auth via wallet jwt success user=%s addr=%s", user.Id, claims.WalletAddress)
@@ -92,8 +125,9 @@ func authHelper(c *gin.Context, minRole int) {
 			user := model.ValidateAccessToken(bearer)
 			if user != nil && user.Username != "" {
 				// Token is valid
+				effectiveRole, _ := computeEffectiveAuthRole(user)
 				username = user.Username
-				role = user.Role
+				role = effectiveRole
 				id = user.Id
 				status = user.Status
 				logger.Loginf(c.Request.Context(), "auth via access token success user=%s", user.Id)
@@ -109,6 +143,19 @@ func authHelper(c *gin.Context, minRole int) {
 		}
 	}
 	userID := normalizeSessionUserID(id)
+	if userID != "" {
+		if freshUser, err := model.GetUserById(userID, false); err == nil && freshUser != nil {
+			effectiveRole, canManageUsers := computeEffectiveAuthRole(freshUser)
+			username = freshUser.Username
+			role = effectiveRole
+			status = freshUser.Status
+			c.Set(ctxkey.CanManageUsers, canManageUsers)
+		} else {
+			c.Set(ctxkey.CanManageUsers, false)
+		}
+	} else {
+		c.Set(ctxkey.CanManageUsers, false)
+	}
 	if status.(int) == model.UserStatusDisabled || blacklist.IsUserBanned(userID) {
 		logger.Loginf(c.Request.Context(), "auth failed: user banned/disabled id=%s", userID)
 		c.JSON(http.StatusOK, gin.H{
@@ -202,6 +249,11 @@ func TokenAuth() func(c *gin.Context) {
 				abortWithMessage(c, http.StatusBadRequest, err.Error())
 				return
 			}
+			requestModel, err = hydrateVideoTaskRelayContext(c, requestModel)
+			if err != nil && shouldCheckModel(c) {
+				abortWithMessage(c, http.StatusBadRequest, err.Error())
+				return
+			}
 			c.Set(ctxkey.RequestModel, requestModel)
 			c.Set(ctxkey.Id, user.Id)
 
@@ -256,6 +308,11 @@ func TokenAuth() func(c *gin.Context) {
 				return
 			}
 			requestModel, err := getRequestModel(c)
+			if err != nil && shouldCheckModel(c) {
+				abortWithMessage(c, http.StatusBadRequest, err.Error())
+				return
+			}
+			requestModel, err = hydrateVideoTaskRelayContext(c, requestModel)
 			if err != nil && shouldCheckModel(c) {
 				abortWithMessage(c, http.StatusBadRequest, err.Error())
 				return
@@ -323,6 +380,11 @@ func TokenAuth() func(c *gin.Context) {
 			abortWithMessage(c, http.StatusBadRequest, err.Error())
 			return
 		}
+		requestModel, err = hydrateVideoTaskRelayContext(c, requestModel)
+		if err != nil && shouldCheckModel(c) {
+			abortWithMessage(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		c.Set(ctxkey.RequestModel, requestModel)
 		if token.Models != nil && *token.Models != "" {
 			c.Set(ctxkey.AvailableModels, *token.Models)
@@ -386,6 +448,7 @@ func autoCreateWalletUser(addr string, ctx context.Context) (*model.User, error)
 		Role:          model.RoleCommonUser,
 		Status:        model.UserStatusEnabled,
 		WalletAddress: &addr,
+		HasPassword:   false,
 	}
 	if err := user.Insert(ctx, ""); err != nil {
 		return nil, err
@@ -420,6 +483,9 @@ func shouldCheckModel(c *gin.Context) bool {
 		return true
 	}
 	if strings.HasPrefix(path, "/v1/audio") {
+		return true
+	}
+	if strings.HasPrefix(path, "/v1/videos") {
 		return true
 	}
 	return false

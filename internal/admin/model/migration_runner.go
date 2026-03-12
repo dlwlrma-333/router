@@ -35,17 +35,10 @@ type versionedMigration struct {
 func runMainVersionedMigrations(db *gorm.DB) error {
 	migrations := []versionedMigration{
 		{
-			Version:     "202603111830_main_baseline_v28",
-			Description: "baseline: create current main schema and seed current catalogs",
+			Version:     "202603122230_main_baseline_v30",
+			Description: "baseline: create current main schema with user password-state flag, current task tables, and current provider catalog",
 			Up: func(tx *gorm.DB) error {
 				return runMainBaselineMigrationWithDB(tx)
-			},
-		},
-		{
-			Version:     "202603111950_main_provider_catalog_dalle3",
-			Description: "sync default provider catalog to add openai dall-e-3",
-			Up: func(tx *gorm.DB) error {
-				return syncDefaultProviderCatalogWithDB(tx)
 			},
 		},
 	}

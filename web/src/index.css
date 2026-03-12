@@ -871,6 +871,25 @@ code {
     flex-wrap: wrap;
 }
 
+.router-setting-inline-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+}
+
+.router-setting-inline-row > .ui.input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.router-setting-inline-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
 .router-field-display {
     min-height: 38px;
     display: flex;
@@ -944,6 +963,24 @@ code {
     min-height: 38px !important;
     height: 38px !important;
     white-space: nowrap;
+}
+
+.router-task-footer-toolbar {
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.router-task-footer-toolbar > .router-toolbar-start {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.router-task-footer-toolbar > .router-toolbar-end {
+    flex: 0 0 auto;
+}
+
+.router-task-footer-toolbar .router-page-pagination {
+    margin: 0 !important;
 }
 
 .router-log-query-box {
@@ -1133,6 +1170,17 @@ code {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+@media only screen and (max-width: 640px) {
+    .router-setting-inline-row {
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+
+    .router-setting-inline-actions {
+        width: 100%;
+    }
 }
 
 .router-cell-checkbox {
@@ -1335,6 +1383,16 @@ code {
 }
 
 @media only screen and (max-width: 600px) {
+    .router-task-footer-toolbar {
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+
+    .router-task-footer-toolbar > .router-toolbar-end {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
     .hide-on-mobile {
         display: none !important;
     }
