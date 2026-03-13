@@ -662,7 +662,7 @@ const LogsTable = () => {
                               basic
                               className='router-tag'
                               as={Link}
-                              to={`/user/edit/${log.user_id}`}
+                              to={`/user/detail/${log.user_id}`}
                               onClick={(e) => e.stopPropagation()}
                             >
                               {log.username}

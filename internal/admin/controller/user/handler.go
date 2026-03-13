@@ -745,6 +745,9 @@ func UpdateUser(c *gin.Context) {
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be
 	}
+	if strings.TrimSpace(updatedUser.DisplayName) == "" {
+		updatedUser.DisplayName = strings.TrimSpace(updatedUser.Username)
+	}
 	if updatedUser.Role > model.RoleAdminUser {
 		updatedUser.Role = model.RoleAdminUser
 	}
@@ -805,10 +808,38 @@ func UpdateSelf(c *gin.Context) {
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
+		Email:       strings.TrimSpace(user.Email),
 	}
 	if user.Password == "$I_LOVE_U" {
 		user.Password = "" // rollback to what it should be
 		cleanUser.Password = ""
+	}
+	if strings.TrimSpace(cleanUser.DisplayName) == "" {
+		cleanUser.DisplayName = strings.TrimSpace(cleanUser.Username)
+	}
+	if cleanUser.Email != "" {
+		if err := common.Validate.Var(cleanUser.Email, "email,max=50"); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "邮箱格式不正确",
+			})
+			return
+		}
+		currentUser, err := usersvc.GetByID(cleanUser.Id, false)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		if !strings.EqualFold(strings.TrimSpace(currentUser.Email), cleanUser.Email) && model.IsEmailAlreadyTaken(cleanUser.Email) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "邮箱已被使用",
+			})
+			return
+		}
 	}
 	updatePassword := user.Password != ""
 	if err := usersvc.Update(&cleanUser, updatePassword); err != nil {

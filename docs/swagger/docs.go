@@ -7671,6 +7671,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Alice"
                 },
+                "email": {
+                    "type": "string",
+                    "example": "alice@example.com"
+                },
                 "password": {
                     "type": "string",
                     "example": "NewPass123"

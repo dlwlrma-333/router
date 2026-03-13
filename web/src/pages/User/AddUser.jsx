@@ -9,11 +9,10 @@ const AddUser = () => {
   const navigate = useNavigate();
   const originInputs = {
     username: '',
-    display_name: '',
     password: '',
   };
   const [inputs, setInputs] = useState(originInputs);
-  const { username, display_name, password } = inputs;
+  const { username, password } = inputs;
 
   const handleInputChange = (e, { name, value }) => {
     setInputs((inputs) => ({ ...inputs, [name]: value }));
@@ -52,17 +51,6 @@ const AddUser = () => {
                 value={username}
                 autoComplete='off'
                 required
-              />
-            </Form.Field>
-            <Form.Field>
-              <Form.Input
-                className='router-section-input'
-                label={t('user.edit.display_name')}
-                name='display_name'
-                placeholder={t('user.edit.display_name_placeholder')}
-                onChange={handleInputChange}
-                value={display_name}
-                autoComplete='off'
               />
             </Form.Field>
             <Form.Field>

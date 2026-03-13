@@ -1523,6 +1523,9 @@ definitions:
       display_name:
         example: Alice
         type: string
+      email:
+        example: alice@example.com
+        type: string
       password:
         example: NewPass123
         type: string

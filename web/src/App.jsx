@@ -7,7 +7,7 @@ import RegisterForm from './components/RegisterForm';
 import LoginForm from './components/LoginForm';
 import NotFound from './pages/NotFound';
 import Setting from './pages/Setting';
-import EditUser from './pages/User/EditUser';
+import UserDetail from './pages/User/EditUser';
 import AddUser from './pages/User/AddUser';
 import {
   API,
@@ -95,6 +95,20 @@ function ChannelEditRedirect() {
   return (
     <Navigate
       to={`/admin/channel/detail/${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
+
+function UserEditRedirect() {
+  const location = useLocation();
+  const suffix = location.pathname.startsWith('/admin/user/edit/')
+    ? location.pathname.slice('/admin/user/edit/'.length)
+    : '';
+  const targetPath = suffix ? `/admin/user/detail/${suffix}` : '/admin/user';
+  return (
+    <Navigate
+      to={`${targetPath}${location.search}${location.hash}`}
       replace
     />
   );
@@ -346,10 +360,10 @@ function App() {
         />
         <Route path='/admin/user' element={<User />} />
         <Route
-          path='/admin/user/edit/:id'
+          path='/admin/user/detail/:id'
           element={
             <Suspense fallback={<Loading />}>
-              <EditUser />
+              <UserDetail />
             </Suspense>
           }
         />
@@ -357,7 +371,15 @@ function App() {
           path='/admin/user/edit'
           element={
             <Suspense fallback={<Loading />}>
-              <EditUser />
+              <UserEditRedirect />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/admin/user/edit/:id'
+          element={
+            <Suspense fallback={<Loading />}>
+              <UserEditRedirect />
             </Suspense>
           }
         />

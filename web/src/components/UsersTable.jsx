@@ -43,11 +43,6 @@ function renderRole(role, t) {
   }
 }
 
-const ROLE_OPTIONS = (t) => [
-  { key: 1, value: 1, text: t('user.table.role_types.normal') },
-  { key: 10, value: 10, text: t('user.table.role_types.admin') },
-];
-
 const maskWalletAddress = (walletAddress) => {
   if (typeof walletAddress !== 'string') return '';
   const trimmedWallet = walletAddress.trim();
@@ -65,7 +60,6 @@ const UsersTable = () => {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searching, setSearching] = useState(false);
   const [orderBy, setOrderBy] = useState('');
-  const [roleUpdatingUsername, setRoleUpdatingUsername] = useState('');
 
   const loadUsers = useCallback(
     async (page) => {
@@ -282,26 +276,6 @@ const UsersTable = () => {
     setActivePage(1);
   };
 
-  const updateUserRole = async (user, idx, nextRole) => {
-    if (!user || user.role === nextRole) return;
-    if (user.role === 100 || nextRole === 100) return;
-
-    let action = '';
-    if (nextRole === 10) {
-      action = 'promote';
-    } else if (nextRole === 1) {
-      action = 'demote';
-    }
-    if (!action) return;
-
-    setRoleUpdatingUsername(user.username);
-    try {
-      await manageUser(user.username, action, idx);
-    } finally {
-      setRoleUpdatingUsername('');
-    }
-  };
-
   const quotaPerUnit = parseFloat(
     localStorage.getItem('quota_per_unit') || '1',
   );
@@ -486,15 +460,13 @@ const UsersTable = () => {
                 <Table.Row
                   key={user.id}
                   className='router-row-clickable'
-                  onClick={() => navigate(`/user/edit/${user.id}`)}
+                  onClick={() => navigate(`/user/detail/${user.id}`)}
                 >
                   <Table.Cell>
                     <Popup
                       content={user.email ? user.email : '未绑定邮箱地址'}
                       key={user.username}
-                      header={
-                        user.display_name ? user.display_name : user.username
-                      }
+                      header={user.username}
                       trigger={<span>{renderText(user.username, 15)}</span>}
                       hoverable
                     />
@@ -530,24 +502,7 @@ const UsersTable = () => {
                     {renderCountValue(user.request_count)}
                   </Table.Cell>
                   <Table.Cell>
-                    {user.role === 100 ? (
-                      renderRole(user.role, t)
-                    ) : (
-                      <Dropdown
-                        className='router-inline-dropdown router-role-dropdown'
-                        selection
-                        compact
-                        options={ROLE_OPTIONS(t)}
-                        value={user.role}
-                        disabled={
-                          !isRoot() || roleUpdatingUsername === user.username
-                        }
-                        loading={roleUpdatingUsername === user.username}
-                        onChange={(e, { value }) =>
-                          updateUserRole(user, idx, Number(value))
-                        }
-                      />
-                    )}
+                    {renderRole(user.role, t)}
                   </Table.Cell>
                   <Table.Cell>{renderStatus(user.status)}</Table.Cell>
                   <Table.Cell onClick={stopRowClick}>
@@ -591,13 +546,6 @@ const UsersTable = () => {
                         {user.status === 1
                           ? t('user.buttons.disable')
                           : t('user.buttons.enable')}
-                      </Button>
-                      <Button
-                        className='router-inline-button'
-                        as={Link}
-                        to={'/user/edit/' + user.id}
-                      >
-                        {t('user.buttons.edit')}
                       </Button>
                     </div>
                   </Table.Cell>

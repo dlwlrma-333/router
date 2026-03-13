@@ -827,6 +827,12 @@
   },
   "user": {
     "title": "User Management",
+    "detail": {
+      "title": "User Detail",
+      "buttons": {
+        "back": "Back"
+      }
+    },
     "edit": {
       "title": "Update User Information",
       "username": "Username",
@@ -844,8 +850,8 @@
       "github_id_placeholder": "Read-only, user must link through personal settings page, cannot be modified directly",
       "wechat_id": "Linked WeChat Account",
       "wechat_id_placeholder": "Read-only, user must link through personal settings page, cannot be modified directly",
-      "email": "Linked Email Account",
-      "email_placeholder": "Read-only, user must link through personal settings page, cannot be modified directly",
+      "email": "Email",
+      "email_placeholder": "Not set",
       "buttons": {
         "submit": "Submit",
         "cancel": "Cancel"
@@ -858,6 +864,7 @@
       "update_success": "User information updated successfully!",
       "create_success": "User account created successfully!",
       "operation_success": "Operation completed successfully!",
+      "operation_failed": "Operation failed",
       "wallet_copy_success": "Wallet address copied",
       "wallet_copy_failed": "Copy failed, please copy manually"
     },
@@ -900,6 +907,7 @@
       "delete_user": "Delete User",
       "enable": "Enable",
       "disable": "Disable",
+      "detail": "Detail",
       "edit": "Edit",
       "promote": "Promote",
       "demote": "Demote"

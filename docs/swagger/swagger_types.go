@@ -62,6 +62,7 @@ type UserSelfUpdateRequest struct {
 	Username    string `json:"username,omitempty" example:"alice"`
 	DisplayName string `json:"display_name,omitempty" example:"Alice"`
 	Password    string `json:"password,omitempty" example:"NewPass123"`
+	Email       string `json:"email,omitempty" example:"alice@example.com"`
 }
 
 type AdminUserUpdateRequest struct {
@@ -353,7 +354,7 @@ type ChannelCreateRecordRequest struct {
 	Protocol string `json:"protocol" example:"openai"`
 	Key      string `json:"key" example:"sk-***"`
 	BaseURL  string `json:"base_url,omitempty" example:"https://api.openai.com"`
-	Config    any    `json:"config,omitempty"`
+	Config   any    `json:"config,omitempty"`
 }
 
 type ChannelModelTestsRequest struct {

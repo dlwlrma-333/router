@@ -44,14 +44,18 @@ const PersonalSetting = () => {
   }, [userState?.user]);
 
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [isEditingUsername, setIsEditingUsername] = useState(false);
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [profileSubmitting, setProfileSubmitting] = useState(false);
   const [passwordModal, setPasswordModal] = useState(defaultPasswordModal);
 
   useEffect(() => {
     setUsername(currentUser?.username || '');
+    setEmail(currentUser?.email || '');
     setIsEditingUsername(false);
-  }, [currentUser?.username]);
+    setIsEditingEmail(false);
+  }, [currentUser?.email, currentUser?.username]);
 
   useEffect(() => {
     if (!currentUser || typeof currentUser.has_password === 'boolean') {
@@ -90,7 +94,6 @@ const PersonalSetting = () => {
     try {
       const res = await API.put('/api/v1/public/user/self', {
         username: trimmedUsername,
-        display_name: currentUser?.display_name || '',
         password: '',
       });
       const { success, message } = res.data || {};
@@ -109,6 +112,37 @@ const PersonalSetting = () => {
   const cancelUsernameEdit = () => {
     setUsername(currentUser?.username || '');
     setIsEditingUsername(false);
+  };
+
+  const submitEmail = async () => {
+    const trimmedEmail = (email || '').trim();
+    if (!trimmedEmail) {
+      showError('请输入邮箱地址');
+      return;
+    }
+    setProfileSubmitting(true);
+    try {
+      const res = await API.put('/api/v1/public/user/self', {
+        username: currentUser?.username || '',
+        password: '',
+        email: trimmedEmail,
+      });
+      const { success, message } = res.data || {};
+      if (!success) {
+        showError(message || t('user.messages.update_failed', '更新失败'));
+        return;
+      }
+      await syncCurrentUser();
+      setIsEditingEmail(false);
+      showSuccess(t('user.messages.update_success'));
+    } finally {
+      setProfileSubmitting(false);
+    }
+  };
+
+  const cancelEmailEdit = () => {
+    setEmail(currentUser?.email || '');
+    setIsEditingEmail(false);
   };
 
   const openPasswordModal = (mode) => {
@@ -161,7 +195,6 @@ const PersonalSetting = () => {
       } else {
         res = await API.put('/api/v1/public/user/self', {
           username: currentUser?.username || '',
-          display_name: currentUser?.display_name || '',
           password: newPassword,
         });
       }
@@ -234,6 +267,55 @@ const PersonalSetting = () => {
                     onClick={() => setIsEditingUsername(true)}
                   >
                     编辑
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Form.Field>
+          <Form.Field>
+            <label>邮箱</label>
+            <div className='router-setting-inline-row'>
+              <Input
+                className='router-section-input'
+                type='email'
+                placeholder='请输入邮箱地址'
+                value={email}
+                readOnly={!isEditingEmail}
+                onChange={(e, { value }) => setEmail(value)}
+              />
+              <div className='router-setting-inline-actions'>
+                {isEditingEmail ? (
+                  <>
+                    <Button
+                      className='router-section-button'
+                      type='button'
+                      onClick={cancelEmailEdit}
+                      disabled={profileSubmitting}
+                    >
+                      {t('common.cancel', '取消')}
+                    </Button>
+                    <Button
+                      className='router-section-button'
+                      type='button'
+                      primary
+                      loading={profileSubmitting}
+                      disabled={
+                        (email || '').trim() === '' ||
+                        (email || '').trim() ===
+                          (currentUser?.email || '').trim()
+                      }
+                      onClick={submitEmail}
+                    >
+                      保存
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    className='router-section-button'
+                    type='button'
+                    onClick={() => setIsEditingEmail(true)}
+                  >
+                    {(currentUser?.email || '').trim() ? '编辑' : '设置'}
                   </Button>
                 )}
               </div>
