@@ -153,9 +153,9 @@ function renderFilterSummary(filterKey, inputs, t) {
 
 const LogsTable = () => {
   const { t } = useTranslation();
+  const location = useLocation();
   const navigate = useNavigate();
   const currentPagePath = `${location.pathname}${location.search}${location.hash}`;
-  const location = useLocation();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState(1);
