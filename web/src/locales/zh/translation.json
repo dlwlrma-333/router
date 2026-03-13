@@ -355,6 +355,8 @@
         "last_tested": "最近测试时间：{{time}}",
         "test_success": "模型测试任务已提交",
         "test_failed": "模型测试失败",
+        "download_failed": "下载测试结果文件失败",
+        "download_unavailable": "当前测试结果没有可下载文件",
         "stale": "连接信息、模型选择或端点已变更，请重新执行模型测试。",
         "untested": "当前端点尚未执行测试。",
         "status": {
@@ -611,6 +613,7 @@
   "common": {
     "loading": "加载中...",
     "no_data": "暂无数据",
+    "download": "下载",
     "quota": {
       "display": "等价金额：${{amount}}",
       "display_short": "${{amount}}",

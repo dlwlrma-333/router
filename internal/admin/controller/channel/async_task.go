@@ -194,11 +194,12 @@ func executeChannelModelTestTask(ctx context.Context, task *model.AsyncTask) (st
 	}
 	testResult, execution := runSingleChannelModelTestWithContext(ctx, channelRow, row)
 	testResult.ChannelId = channelID
+	persistChannelTestArtifactForExecution(ctx, task.Id, &testResult, &execution)
 	logChannelAsyncTestExecution(task, testResult, execution)
 	if err := persistChannelModelTests(channelID, []model.ChannelTest{testResult}); err != nil {
 		return "", err
 	}
-	return marshalJSONForLog(map[string]any{
+	resultPayload := map[string]any{
 		"channel_id": channelID,
 		"model":      testResult.Model,
 		"endpoint":   testResult.Endpoint,
@@ -206,7 +207,13 @@ func executeChannelModelTestTask(ctx context.Context, task *model.AsyncTask) (st
 		"supported":  testResult.Supported,
 		"message":    testResult.Message,
 		"latency_ms": testResult.LatencyMs,
-	}), nil
+	}
+	if strings.TrimSpace(testResult.ArtifactPath) != "" {
+		resultPayload["artifact_name"] = testResult.ArtifactName
+		resultPayload["artifact_content_type"] = testResult.ArtifactContentType
+		resultPayload["artifact_size"] = testResult.ArtifactSize
+	}
+	return marshalJSONForLog(resultPayload), nil
 }
 
 func executeChannelRefreshModelsTask(task *model.AsyncTask) (string, error) {

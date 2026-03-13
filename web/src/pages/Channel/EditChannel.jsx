@@ -830,6 +830,7 @@ const normalizeModelTestResults = (results) => {
         item && typeof item === 'object' && typeof item.model === 'string',
     )
     .map((item) => ({
+      channel_id: (item.channel_id || '').toString().trim(),
       model: item.model || '',
       upstream_model: item.upstream_model || '',
       type: normalizeChannelModelType(item.type),
@@ -839,6 +840,12 @@ const normalizeModelTestResults = (results) => {
       message: item.message || '',
       latency_ms: Number(item.latency_ms || 0),
       tested_at: Number(item.tested_at || 0),
+      artifact_path: (item.artifact_path || '').toString().trim(),
+      artifact_name: (item.artifact_name || '').toString().trim(),
+      artifact_content_type: (item.artifact_content_type || '')
+        .toString()
+        .trim(),
+      artifact_size: Number(item.artifact_size || 0),
     }));
 };
 
@@ -846,6 +853,23 @@ const buildModelTestResultKey = (modelName, endpoint) =>
   `${(modelName || '').toString().trim()}::${(endpoint || '')
     .toString()
     .trim()}`;
+
+const parseDownloadFilename = (contentDisposition, fallbackName) => {
+  const raw = (contentDisposition || '').toString();
+  const utf8Match = raw.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+  const plainMatch = raw.match(/filename=\"?([^\";]+)\"?/i);
+  if (plainMatch?.[1]) {
+    return plainMatch[1];
+  }
+  return fallbackName;
+};
 
 const normalizeAsyncTaskStatus = (value) => {
   const normalized = (value || '').toString().trim().toLowerCase();
@@ -2745,6 +2769,85 @@ const EditChannel = () => {
     [isDetailMode, persistDetailModelConfigs, visibleModelConfigs],
   );
 
+  const handleDownloadModelTestArtifact = useCallback(
+    async (resultItem) => {
+      const normalizedChannelId = (
+        resultItem?.channel_id ||
+        channelId ||
+        previewChannelID ||
+        ''
+      )
+        .toString()
+        .trim();
+      const normalizedModel = (resultItem?.model || '').toString().trim();
+      const normalizedEndpoint = (resultItem?.endpoint || '')
+        .toString()
+        .trim();
+      if (
+        normalizedChannelId === '' ||
+        normalizedModel === '' ||
+        normalizedEndpoint === ''
+      ) {
+        showError(t('channel.edit.model_tester.download_unavailable'));
+        return;
+      }
+      try {
+        const response = await API.get(
+          `/api/v1/admin/channel/${normalizedChannelId}/tests/artifact`,
+          {
+            params: {
+              model: normalizedModel,
+              endpoint: normalizedEndpoint,
+            },
+            responseType: 'blob',
+          },
+        );
+        const responseContentType = (
+          response.headers?.['content-type'] || ''
+        ).toString();
+        if (responseContentType.includes('application/json')) {
+          const text = await response.data.text();
+          let parsed = null;
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            parsed = null;
+          }
+          showError(
+            parsed?.message ||
+              parsed?.error?.message ||
+              t('channel.edit.model_tester.download_failed'),
+          );
+          return;
+        }
+        const blob = new Blob([response.data], {
+          type:
+            responseContentType ||
+            resultItem?.artifact_content_type ||
+            'application/octet-stream',
+        });
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = parseDownloadFilename(
+          response.headers?.['content-disposition'],
+          resultItem?.artifact_name || `${normalizedModel}.bin`,
+        );
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+      } catch (error) {
+        showError(
+          error?.response?.data?.message ||
+            error?.message ||
+            t('channel.edit.model_tester.download_failed'),
+        );
+      }
+    },
+    [channelId, previewChannelID, t],
+  );
+
   const toggleModelSelection = useCallback(
     async (upstreamModel, checked) => {
       const nextConfigs = visibleModelConfigs.map((row) =>
@@ -4412,6 +4515,8 @@ const EditChannel = () => {
                             .size > 0;
                         const isStale =
                           !activeTask && !item && hasTestedOtherEndpoint;
+                        const canDownloadArtifact =
+                          !!item?.artifact_path || !!item?.artifact_name;
                         const effectiveStatus =
                           activeTask?.status ||
                           item?.status ||
@@ -4505,30 +4610,43 @@ const EditChannel = () => {
                                     : '-')}
                             </Table.Cell>
                             <Table.Cell collapsing>
-                              <Button
-                                type='button'
-                                className='router-inline-button'
-                                basic
-                                loading={
-                                  (modelTesting &&
-                                    modelTestingScope === 'single' &&
-                                    modelTestingTargetSet.has(row.model)) ||
-                                  !!activeTask
-                                }
-                                disabled={
-                                  detailModelMutating ||
-                                  modelTesting ||
-                                  activeChannelTasksByModel.has(row.model)
-                                }
-                                onClick={() =>
-                                  handleRunModelTests({
-                                    targetModels: [row.model],
-                                    scope: 'single',
-                                  })
-                                }
-                              >
-                                {t('channel.edit.model_tester.single')}
-                              </Button>
+                              <div className='router-inline-actions'>
+                                <Button
+                                  type='button'
+                                  className='router-inline-button'
+                                  basic
+                                  loading={
+                                    (modelTesting &&
+                                      modelTestingScope === 'single' &&
+                                      modelTestingTargetSet.has(row.model)) ||
+                                    !!activeTask
+                                  }
+                                  disabled={
+                                    detailModelMutating ||
+                                    modelTesting ||
+                                    activeChannelTasksByModel.has(row.model)
+                                  }
+                                  onClick={() =>
+                                    handleRunModelTests({
+                                      targetModels: [row.model],
+                                      scope: 'single',
+                                    })
+                                  }
+                                >
+                                  {t('channel.edit.model_tester.single')}
+                                </Button>
+                                <Button
+                                  type='button'
+                                  className='router-inline-button'
+                                  basic
+                                  disabled={!canDownloadArtifact}
+                                  onClick={() =>
+                                    handleDownloadModelTestArtifact(item)
+                                  }
+                                >
+                                  {t('common.download')}
+                                </Button>
+                              </div>
                             </Table.Cell>
                           </Table.Row>
                         );

@@ -355,6 +355,8 @@
         "last_tested": "Last tested at: {{time}}",
         "test_success": "Model test tasks submitted",
         "test_failed": "Model test failed",
+        "download_failed": "Failed to download the test artifact",
+        "download_unavailable": "No downloadable artifact is available for this test result",
         "stale": "Connection info, model selection, or endpoint changed. Please run model tests again.",
         "untested": "The current endpoint has not been tested yet.",
         "status": {
@@ -611,6 +613,7 @@
   "common": {
     "loading": "Loading...",
     "no_data": "No data",
+    "download": "Download",
     "quota": {
       "display": "Equivalent: ${{amount}}",
       "display_short": "${{amount}}",

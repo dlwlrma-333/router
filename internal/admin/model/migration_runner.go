@@ -48,6 +48,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return syncDefaultProviderCatalogWithDB(tx)
 			},
 		},
+		{
+			Version:     "202603131600_channel_test_artifacts",
+			Description: "add persisted artifact metadata columns for channel model test downloads",
+			Up: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&ChannelTest{})
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }

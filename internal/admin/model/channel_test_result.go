@@ -19,18 +19,22 @@ const (
 )
 
 type ChannelTest struct {
-	ChannelId     string `json:"channel_id,omitempty" gorm:"primaryKey;type:varchar(64);index"`
-	Model         string `json:"model" gorm:"primaryKey;type:varchar(255)"`
-	Round         int64  `json:"round,omitempty" gorm:"primaryKey;type:bigint"`
-	UpstreamModel string `json:"upstream_model,omitempty" gorm:"type:varchar(255);default:'';index"`
-	Type          string `json:"type" gorm:"type:varchar(32);default:'text';index"`
-	Endpoint      string `json:"endpoint" gorm:"type:varchar(255);index"`
-	Status        string `json:"status" gorm:"type:varchar(32);index"`
-	Supported     bool   `json:"supported" gorm:"not null;default:false"`
-	Message       string `json:"message,omitempty" gorm:"type:text"`
-	LatencyMs     int64  `json:"latency_ms,omitempty" gorm:"bigint"`
-	SortOrder     int64  `json:"sort_order,omitempty" gorm:"bigint;default:0"`
-	TestedAt      int64  `json:"tested_at,omitempty" gorm:"bigint;index"`
+	ChannelId           string `json:"channel_id,omitempty" gorm:"primaryKey;type:varchar(64);index"`
+	Model               string `json:"model" gorm:"primaryKey;type:varchar(255)"`
+	Round               int64  `json:"round,omitempty" gorm:"primaryKey;type:bigint"`
+	UpstreamModel       string `json:"upstream_model,omitempty" gorm:"type:varchar(255);default:'';index"`
+	Type                string `json:"type" gorm:"type:varchar(32);default:'text';index"`
+	Endpoint            string `json:"endpoint" gorm:"type:varchar(255);index"`
+	Status              string `json:"status" gorm:"type:varchar(32);index"`
+	Supported           bool   `json:"supported" gorm:"not null;default:false"`
+	Message             string `json:"message,omitempty" gorm:"type:text"`
+	LatencyMs           int64  `json:"latency_ms,omitempty" gorm:"bigint"`
+	ArtifactPath        string `json:"artifact_path,omitempty" gorm:"type:text;default:''"`
+	ArtifactName        string `json:"artifact_name,omitempty" gorm:"type:varchar(255);default:''"`
+	ArtifactContentType string `json:"artifact_content_type,omitempty" gorm:"type:varchar(255);default:''"`
+	ArtifactSize        int64  `json:"artifact_size,omitempty" gorm:"bigint;default:0"`
+	SortOrder           int64  `json:"sort_order,omitempty" gorm:"bigint;default:0"`
+	TestedAt            int64  `json:"tested_at,omitempty" gorm:"bigint;index"`
 }
 
 func (ChannelTest) TableName() string {
@@ -56,18 +60,22 @@ func NormalizeChannelTestRows(rows []ChannelTest) []ChannelTest {
 	indexByKey := make(map[string]int, len(rows))
 	for idx, row := range rows {
 		normalized := ChannelTest{
-			ChannelId:     strings.TrimSpace(row.ChannelId),
-			Model:         strings.TrimSpace(row.Model),
-			Round:         row.Round,
-			UpstreamModel: strings.TrimSpace(row.UpstreamModel),
-			Type:          normalizeModelType(row.Type, row.Model),
-			Endpoint:      NormalizeChannelModelEndpoint(row.Type, row.Endpoint),
-			Status:        NormalizeChannelTestStatus(row.Status),
-			Supported:     row.Supported && NormalizeChannelTestStatus(row.Status) == ChannelTestStatusSupported,
-			Message:       strings.TrimSpace(row.Message),
-			LatencyMs:     row.LatencyMs,
-			SortOrder:     row.SortOrder,
-			TestedAt:      row.TestedAt,
+			ChannelId:           strings.TrimSpace(row.ChannelId),
+			Model:               strings.TrimSpace(row.Model),
+			Round:               row.Round,
+			UpstreamModel:       strings.TrimSpace(row.UpstreamModel),
+			Type:                normalizeModelType(row.Type, row.Model),
+			Endpoint:            NormalizeChannelModelEndpoint(row.Type, row.Endpoint),
+			Status:              NormalizeChannelTestStatus(row.Status),
+			Supported:           row.Supported && NormalizeChannelTestStatus(row.Status) == ChannelTestStatusSupported,
+			Message:             strings.TrimSpace(row.Message),
+			LatencyMs:           row.LatencyMs,
+			ArtifactPath:        strings.TrimSpace(row.ArtifactPath),
+			ArtifactName:        strings.TrimSpace(row.ArtifactName),
+			ArtifactContentType: strings.TrimSpace(row.ArtifactContentType),
+			ArtifactSize:        row.ArtifactSize,
+			SortOrder:           row.SortOrder,
+			TestedAt:            row.TestedAt,
 		}
 		if normalized.Model == "" && normalized.UpstreamModel != "" {
 			normalized.Model = normalized.UpstreamModel
@@ -83,6 +91,11 @@ func NormalizeChannelTestRows(rows []ChannelTest) []ChannelTest {
 		}
 		if normalized.SortOrder == 0 {
 			normalized.SortOrder = int64(idx + 1)
+		}
+		if normalized.ArtifactPath == "" {
+			normalized.ArtifactName = ""
+			normalized.ArtifactContentType = ""
+			normalized.ArtifactSize = 0
 		}
 		key := normalized.ChannelId + "::" + normalized.Model
 		if normalized.Round > 0 {
@@ -274,6 +287,30 @@ func ListLatestChannelTestsByChannelIDWithDB(db *gorm.DB, channelID string) ([]C
 		return nil, err
 	}
 	return NormalizeChannelTestRows(rowsByChannelID[normalizedChannelID]), nil
+}
+
+func GetLatestChannelTestByModelEndpointWithDB(db *gorm.DB, channelID string, modelID string, endpoint string) (ChannelTest, error) {
+	if db == nil {
+		return ChannelTest{}, fmt.Errorf("database handle is nil")
+	}
+	normalizedChannelID := strings.TrimSpace(channelID)
+	normalizedModelID := strings.TrimSpace(modelID)
+	normalizedEndpoint := strings.TrimSpace(endpoint)
+	if normalizedChannelID == "" || normalizedModelID == "" || normalizedEndpoint == "" {
+		return ChannelTest{}, gorm.ErrRecordNotFound
+	}
+	rows := make([]ChannelTest, 0, 1)
+	if err := db.Where("channel_id = ? AND model = ? AND endpoint = ?", normalizedChannelID, normalizedModelID, normalizedEndpoint).
+		Order("round desc, tested_at desc, sort_order asc").
+		Limit(1).
+		Find(&rows).Error; err != nil {
+		return ChannelTest{}, err
+	}
+	normalizedRows := NormalizeChannelTestRows(rows)
+	if len(normalizedRows) == 0 {
+		return ChannelTest{}, gorm.ErrRecordNotFound
+	}
+	return normalizedRows[0], nil
 }
 
 func loadChannelTestRowsByChannelIDs(db *gorm.DB, channelIDs []string) (map[string][]ChannelTest, error) {
