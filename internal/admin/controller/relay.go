@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/yeying-community/router/common"
@@ -62,6 +63,7 @@ func Relay(c *gin.Context) {
 	}
 	channelId := c.GetString(ctxkey.ChannelId)
 	userId := c.GetString(ctxkey.Id)
+	requestPath := c.Request.URL.Path
 	bizErr := relayHelper(c, relayMode)
 	if bizErr == nil {
 		monitor.Emit(channelId, true)
@@ -71,7 +73,11 @@ func Relay(c *gin.Context) {
 	channelName := c.GetString(ctxkey.ChannelName)
 	group := c.GetString(ctxkey.Group)
 	originalModel := c.GetString(ctxkey.OriginalModel)
-	go processChannelRelayError(ctx, userId, channelId, channelName, *bizErr)
+	failedChannelIDs := map[string]struct{}{}
+	if trimmedChannelID := strings.TrimSpace(channelId); trimmedChannelID != "" {
+		failedChannelIDs[trimmedChannelID] = struct{}{}
+	}
+	go processChannelRelayError(ctx, userId, channelId, channelName, originalModel, requestPath, *bizErr)
 	traceID := c.GetString(helper.TraceIDKey)
 	retryTimes := config.RetryTimes
 	retryCount := 0
@@ -88,18 +94,26 @@ func Relay(c *gin.Context) {
 		retryTimes = 0
 	}
 	for i := retryTimes; i > 0; i-- {
-		channel, err := dbmodel.CacheGetRandomSatisfiedChannel(group, originalModel, i != retryTimes)
+		channel, selectionStats, err := dbmodel.CacheSelectRandomSatisfiedChannelForRequestExcluding(group, originalModel, requestPath, false, failedChannelIDs)
 		if err != nil {
-			logger.RelayErrorf(ctx, relaylogging.NewFields("RETRY").
+			fields := relaylogging.NewFields("RETRY").
 				String("decision", "select_failed").
 				String("group", group).
 				String("model", originalModel).
-				String("error", err.Error()).
-				Build())
+				String("reason", resolveRetrySelectionFailureReason(selectionStats)).
+				String("selection_scope", selectionStats.SelectionScope).
+				Int("total_candidates", selectionStats.TotalCandidates).
+				Int("remaining_candidates", selectionStats.RemainingCandidates).
+				Int("selected_priority", priorityToInt(selectionStats.SelectedPriority)).
+				Int("tier_candidates", selectionStats.SelectedTierCandidates).
+				Int("failed_channels", len(failedChannelIDs)).
+				String("error", err.Error())
+			if resolveRetrySelectionFailureReason(selectionStats) == "selector_error" {
+				logger.RelayErrorf(ctx, fields.Build())
+			} else {
+				logger.RelayWarnf(ctx, fields.Build())
+			}
 			break
-		}
-		if channel.Id == lastFailedChannelId {
-			continue
 		}
 		retryCount++
 		c.Set(ctxkey.RelayRetryCount, retryCount)
@@ -111,6 +125,12 @@ func Relay(c *gin.Context) {
 			String("from_channel_id", lastFailedChannelId).
 			String("to_channel_id", channel.Id).
 			String("to_channel_name", channel.DisplayName()).
+			String("selection_scope", selectionStats.SelectionScope).
+			Int("selected_priority", priorityToInt(selectionStats.SelectedPriority)).
+			Int("tier_candidates", selectionStats.SelectedTierCandidates).
+			Int("remaining_candidates", selectionStats.RemainingCandidates).
+			Int("total_candidates", selectionStats.TotalCandidates).
+			Int("failed_channels", len(failedChannelIDs)).
 			Int("remaining", i-1).
 			Build())
 		middleware.SetupContextForSelectedChannel(c, channel, originalModel)
@@ -124,15 +144,18 @@ func Relay(c *gin.Context) {
 		channelId := c.GetString(ctxkey.ChannelId)
 		lastFailedChannelId = channelId
 		channelName := c.GetString(ctxkey.ChannelName)
-		go processChannelRelayError(ctx, userId, channelId, channelName, *bizErr)
+		if trimmedChannelID := strings.TrimSpace(channelId); trimmedChannelID != "" {
+			failedChannelIDs[trimmedChannelID] = struct{}{}
+		}
+		go processChannelRelayError(ctx, userId, channelId, channelName, originalModel, requestPath, *bizErr)
 	}
 	if bizErr != nil {
-		if bizErr.StatusCode == http.StatusTooManyRequests {
-			bizErr.Error.Message = "当前分组上游负载已饱和，请稍后再试"
-		}
+		upstreamStatus := bizErr.StatusCode
+		normalizeFinalRelayError(bizErr)
 		c.Set(ctxkey.RelayError, bizErr.Error.Message)
 		logger.RelayErrorf(ctx, relaylogging.NewFields("FAIL").
 			Int("status", bizErr.StatusCode).
+			Int("upstream_status", upstreamStatus).
 			String("channel_id", lastFailedChannelId).
 			String("channel_name", channelName).
 			String("group", group).
@@ -172,10 +195,56 @@ func shouldRetry(c *gin.Context, statusCode int) bool {
 	return true
 }
 
-func processChannelRelayError(ctx context.Context, userId string, channelId string, channelName string, err model.ErrorWithStatusCode) {
+func normalizeFinalRelayError(err *model.ErrorWithStatusCode) {
+	if err == nil {
+		return
+	}
+	if !isTransientUpstreamRelayError(err) {
+		return
+	}
+	err.StatusCode = http.StatusServiceUnavailable
+	err.Error.Message = "当前分组可用上游暂时不可用，请稍后再试"
+}
+
+func isTransientUpstreamRelayError(err *model.ErrorWithStatusCode) bool {
+	if err == nil {
+		return false
+	}
+	if err.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
+	if err.StatusCode >= http.StatusInternalServerError {
+		if err.Type != "one_api_error" {
+			return true
+		}
+		return errorCodeString(err.Code) == "do_request_failed"
+	}
+	return false
+}
+
+func errorCodeString(code any) string {
+	return strings.TrimSpace(fmt.Sprint(code))
+}
+
+func priorityToInt(priority int64) int {
+	return int(priority)
+}
+
+func resolveRetrySelectionFailureReason(stats dbmodel.SatisfiedChannelSelectionStats) string {
+	if stats.TotalCandidates == 0 {
+		return "no_candidates"
+	}
+	if stats.RemainingCandidates == 0 {
+		return "candidate_exhausted"
+	}
+	return "selector_error"
+}
+
+func processChannelRelayError(ctx context.Context, userId string, channelId string, channelName string, requestModel string, requestPath string, err model.ErrorWithStatusCode) {
 	msg := relaylogging.NewFields("UPSTREAM_ERR").
 		String("channel_id", channelId).
 		String("channel_name", channelName).
+		String("model", requestModel).
 		String("user_id", userId).
 		Int("status", err.StatusCode).
 		String("error", err.Message).
@@ -185,12 +254,118 @@ func processChannelRelayError(ctx context.Context, userId string, channelId stri
 	} else {
 		logger.RelayWarnf(ctx, msg)
 	}
+	if shouldDisableChannelModelRequestEndpointCapability(&err) {
+		disabled, disableErr := dbmodel.DisableChannelModelRequestEndpointCapability(channelId, requestModel, requestPath)
+		logChannelModelRequestEndpointDisableResult(ctx, channelId, channelName, requestModel, requestPath, err, disabled, disableErr)
+		if disableErr != nil {
+			monitor.Emit(channelId, false)
+		}
+		return
+	}
 	// https://platform.openai.com/docs/guides/error-codes/api-errors
+	if shouldDisableChannelModelCapability(&err) {
+		disabled, disableErr := dbmodel.DisableChannelModelCapability(channelId, requestModel)
+		logChannelModelCapabilityDisableResult(ctx, channelId, channelName, requestModel, err, disabled, disableErr)
+		if disableErr != nil {
+			monitor.Emit(channelId, false)
+		}
+		return
+	}
 	if monitor.ShouldDisableChannel(&err.Error, err.StatusCode) {
 		monitor.DisableChannel(channelId, channelName, err.Message)
 	} else {
 		monitor.Emit(channelId, false)
 	}
+}
+
+func shouldDisableChannelModelCapability(err *model.ErrorWithStatusCode) bool {
+	if err == nil {
+		return false
+	}
+	code := errorCodeString(err.Code)
+	if code == "unsupported_channel_endpoint" {
+		return false
+	}
+	if code == "model_not_found" {
+		return true
+	}
+
+	lowerType := strings.ToLower(strings.TrimSpace(err.Type))
+	lowerMessage := strings.ToLower(strings.TrimSpace(err.Message))
+	if lowerType == "permission_error" && isModelScopedPermissionMessage(lowerMessage) {
+		return true
+	}
+	if lowerType == "invalid_request_error" && isModelNotFoundMessage(lowerMessage) {
+		return true
+	}
+	return false
+}
+
+func shouldDisableChannelModelRequestEndpointCapability(err *model.ErrorWithStatusCode) bool {
+	if err == nil {
+		return false
+	}
+	return errorCodeString(err.Code) == "unsupported_channel_endpoint"
+}
+
+func isModelScopedPermissionMessage(message string) bool {
+	if message == "" || !strings.Contains(message, "model") {
+		return false
+	}
+	return strings.Contains(message, "access") ||
+		strings.Contains(message, "permission") ||
+		strings.Contains(message, "not allowed")
+}
+
+func isModelNotFoundMessage(message string) bool {
+	if message == "" || !strings.Contains(message, "model") {
+		return false
+	}
+	return strings.Contains(message, "not found") ||
+		strings.Contains(message, "does not exist") ||
+		strings.Contains(message, "unknown model") ||
+		strings.Contains(message, "unsupported model")
+}
+
+func logChannelModelCapabilityDisableResult(ctx context.Context, channelId string, channelName string, requestModel string, relayErr model.ErrorWithStatusCode, disabled bool, disableErr error) {
+	fields := relaylogging.NewFields("MODEL_CAPABILITY_DISABLE").
+		String("channel_id", channelId).
+		String("channel_name", channelName).
+		String("model", requestModel).
+		Int("status", relayErr.StatusCode).
+		String("error_type", relayErr.Type).
+		String("error_code", errorCodeString(relayErr.Code)).
+		String("reason", relayErr.Message)
+	if disableErr != nil {
+		logger.RelayErrorf(ctx, fields.String("result", "failed").String("disable_error", disableErr.Error()).Build())
+		return
+	}
+	if disabled {
+		logger.RelayWarnf(ctx, fields.String("result", "disabled").Build())
+		return
+	}
+	logger.RelayWarnf(ctx, fields.String("result", "noop").Build())
+}
+
+func logChannelModelRequestEndpointDisableResult(ctx context.Context, channelId string, channelName string, requestModel string, requestPath string, relayErr model.ErrorWithStatusCode, disabled bool, disableErr error) {
+	fields := relaylogging.NewFields("MODEL_ENDPOINT_DISABLE").
+		String("channel_id", channelId).
+		String("channel_name", channelName).
+		String("model", requestModel).
+		String("endpoint", dbmodel.NormalizeRequestedChannelModelEndpoint(requestPath)).
+		Int("status", relayErr.StatusCode).
+		String("error_type", relayErr.Type).
+		String("error_code", errorCodeString(relayErr.Code)).
+		String("reason", relayErr.Message)
+	if disableErr != nil {
+		logger.RelayErrorf(ctx, fields.String("result", "failed").String("disable_error", disableErr.Error()).Build())
+		return
+	}
+	if disabled {
+		logger.RelayWarnf(ctx, fields.String("result", "disabled").Build())
+		return
+	}
+	logger.RelayWarnf(ctx, fields.String("result", "noop").Build())
 }
 
 // RelayNotImplemented godoc

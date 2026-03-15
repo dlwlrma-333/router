@@ -61,6 +61,7 @@ const UserDetail = () => {
   const { id: userId } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
   const [persistedUsername, setPersistedUsername] = useState('');
   const [groupMap, setGroupMap] = useState({});
@@ -75,6 +76,12 @@ const UserDetail = () => {
     used_quota: 0,
     request_count: 0,
     can_manage_users: false,
+  });
+  const [editInputs, setEditInputs] = useState({
+    username: '',
+    email: '',
+    quota: 0,
+    group: '',
   });
 
   const loadGroups = useCallback(async () => {
@@ -136,7 +143,7 @@ const UserDetail = () => {
         typeof data?.wallet_address === 'string'
           ? data.wallet_address
           : data?.wallet_address || '';
-      setInputs({
+      const nextInputs = {
         username: data?.username || '',
         email: data?.email || '',
         quota: data?.quota ?? 0,
@@ -147,8 +154,16 @@ const UserDetail = () => {
         used_quota: data?.used_quota ?? 0,
         request_count: data?.request_count ?? 0,
         can_manage_users: data?.can_manage_users === true,
+      };
+      setInputs(nextInputs);
+      setEditInputs({
+        username: nextInputs.username,
+        email: nextInputs.email,
+        quota: nextInputs.quota,
+        group: nextInputs.group,
       });
       setPersistedUsername((data?.username || '').toString().trim());
+      setIsEditing(false);
     } catch (error) {
       showError(error?.message || error);
     } finally {
@@ -174,6 +189,16 @@ const UserDetail = () => {
       .join(', ') || '-';
   }, [groupMap, inputs.group]);
 
+  const groupOptions = useMemo(
+    () =>
+      Object.entries(groupMap).map(([value, text]) => ({
+        key: value,
+        value,
+        text,
+      })),
+    [groupMap],
+  );
+
   const isProtectedUser = inputs.can_manage_users === true;
   const canManageRole = isRoot() && !isProtectedUser;
 
@@ -182,13 +207,13 @@ const UserDetail = () => {
       return renderRoleLabel(inputs.role, t);
     }
     return (
-      <Dropdown
+        <Dropdown
         className='router-inline-dropdown router-role-dropdown'
         selection
         compact
         options={ROLE_OPTIONS(t)}
         value={Number(inputs.role || 1)}
-        disabled={loading || actionLoading !== ''}
+        disabled={loading || actionLoading !== '' || isEditing}
         onChange={(e, { value }) => {
           const nextRole = Number(value);
           if (!Number.isFinite(nextRole) || nextRole === Number(inputs.role)) {
@@ -225,10 +250,88 @@ const UserDetail = () => {
     actionLoading,
     canManageRole,
     inputs.role,
+    isEditing,
     loadUser,
     loading,
     persistedUsername,
     t,
+  ]);
+
+  const handleEditInputChange = useCallback((e, { name, value }) => {
+    setEditInputs((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  }, []);
+
+  const resetEditInputs = useCallback(() => {
+    setEditInputs({
+      username: inputs.username || '',
+      email: inputs.email || '',
+      quota: inputs.quota ?? 0,
+      group: inputs.group || '',
+    });
+  }, [inputs.email, inputs.group, inputs.quota, inputs.username]);
+
+  const startEditing = useCallback(() => {
+    resetEditInputs();
+    setIsEditing(true);
+  }, [resetEditInputs]);
+
+  const cancelEditing = useCallback(() => {
+    resetEditInputs();
+    setIsEditing(false);
+  }, [resetEditInputs]);
+
+  const submit = useCallback(async () => {
+    const username = (editInputs.username || '').toString().trim();
+    const email = (editInputs.email || '').toString().trim();
+    const group = (editInputs.group || '').toString().trim();
+    const quota = Number(editInputs.quota);
+    if (username === '') {
+      showError(t('user.edit.username_placeholder'));
+      return;
+    }
+    if (!Number.isFinite(quota) || quota < 0) {
+      showError(t('user.messages.operation_failed'));
+      return;
+    }
+    setActionLoading('save');
+    try {
+      const res = await API.put('/api/v1/admin/user/', {
+        id: userId,
+        username,
+        email,
+        group,
+        quota: Math.trunc(quota),
+        role: Number(inputs.role || 1),
+        status: Number(inputs.status || 1),
+        display_name: username,
+        password: '',
+      });
+      const { success, message } = res.data || {};
+      if (!success) {
+        showError(message || t('user.messages.operation_failed'));
+        return;
+      }
+      showSuccess(t('user.messages.update_success'));
+      await loadUser();
+      setIsEditing(false);
+    } catch (error) {
+      showError(error?.message || error);
+    } finally {
+      setActionLoading('');
+    }
+  }, [
+    editInputs.email,
+    editInputs.group,
+    editInputs.quota,
+    editInputs.username,
+    inputs.role,
+    inputs.status,
+    loadUser,
+    t,
+    userId,
   ]);
 
   return (
@@ -238,16 +341,49 @@ const UserDetail = () => {
           <Card.Header className='header router-page-title'>
             {t('user.detail.title')}
           </Card.Header>
-          <Form loading={loading} autoComplete='new-password'>
+          <Form loading={loading || actionLoading === 'save'} autoComplete='new-password'>
             <div className='router-toolbar router-block-gap-sm'>
               <div className='router-toolbar-start'>
-                <Button
-                  type='button'
-                  className='router-page-button'
-                  onClick={() => navigate('/user')}
-                >
-                  {t('user.detail.buttons.back')}
-                </Button>
+                {isEditing ? (
+                  <>
+                    <Button
+                      type='button'
+                      className='router-page-button'
+                      onClick={cancelEditing}
+                      disabled={actionLoading !== ''}
+                    >
+                      {t('user.edit.buttons.cancel')}
+                    </Button>
+                    <Button
+                      type='button'
+                      positive
+                      className='router-page-button'
+                      onClick={submit}
+                      loading={actionLoading === 'save'}
+                      disabled={actionLoading !== ''}
+                    >
+                      {t('user.edit.buttons.submit')}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      type='button'
+                      className='router-page-button'
+                      onClick={() => navigate('/user')}
+                    >
+                      {t('user.detail.buttons.back')}
+                    </Button>
+                    <Button
+                      type='button'
+                      className='router-page-button'
+                      onClick={startEditing}
+                      disabled={loading || actionLoading !== ''}
+                    >
+                      {t('user.detail.buttons.edit')}
+                    </Button>
+                  </>
+                )}
               </div>
               <div className='router-toolbar-end'>
                 {renderStatusLabel(inputs.status, t)}
@@ -255,12 +391,24 @@ const UserDetail = () => {
             </div>
 
             <Form.Group widths='equal'>
-              <Form.Input
-                className='router-section-input'
-                label={t('user.edit.username')}
-                value={readOnlyValue(inputs.username)}
-                readOnly
-              />
+              {isEditing ? (
+                <Form.Input
+                  className='router-section-input'
+                  label={t('user.edit.username')}
+                  name='username'
+                  value={editInputs.username}
+                  placeholder={t('user.edit.username_placeholder')}
+                  onChange={handleEditInputChange}
+                  autoComplete='off'
+                />
+              ) : (
+                <Form.Input
+                  className='router-section-input'
+                  label={t('user.edit.username')}
+                  value={readOnlyValue(inputs.username)}
+                  readOnly
+                />
+              )}
               <Form.Field className='router-section-input'>
                 <label>{t('user.table.role_text')}</label>
                 <div>{roleControl}</div>
@@ -268,18 +416,47 @@ const UserDetail = () => {
             </Form.Group>
 
             <Form.Group widths='equal'>
-              <Form.Input
-                className='router-section-input'
-                label={t('user.edit.group')}
-                value={groupDisplayValue}
-                readOnly
-              />
-              <Form.Input
-                className='router-section-input'
-                label={t('user.edit.quota')}
-                value={inputs.quota}
-                readOnly
-              />
+              {isEditing ? (
+                <Form.Dropdown
+                  className='router-section-input'
+                  label={t('user.edit.group')}
+                  name='group'
+                  selection
+                  clearable
+                  search
+                  options={groupOptions}
+                  value={editInputs.group || ''}
+                  placeholder={t('user.edit.group_placeholder')}
+                  onChange={handleEditInputChange}
+                />
+              ) : (
+                <Form.Input
+                  className='router-section-input'
+                  label={t('user.edit.group')}
+                  value={groupDisplayValue}
+                  readOnly
+                />
+              )}
+              {isEditing ? (
+                <Form.Input
+                  className='router-section-input'
+                  type='number'
+                  min='0'
+                  step='1'
+                  label={t('user.edit.quota')}
+                  name='quota'
+                  value={editInputs.quota}
+                  placeholder={t('user.edit.quota_placeholder')}
+                  onChange={handleEditInputChange}
+                />
+              ) : (
+                <Form.Input
+                  className='router-section-input'
+                  label={t('user.edit.quota')}
+                  value={inputs.quota}
+                  readOnly
+                />
+              )}
             </Form.Group>
 
             <Form.Group widths='equal'>
@@ -302,14 +479,26 @@ const UserDetail = () => {
                 readOnly
               />
             </Form.Group>
-            <Form.Input
-              className='router-section-input'
-              label={t('user.edit.email')}
-              name='email'
-              value={readOnlyValue(inputs.email)}
-              autoComplete='new-password'
-              readOnly
-            />
+            {isEditing ? (
+              <Form.Input
+                className='router-section-input'
+                label={t('user.edit.email')}
+                name='email'
+                value={editInputs.email}
+                placeholder={t('user.edit.email_placeholder')}
+                onChange={handleEditInputChange}
+                autoComplete='off'
+              />
+            ) : (
+              <Form.Input
+                className='router-section-input'
+                label={t('user.edit.email')}
+                name='email'
+                value={readOnlyValue(inputs.email)}
+                autoComplete='new-password'
+                readOnly
+              />
+            )}
           </Form>
         </Card.Content>
       </Card>

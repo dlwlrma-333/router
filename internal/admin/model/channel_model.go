@@ -269,6 +269,43 @@ func ReplaceChannelModelConfigsWithDB(db *gorm.DB, channelID string, rows []Chan
 	return replaceChannelModelRowsWithDB(db, channelID, rows)
 }
 
+func DisableChannelModelCapability(channelID string, modelName string) (bool, error) {
+	normalizedChannelID := strings.TrimSpace(channelID)
+	normalizedModelName := strings.TrimSpace(modelName)
+	if normalizedChannelID == "" || normalizedModelName == "" {
+		return false, nil
+	}
+
+	changed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		rows, err := listChannelModelRowsByChannelIDWithDB(tx, normalizedChannelID)
+		if err != nil {
+			return err
+		}
+		nextRows, disabled := buildDisabledChannelModelConfigs(rows, normalizedModelName)
+		if !disabled {
+			return nil
+		}
+		if err := ReplaceChannelModelConfigsWithDB(tx, normalizedChannelID, nextRows); err != nil {
+			return err
+		}
+		if err := EnsureChannelTestModelWithDB(tx, normalizedChannelID); err != nil {
+			return err
+		}
+		changed = true
+		return nil
+	})
+	if err != nil || !changed {
+		return changed, err
+	}
+
+	channel, err := GetChannelById(normalizedChannelID)
+	if err != nil {
+		return true, err
+	}
+	return true, channel.UpdateAbilities()
+}
+
 func DeleteChannelModelsByChannelIDWithDB(db *gorm.DB, channelID string) error {
 	return DeleteChannelModelsByChannelIDsWithDB(db, []string{channelID})
 }
@@ -486,6 +523,27 @@ func buildChannelModelSelectionSet(modelIDs []string) map[string]struct{} {
 	return set
 }
 
+func buildDisabledChannelModelConfigs(rows []ChannelModel, modelName string) ([]ChannelModel, bool) {
+	normalizedRows := NormalizeChannelModelConfigsPreserveOrder(rows)
+	normalizedModelName := strings.TrimSpace(modelName)
+	if normalizedModelName == "" || len(normalizedRows) == 0 {
+		return normalizedRows, false
+	}
+	changed := false
+	for idx := range normalizedRows {
+		if strings.TrimSpace(normalizedRows[idx].Model) != normalizedModelName {
+			continue
+		}
+		if normalizedRows[idx].Inactive && !normalizedRows[idx].Selected {
+			return normalizedRows, changed
+		}
+		normalizedRows[idx].Inactive = true
+		normalizedRows[idx].Selected = false
+		changed = true
+	}
+	return normalizedRows, changed
+}
+
 func replaceChannelModelRowsWithDB(db *gorm.DB, channelID string, rows []ChannelModel) error {
 	if db == nil {
 		return fmt.Errorf("database handle is nil")
@@ -510,6 +568,9 @@ func replaceChannelModelRowsWithDB(db *gorm.DB, channelID string, rows []Channel
 		dbRows = append(dbRows, row)
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
+		if err := SyncChannelModelEndpointsWithDB(tx, normalizedChannelID, dbRows); err != nil {
+			return err
+		}
 		if err := tx.Where("channel_id = ?", normalizedChannelID).Delete(&ChannelModel{}).Error; err != nil {
 			return err
 		}

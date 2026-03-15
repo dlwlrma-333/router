@@ -2,7 +2,6 @@ package ability
 
 import (
 	"context"
-	"math/rand"
 	"sort"
 	"strings"
 
@@ -29,27 +28,11 @@ func GetRandomSatisfiedChannel(group string, modelName string, ignoreFirstPriori
 	if err != nil {
 		return nil, err
 	}
-	if len(channels) == 0 {
+	channel := model.SelectRandomSatisfiedChannel(channels, ignoreFirstPriority, nil)
+	if channel == nil {
 		return nil, gorm.ErrRecordNotFound
 	}
-	endIdx := len(channels)
-	firstPriority := channels[0].GetPriority()
-	if firstPriority > 0 {
-		for i := range channels {
-			if channels[i].GetPriority() != firstPriority {
-				endIdx = i
-				break
-			}
-		}
-	}
-	targets := channels[:endIdx]
-	if ignoreFirstPriority && endIdx < len(channels) {
-		targets = channels[endIdx:]
-	}
-	if len(targets) == 0 {
-		return nil, gorm.ErrRecordNotFound
-	}
-	return targets[rand.Intn(len(targets))], nil
+	return channel, nil
 }
 
 func ListSatisfiedChannels(group string, modelName string) ([]*model.Channel, error) {

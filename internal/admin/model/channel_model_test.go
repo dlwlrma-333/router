@@ -150,3 +150,65 @@ func TestApplyChannelTestResultsToModelConfigsKeepsSelectionWhenUnsupported(t *t
 		t.Fatalf("updated[0].Endpoint = %q, want %q", updated[0].Endpoint, ChannelModelEndpointImages)
 	}
 }
+
+func TestBuildDisabledChannelModelConfigsMarksOnlyTargetModelInactive(t *testing.T) {
+	rows := []ChannelModel{
+		{
+			Model:         "gpt-5.3-codex",
+			UpstreamModel: "gpt-5.3-codex",
+			Type:          ProviderModelTypeText,
+			Selected:      true,
+		},
+		{
+			Model:         "gpt-5.4",
+			UpstreamModel: "gpt-5.4",
+			Type:          ProviderModelTypeText,
+			Selected:      true,
+		},
+	}
+
+	updated, changed := buildDisabledChannelModelConfigs(rows, "gpt-5.3-codex")
+	if !changed {
+		t.Fatalf("changed = false, want true")
+	}
+	if len(updated) != 2 {
+		t.Fatalf("updated len = %d, want 2", len(updated))
+	}
+	if !updated[0].Inactive {
+		t.Fatalf("updated[0].Inactive = false, want true")
+	}
+	if updated[0].Selected {
+		t.Fatalf("updated[0].Selected = true, want false")
+	}
+	if updated[1].Inactive {
+		t.Fatalf("updated[1].Inactive = true, want false")
+	}
+	if !updated[1].Selected {
+		t.Fatalf("updated[1].Selected = false, want true")
+	}
+}
+
+func TestBuildDisabledChannelModelConfigsNoopWhenTargetMissing(t *testing.T) {
+	rows := []ChannelModel{
+		{
+			Model:         "gpt-5.4",
+			UpstreamModel: "gpt-5.4",
+			Type:          ProviderModelTypeText,
+			Selected:      true,
+		},
+	}
+
+	updated, changed := buildDisabledChannelModelConfigs(rows, "gpt-5.3-codex")
+	if changed {
+		t.Fatalf("changed = true, want false")
+	}
+	if len(updated) != 1 {
+		t.Fatalf("updated len = %d, want 1", len(updated))
+	}
+	if updated[0].Inactive {
+		t.Fatalf("updated[0].Inactive = true, want false")
+	}
+	if !updated[0].Selected {
+		t.Fatalf("updated[0].Selected = false, want true")
+	}
+}

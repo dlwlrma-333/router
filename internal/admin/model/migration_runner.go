@@ -89,6 +89,29 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		{
+			Version:     "202603151130_channel_model_endpoints",
+			Description: "add channel model endpoint capability table and seed current endpoint rows",
+			Up: func(tx *gorm.DB) error {
+				if err := tx.AutoMigrate(&ChannelModelEndpoint{}); err != nil {
+					return err
+				}
+				channelIDs := make([]string, 0)
+				if err := tx.Model(&Channel{}).Distinct("id").Pluck("id", &channelIDs).Error; err != nil {
+					return err
+				}
+				for _, channelID := range channelIDs {
+					rows, err := listChannelModelRowsByChannelIDWithDB(tx, channelID)
+					if err != nil {
+						return err
+					}
+					if err := SyncChannelModelEndpointsWithDB(tx, channelID, rows); err != nil {
+						return err
+					}
+				}
+				return nil
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }
