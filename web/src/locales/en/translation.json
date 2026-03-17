@@ -1044,6 +1044,74 @@
       "analysis": {
         "title": "Spending Analysis"
       }
+    },
+    "admin": {
+      "title": "Admin Overview",
+      "period": {
+        "label": "Period"
+      },
+      "updated_at": "Updated: {{time}}",
+      "buttons": {
+        "refresh": "Refresh"
+      },
+      "metrics": {
+        "consume": "Spend (USD)",
+        "topup": "Top-up (USD)",
+        "net": "Net Inflow (USD)",
+        "channels": "Enabled / Total Channels",
+        "channel_disabled": "Disabled Channels",
+        "groups": "Groups",
+        "providers": "Providers",
+        "tasks_active": "Active Tasks",
+        "tasks_failed": "Failed Tasks"
+      },
+      "sections": {
+        "channels": "Channel Health",
+        "tasks": "Recent System Tasks"
+      },
+      "table": {
+        "channel_name": "Channel",
+        "status": "Status",
+        "capabilities": "Capabilities",
+        "balance": "Balance",
+        "used_cost": "Used Cost (USD)",
+        "task_type": "Task Type",
+        "task_status": "Status",
+        "task_channel": "Channel",
+        "task_model": "Model",
+        "task_created": "Created At"
+      },
+      "channel_status": {
+        "1": "Enabled",
+        "2": "Manual Disabled",
+        "3": "Auto Disabled",
+        "4": "Creating",
+        "default": "Unknown"
+      },
+      "task_status": {
+        "pending": "Pending",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "canceled": "Canceled",
+        "default": "Unknown"
+      },
+      "task_type": {
+        "channel_model_test": "Model Test",
+        "channel_refresh_models": "Model Refresh",
+        "channel_refresh_balance": "Balance Refresh",
+        "default": "Other"
+      },
+      "capabilities": {
+        "text": "Text",
+        "image": "Image",
+        "audio": "Audio",
+        "video": "Video"
+      },
+      "empty": {
+        "channels": "No channel data",
+        "tasks": "No task data"
+      }
     }
   },
   "setting": {

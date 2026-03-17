@@ -1044,6 +1044,74 @@
       "analysis": {
         "title": "花费分析"
       }
+    },
+    "admin": {
+      "title": "管理员总览",
+      "period": {
+        "label": "统计周期"
+      },
+      "updated_at": "更新时间：{{time}}",
+      "buttons": {
+        "refresh": "刷新"
+      },
+      "metrics": {
+        "consume": "周期消费（美元）",
+        "topup": "周期充值（美元）",
+        "net": "周期净流入（美元）",
+        "channels": "可用渠道 / 总渠道",
+        "channel_disabled": "停用渠道数",
+        "groups": "分组数量",
+        "providers": "供应商数量",
+        "tasks_active": "运行中任务",
+        "tasks_failed": "失败任务"
+      },
+      "sections": {
+        "channels": "渠道健康",
+        "tasks": "近期系统任务"
+      },
+      "table": {
+        "channel_name": "渠道",
+        "status": "状态",
+        "capabilities": "能力",
+        "balance": "余额",
+        "used_cost": "累计花费（美元）",
+        "task_type": "任务类型",
+        "task_status": "状态",
+        "task_channel": "渠道",
+        "task_model": "模型",
+        "task_created": "创建时间"
+      },
+      "channel_status": {
+        "1": "启用",
+        "2": "手动停用",
+        "3": "自动停用",
+        "4": "创建中",
+        "default": "未知"
+      },
+      "task_status": {
+        "pending": "排队中",
+        "running": "运行中",
+        "succeeded": "成功",
+        "failed": "失败",
+        "canceled": "已取消",
+        "default": "未知"
+      },
+      "task_type": {
+        "channel_model_test": "模型测试",
+        "channel_refresh_models": "模型刷新",
+        "channel_refresh_balance": "余额刷新",
+        "default": "其他"
+      },
+      "capabilities": {
+        "text": "文本",
+        "image": "图片",
+        "audio": "音频",
+        "video": "视频"
+      },
+      "empty": {
+        "channels": "暂无渠道数据",
+        "tasks": "暂无任务数据"
+      }
     }
   },
   "setting": {

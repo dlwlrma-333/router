@@ -33,6 +33,7 @@ import Log from './pages/Log';
 import LogDetail from './pages/Log/Detail';
 import Chat from './pages/Chat';
 import Dashboard from './pages/Dashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import Providers from './pages/Providers';
 import Group from './pages/Group';
 import Task from './pages/Task';
@@ -440,7 +441,7 @@ function App() {
             </Suspense>
           }
         />
-        <Route path='/admin/dashboard' element={<Dashboard />} />
+        <Route path='/admin/dashboard' element={<AdminDashboard />} />
         <Route path='/admin/log' element={<Log />} />
         <Route
           path='/admin/log/:id'
