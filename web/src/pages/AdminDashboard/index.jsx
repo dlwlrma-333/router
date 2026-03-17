@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, Dropdown, Label, Table } from 'semantic-ui-react';
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -59,6 +62,13 @@ const EMPTY_DASHBOARD = {
   generated_at: 0,
 };
 
+const HEALTH_LEVEL_COLORS = {
+  healthy: '#16a34a',
+  warning: '#f59e0b',
+  critical: '#ef4444',
+  unknown: '#94a3b8',
+};
+
 const getQuotaPerUnit = () => {
   const raw = parseFloat(localStorage.getItem('quota_per_unit') || '1');
   if (!Number.isFinite(raw) || raw <= 0) return 1;
@@ -83,20 +93,14 @@ const formatCount = (value) => {
   return num.toLocaleString('zh-CN');
 };
 
-const statusColor = (status) => {
-  switch (status) {
-    case 1:
-      return 'green';
-    case 2:
-      return 'grey';
-    case 3:
-      return 'orange';
-    case 4:
-      return 'blue';
-    default:
-      return 'grey';
-  }
+const toPercent = (raw) => {
+  const value = Number(raw || 0);
+  if (!Number.isFinite(value)) return 0;
+  if (value <= 1) return value * 100;
+  return value;
 };
+
+const formatPercent = (raw) => `${toPercent(raw).toFixed(1)}%`;
 
 const taskStatusColor = (status) => {
   switch (status) {
@@ -177,6 +181,70 @@ const AdminDashboard = () => {
       .map((item) => t(`dashboard.admin.capabilities.${item}`, { defaultValue: item }))
       .join(' / ');
   };
+
+  const channelHealthData = useMemo(
+    () =>
+      (dashboard.top_channels || []).map((row, index) => ({
+        id: row.id || `channel-${index}`,
+        name: row.name || row.id || '-',
+        status: Number(row.status || 0),
+        capabilities: renderCapabilities(row.capabilities),
+        health_score: Number(row.health_score || 0),
+        health_level: row.health_level || 'unknown',
+        pass_rate_percent: toPercent(row.pass_rate),
+        coverage_rate_percent: toPercent(row.coverage_rate),
+        avg_latency_ms: Number(row.avg_latency_ms || 0),
+        selected_model_count: Number(row.selected_model_count || 0),
+        tested_model_count: Number(row.tested_model_count || 0),
+        tested_endpoint_count: Number(row.tested_endpoint_count || 0),
+        has_test_data: Boolean(row.has_test_data),
+        supported_count: Number(row.supported_count || 0),
+        unsupported_count: Number(row.unsupported_count || 0),
+        last_tested_at: Number(row.last_tested_at || 0),
+      })),
+    [dashboard.top_channels, renderCapabilities]
+  );
+
+  const channelHealthSummary = useMemo(() => {
+    const rows = channelHealthData;
+    if (rows.length === 0) {
+      return {
+        with_tests: 0,
+        without_tests: 0,
+        avg_pass_rate: 0,
+        avg_coverage_rate: 0,
+        avg_latency_ms: 0,
+        needs_retest: 0,
+      };
+    }
+    const withTestsRows = rows.filter((item) => item.has_test_data);
+    const withoutTests = rows.length - withTestsRows.length;
+    const avgPassRate =
+      withTestsRows.length > 0
+        ? withTestsRows.reduce((sum, item) => sum + item.pass_rate_percent, 0) / withTestsRows.length
+        : 0;
+    const selectedTotal = rows.reduce((sum, item) => sum + item.selected_model_count, 0);
+    const testedTotal = rows.reduce((sum, item) => sum + item.tested_model_count, 0);
+    const avgCoverageRate = selectedTotal > 0 ? (testedTotal / selectedTotal) * 100 : 0;
+    const latencyRows = rows.filter((item) => item.avg_latency_ms > 0);
+    const avgLatencyMs =
+      latencyRows.length > 0
+        ? Math.round(latencyRows.reduce((sum, item) => sum + item.avg_latency_ms, 0) / latencyRows.length)
+        : 0;
+    const needsRetest = rows.filter(
+      (item) =>
+        item.selected_model_count > 0 &&
+        (!item.has_test_data || item.coverage_rate_percent < 100 || item.pass_rate_percent < 100)
+    ).length;
+    return {
+      with_tests: withTestsRows.length,
+      without_tests: withoutTests,
+      avg_pass_rate: avgPassRate,
+      avg_coverage_rate: avgCoverageRate,
+      avg_latency_ms: avgLatencyMs,
+      needs_retest: needsRetest,
+    };
+  }, [channelHealthData]);
 
   const trendLineColor = useMemo(() => {
     switch (trendMetric) {
@@ -347,37 +415,139 @@ const AdminDashboard = () => {
           <Card.Header className='router-card-header router-section-title'>
             {t('dashboard.admin.sections.channels')}
           </Card.Header>
-          {dashboard.top_channels.length === 0 ? (
+          {channelHealthData.length === 0 ? (
             <div className='admin-dashboard-empty'>{t('dashboard.admin.empty.channels')}</div>
           ) : (
-            <Table compact='very' basic='very' celled>
-              <Table.Header>
-                <Table.Row>
-                  <Table.HeaderCell>{t('dashboard.admin.table.channel_name')}</Table.HeaderCell>
-                  <Table.HeaderCell>{t('dashboard.admin.table.status')}</Table.HeaderCell>
-                  <Table.HeaderCell>{t('dashboard.admin.table.capabilities')}</Table.HeaderCell>
-                  <Table.HeaderCell>{t('dashboard.admin.table.balance')}</Table.HeaderCell>
-                  <Table.HeaderCell>{t('dashboard.admin.table.used_cost')}</Table.HeaderCell>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {dashboard.top_channels.map((row) => (
-                  <Table.Row key={row.id}>
-                    <Table.Cell>{row.name || '-'}</Table.Cell>
-                    <Table.Cell>
-                      <Label size='tiny' color={statusColor(Number(row.status))}>
-                        {t(`dashboard.admin.channel_status.${Number(row.status)}`, {
+            <>
+              <div className='admin-dashboard-health-summary-grid'>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>{t('dashboard.admin.health.summary.with_tests')}</div>
+                  <div className='admin-dashboard-kpi-value'>{formatCount(channelHealthSummary.with_tests)}</div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>{t('dashboard.admin.health.summary.without_tests')}</div>
+                  <div className='admin-dashboard-kpi-value'>{formatCount(channelHealthSummary.without_tests)}</div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>{t('dashboard.admin.health.summary.avg_pass_rate')}</div>
+                  <div className='admin-dashboard-kpi-value'>{formatPercent(channelHealthSummary.avg_pass_rate)}</div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>{t('dashboard.admin.health.summary.avg_coverage_rate')}</div>
+                  <div className='admin-dashboard-kpi-value'>{formatPercent(channelHealthSummary.avg_coverage_rate)}</div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>{t('dashboard.admin.health.summary.avg_latency')}</div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {channelHealthSummary.avg_latency_ms > 0 ? `${channelHealthSummary.avg_latency_ms} ms` : '-'}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>{t('dashboard.admin.health.summary.needs_retest')}</div>
+                  <div className='admin-dashboard-kpi-value'>{formatCount(channelHealthSummary.needs_retest)}</div>
+                </div>
+              </div>
+              <div className='chart-container admin-dashboard-health-chart'>
+                <ResponsiveContainer width='100%' height={300}>
+                  <BarChart data={channelHealthData} margin={{ top: 8, right: 20, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray='3 3' vertical={false} opacity={0.1} />
+                    <XAxis
+                      dataKey='name'
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 12, fill: '#A3AED0' }}
+                      minTickGap={8}
+                    />
+                    <YAxis
+                      yAxisId='score'
+                      domain={[0, 100]}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 12, fill: '#A3AED0' }}
+                    />
+                    <YAxis
+                      yAxisId='latency'
+                      orientation='right'
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 12, fill: '#A3AED0' }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      }}
+                      formatter={(value, name, item) => {
+                        if (name === 'health_score') return [`${Number(value).toFixed(0)}`, t('dashboard.admin.health.chart.health_score')];
+                        if (name === 'pass_rate_percent') return [`${Number(value).toFixed(1)}%`, t('dashboard.admin.health.chart.pass_rate')];
+                        if (name === 'coverage_rate_percent') return [`${Number(value).toFixed(1)}%`, t('dashboard.admin.health.chart.coverage_rate')];
+                        if (name === 'avg_latency_ms') return [`${Number(value).toFixed(0)} ms`, t('dashboard.admin.health.chart.avg_latency')];
+                        return [String(value ?? '-'), String(name)];
+                      }}
+                      labelFormatter={(label, payload) => {
+                        if (!Array.isArray(payload) || payload.length === 0) return label;
+                        const entry = payload[0]?.payload || {};
+                        const statusText = t(`dashboard.admin.channel_status.${Number(entry.status)}`, {
                           defaultValue: t('dashboard.admin.channel_status.default'),
-                        })}
-                      </Label>
-                    </Table.Cell>
-                    <Table.Cell>{renderCapabilities(row.capabilities)}</Table.Cell>
-                    <Table.Cell>{Number(row.balance || 0).toFixed(4)}</Table.Cell>
-                    <Table.Cell>{formatUsd(Number(row.used_quota || 0))}</Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table>
+                        });
+                        const healthLevelText = t(`dashboard.admin.health.level.${entry.health_level || 'unknown'}`, {
+                          defaultValue: t('dashboard.admin.health.level.unknown'),
+                        });
+                        const lastTested = entry.last_tested_at ? formatUpdatedAt(entry.last_tested_at) : '-';
+                        const capabilitiesText = entry.capabilities || '-';
+                        return `${label} | ${statusText} | ${healthLevelText} | ${t('dashboard.admin.table.capabilities')}: ${capabilitiesText} | ${t('dashboard.admin.health.chart.last_tested')}: ${lastTested}`;
+                      }}
+                    />
+                    <Bar
+                      yAxisId='score'
+                      dataKey='health_score'
+                      name='health_score'
+                      radius={[4, 4, 0, 0]}
+                      fill='#60a5fa'
+                    >
+                      {channelHealthData.map((item) => (
+                        <Cell key={item.id} fill={HEALTH_LEVEL_COLORS[item.health_level] || HEALTH_LEVEL_COLORS.unknown} />
+                      ))}
+                    </Bar>
+                    <Line
+                      yAxisId='score'
+                      type='monotone'
+                      dataKey='pass_rate_percent'
+                      name='pass_rate_percent'
+                      stroke='#16a34a'
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      yAxisId='score'
+                      type='monotone'
+                      dataKey='coverage_rate_percent'
+                      name='coverage_rate_percent'
+                      stroke='#2563eb'
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      yAxisId='latency'
+                      type='monotone'
+                      dataKey='avg_latency_ms'
+                      name='avg_latency_ms'
+                      stroke='#ef4444'
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className='admin-dashboard-health-legend'>
+                <span>{t('dashboard.admin.health.chart.legend_health')}</span>
+                <span>{t('dashboard.admin.health.chart.legend_pass')}</span>
+                <span>{t('dashboard.admin.health.chart.legend_coverage')}</span>
+                <span>{t('dashboard.admin.health.chart.legend_latency')}</span>
+              </div>
+            </>
           )}
         </Card.Content>
       </Card>

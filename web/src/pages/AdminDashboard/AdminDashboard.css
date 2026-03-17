@@ -71,3 +71,23 @@
   color: #a3aed0;
   padding: 8px 0;
 }
+
+.admin-dashboard-health-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.admin-dashboard-health-chart {
+  margin-top: 4px;
+}
+
+.admin-dashboard-health-legend {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: #6b7280;
+  font-size: 12px;
+}

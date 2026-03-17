@@ -1119,6 +1119,33 @@
         "audio": "音频",
         "video": "视频"
       },
+      "health": {
+        "summary": {
+          "with_tests": "有测试数据渠道",
+          "without_tests": "待测试渠道",
+          "avg_pass_rate": "平均通过率",
+          "avg_coverage_rate": "平均覆盖率",
+          "avg_latency": "平均延迟",
+          "needs_retest": "待补测渠道"
+        },
+        "chart": {
+          "health_score": "健康分",
+          "pass_rate": "测试通过率",
+          "coverage_rate": "测试覆盖率",
+          "avg_latency": "平均延迟",
+          "last_tested": "最近测试",
+          "legend_health": "柱：健康分",
+          "legend_pass": "线：通过率",
+          "legend_coverage": "线：覆盖率",
+          "legend_latency": "线：延迟(ms)"
+        },
+        "level": {
+          "healthy": "健康",
+          "warning": "预警",
+          "critical": "风险",
+          "unknown": "未知"
+        }
+      },
       "empty": {
         "trend": "暂无趋势数据",
         "channels": "暂无渠道数据",

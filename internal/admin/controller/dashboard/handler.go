@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"math"
 	"net/http"
 	"sort"
 	"strings"
@@ -26,6 +27,11 @@ const (
 	granularityHour    = "hour"
 	granularityDay     = "day"
 	granularityMonth   = "month"
+
+	channelHealthLevelHealthy  = "healthy"
+	channelHealthLevelWarning  = "warning"
+	channelHealthLevelCritical = "critical"
+	channelHealthLevelUnknown  = "unknown"
 )
 
 type summaryData struct {
@@ -55,14 +61,26 @@ type trendPoint struct {
 }
 
 type channelHealthItem struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Protocol     string   `json:"protocol"`
-	Status       int      `json:"status"`
-	Capabilities []string `json:"capabilities"`
-	Balance      float64  `json:"balance"`
-	UsedQuota    int64    `json:"used_quota"`
-	Priority     int64    `json:"priority"`
+	ID                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Protocol           string   `json:"protocol"`
+	Status             int      `json:"status"`
+	Capabilities       []string `json:"capabilities"`
+	Balance            float64  `json:"balance"`
+	UsedQuota          int64    `json:"used_quota"`
+	Priority           int64    `json:"priority"`
+	SelectedModelCount int      `json:"selected_model_count"`
+	TestedModelCount   int      `json:"tested_model_count"`
+	TestedEndpointCnt  int      `json:"tested_endpoint_count"`
+	SupportedCount     int      `json:"supported_count"`
+	UnsupportedCount   int      `json:"unsupported_count"`
+	PassRate           float64  `json:"pass_rate"`
+	CoverageRate       float64  `json:"coverage_rate"`
+	AvgLatencyMs       int64    `json:"avg_latency_ms"`
+	LastTestedAt       int64    `json:"last_tested_at"`
+	HasTestData        bool     `json:"has_test_data"`
+	HealthScore        int      `json:"health_score"`
+	HealthLevel        string   `json:"health_level"`
 }
 
 type dashboardPayload struct {
@@ -177,6 +195,153 @@ func countTasksByStatuses(statuses []string) (int64, error) {
 	return count, err
 }
 
+type channelHealthMetrics struct {
+	SelectedModelCount int
+	TestedModelCount   int
+	TestedEndpointCnt  int
+	SupportedCount     int
+	UnsupportedCount   int
+	PassRate           float64
+	CoverageRate       float64
+	AvgLatencyMs       int64
+	LastTestedAt       int64
+	HasTestData        bool
+	HealthScore        int
+	HealthLevel        string
+}
+
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
+}
+
+func channelHealthLevelByScore(score int) string {
+	switch {
+	case score >= 85:
+		return channelHealthLevelHealthy
+	case score >= 65:
+		return channelHealthLevelWarning
+	case score > 0:
+		return channelHealthLevelCritical
+	default:
+		return channelHealthLevelUnknown
+	}
+}
+
+func calcChannelHealth(channel *model.Channel, nowTs int64) channelHealthMetrics {
+	metrics := channelHealthMetrics{
+		HealthLevel: channelHealthLevelUnknown,
+	}
+	if channel == nil {
+		return metrics
+	}
+	selectedModels := make(map[string]struct{})
+	for _, row := range channel.GetModelConfigs() {
+		if !row.Selected || row.Inactive || strings.TrimSpace(row.Model) == "" {
+			continue
+		}
+		selectedModels[row.Model] = struct{}{}
+	}
+	metrics.SelectedModelCount = len(selectedModels)
+
+	testedModelSet := make(map[string]struct{})
+	latencyTotal := int64(0)
+	latencyCount := int64(0)
+	assertCount := 0
+	for _, row := range channel.Tests {
+		modelID := strings.TrimSpace(row.Model)
+		if modelID == "" {
+			continue
+		}
+		// 仅统计已启用模型，避免历史残留测试噪音干扰健康判断。
+		if len(selectedModels) > 0 {
+			if _, ok := selectedModels[modelID]; !ok {
+				continue
+			}
+		}
+		metrics.TestedEndpointCnt++
+		testedModelSet[modelID] = struct{}{}
+		if row.TestedAt > metrics.LastTestedAt {
+			metrics.LastTestedAt = row.TestedAt
+		}
+		switch strings.TrimSpace(strings.ToLower(row.Status)) {
+		case model.ChannelTestStatusSupported:
+			metrics.SupportedCount++
+			assertCount++
+		case model.ChannelTestStatusUnsupported:
+			metrics.UnsupportedCount++
+			assertCount++
+		}
+		if row.LatencyMs > 0 {
+			latencyTotal += row.LatencyMs
+			latencyCount++
+		}
+	}
+	metrics.TestedModelCount = len(testedModelSet)
+	metrics.HasTestData = metrics.TestedEndpointCnt > 0
+	if latencyCount > 0 {
+		metrics.AvgLatencyMs = latencyTotal / latencyCount
+	}
+	if metrics.SelectedModelCount > 0 {
+		metrics.CoverageRate = clamp01(float64(metrics.TestedModelCount) / float64(metrics.SelectedModelCount))
+	}
+	if assertCount > 0 {
+		metrics.PassRate = clamp01(float64(metrics.SupportedCount) / float64(assertCount))
+	}
+
+	score := 100.0
+	if channel.Status != model.ChannelStatusEnabled {
+		if channel.Status == model.ChannelStatusCreating {
+			score -= 20
+		} else {
+			score -= 40
+		}
+	}
+	if metrics.SelectedModelCount > 0 {
+		score -= (1 - metrics.CoverageRate) * 25
+	} else {
+		score -= 12
+	}
+	if assertCount > 0 {
+		score -= (1 - metrics.PassRate) * 25
+	} else {
+		score -= 18
+	}
+	switch {
+	case metrics.AvgLatencyMs >= 30000:
+		score -= 20
+	case metrics.AvgLatencyMs >= 15000:
+		score -= 14
+	case metrics.AvgLatencyMs >= 8000:
+		score -= 8
+	case metrics.AvgLatencyMs >= 3000:
+		score -= 4
+	default:
+		if metrics.AvgLatencyMs <= 0 {
+			score -= 6
+		}
+	}
+	if metrics.HasTestData {
+		age := nowTs - metrics.LastTestedAt
+		if age > 30*24*3600 {
+			score -= 15
+		} else if age > 7*24*3600 {
+			score -= 8
+		}
+	} else {
+		score -= 10
+	}
+	score = math.Max(0, math.Min(100, score))
+	metrics.HealthScore = int(math.Round(score))
+	metrics.HealthLevel = channelHealthLevelByScore(metrics.HealthScore)
+	return metrics
+}
+
 func collectCapabilities(channel *model.Channel) []string {
 	if channel == nil {
 		return []string{}
@@ -231,21 +396,38 @@ func listTopChannels() ([]channelHealthItem, int64, int64, int64, error) {
 	if err := model.HydrateChannelsWithModels(model.DB, rows); err != nil {
 		return nil, 0, 0, 0, err
 	}
+	if err := model.HydrateChannelsWithTests(model.DB, rows); err != nil {
+		return nil, 0, 0, 0, err
+	}
+	nowTs := helper.GetTimestamp()
 	items := make([]channelHealthItem, 0, len(rows))
 	for _, row := range rows {
 		if row == nil {
 			continue
 		}
 		row.NormalizeProtocol()
+		health := calcChannelHealth(row, nowTs)
 		items = append(items, channelHealthItem{
-			ID:           strings.TrimSpace(row.Id),
-			Name:         strings.TrimSpace(row.Name),
-			Protocol:     strings.TrimSpace(row.Protocol),
-			Status:       row.Status,
-			Capabilities: collectCapabilities(row),
-			Balance:      row.Balance,
-			UsedQuota:    row.UsedQuota,
-			Priority:     row.GetPriority(),
+			ID:                 strings.TrimSpace(row.Id),
+			Name:               strings.TrimSpace(row.Name),
+			Protocol:           strings.TrimSpace(row.Protocol),
+			Status:             row.Status,
+			Capabilities:       collectCapabilities(row),
+			Balance:            row.Balance,
+			UsedQuota:          row.UsedQuota,
+			Priority:           row.GetPriority(),
+			SelectedModelCount: health.SelectedModelCount,
+			TestedModelCount:   health.TestedModelCount,
+			TestedEndpointCnt:  health.TestedEndpointCnt,
+			SupportedCount:     health.SupportedCount,
+			UnsupportedCount:   health.UnsupportedCount,
+			PassRate:           health.PassRate,
+			CoverageRate:       health.CoverageRate,
+			AvgLatencyMs:       health.AvgLatencyMs,
+			LastTestedAt:       health.LastTestedAt,
+			HasTestData:        health.HasTestData,
+			HealthScore:        health.HealthScore,
+			HealthLevel:        health.HealthLevel,
 		})
 	}
 	return items, total, enabled, disabled, nil
