@@ -158,6 +158,7 @@ const LogsTable = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [logType, setLogType] = useState(0);
   let now = new Date();
@@ -289,8 +290,9 @@ const LogsTable = () => {
         url = `/api/v1/public/log?page=${normalizedPage}&type=${logType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
       }
       const res = await API.get(url);
-      const { success, message, data } = res.data;
+      const { success, message, data, meta } = res.data;
       if (success) {
+        setTotalCount(Number(meta?.total || data?.length || 0));
         if (normalizedPage === 1) {
           setLogs(data);
         } else {
@@ -319,11 +321,14 @@ const LogsTable = () => {
 
   const onPaginationChange = (e, { activePage }) => {
     (async () => {
-      if (activePage === Math.ceil(logs.length / ITEMS_PER_PAGE) + 1) {
-        // In this case we have to load more data and then append them.
-        await loadLogs(activePage);
+      const nextPage = Number(activePage) > 0 ? Number(activePage) : 1;
+      const hasLoadedPageRows = logs
+        .slice((nextPage - 1) * ITEMS_PER_PAGE, nextPage * ITEMS_PER_PAGE)
+        .some(Boolean);
+      if (searchKeyword.trim() === '' && !hasLoadedPageRows) {
+        await loadLogs(nextPage);
       }
-      setActivePage(activePage);
+      setActivePage(nextPage);
     })();
   };
 
@@ -384,6 +389,14 @@ const LogsTable = () => {
       return haystacks.some((item) => item.includes(keyword));
     });
   }, [logs, searchKeyword]);
+
+  const totalPages = Math.max(
+    Math.ceil(
+      (searchKeyword.trim() === '' ? totalCount : filteredLogs.length) /
+        ITEMS_PER_PAGE,
+    ),
+    1,
+  );
 
   const detailBasePath = isAdminScope ? '/admin/log' : '/workspace/log';
   const tableColSpan = isAdminScope
@@ -716,10 +729,7 @@ const LogsTable = () => {
                   activePage={activePage}
                   onPageChange={onPaginationChange}
                   siblingRange={1}
-                  totalPages={
-                    Math.ceil(filteredLogs.length / ITEMS_PER_PAGE) +
-                    (filteredLogs.length % ITEMS_PER_PAGE === 0 ? 1 : 0)
-                  }
+                  totalPages={totalPages}
                 />
               </div>
             </Table.HeaderCell>

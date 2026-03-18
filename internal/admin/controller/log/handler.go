@@ -18,6 +18,56 @@ func normalizeStatLogType(raw int) int {
 	return raw
 }
 
+func countAdminLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel string) (int64, error) {
+	query := model.LOG_DB.Table(model.EventLogsTableName)
+	if logType != model.LogTypeAll {
+		query = query.Where("type = ?", logType)
+	}
+	if modelName != "" {
+		query = query.Where("model_name = ?", modelName)
+	}
+	if username != "" {
+		query = query.Where("username = ?", username)
+	}
+	if tokenName != "" {
+		query = query.Where("token_name = ?", tokenName)
+	}
+	if startTimestamp != 0 {
+		query = query.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		query = query.Where("created_at <= ?", endTimestamp)
+	}
+	if channel != "" {
+		query = query.Where("channel_id = ?", channel)
+	}
+	var total int64
+	err := query.Count(&total).Error
+	return total, err
+}
+
+func countUserLogs(userId string, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string) (int64, error) {
+	query := model.LOG_DB.Table(model.EventLogsTableName).Where("user_id = ?", userId)
+	if logType != model.LogTypeAll {
+		query = query.Where("type = ?", logType)
+	}
+	if modelName != "" {
+		query = query.Where("model_name = ?", modelName)
+	}
+	if tokenName != "" {
+		query = query.Where("token_name = ?", tokenName)
+	}
+	if startTimestamp != 0 {
+		query = query.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		query = query.Where("created_at <= ?", endTimestamp)
+	}
+	var total int64
+	err := query.Count(&total).Error
+	return total, err
+}
+
 // GetAllLogs godoc
 // @Summary List logs (admin)
 // @Tags admin
@@ -54,10 +104,23 @@ func GetAllLogs(c *gin.Context) {
 		})
 		return
 	}
+	total, err := countAdminLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data":    logs,
+		"meta": gin.H{
+			"total":     total,
+			"page":      page,
+			"page_size": config.ItemsPerPage,
+		},
 	})
 	return
 }
@@ -95,10 +158,23 @@ func GetUserLogs(c *gin.Context) {
 		})
 		return
 	}
+	total, err := countUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data":    logs,
+		"meta": gin.H{
+			"total":     total,
+			"page":      page,
+			"page_size": config.ItemsPerPage,
+		},
 	})
 	return
 }
