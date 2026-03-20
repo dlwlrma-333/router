@@ -13,14 +13,16 @@ import (
 )
 
 type upsertGroupRequest struct {
-	Id           string                       `json:"id"`
-	Name         string                       `json:"name"`
-	Description  string                       `json:"description"`
-	BillingRatio *float64                     `json:"billing_ratio"`
-	Enabled      *bool                        `json:"enabled"`
-	SortOrder    int                          `json:"sort_order"`
-	ChannelIDs   []string                     `json:"channel_ids"`
-	ModelConfigs []model.GroupModelConfigItem `json:"model_configs"`
+	Id                 string                       `json:"id"`
+	Name               string                       `json:"name"`
+	Description        string                       `json:"description"`
+	BillingRatio       *float64                     `json:"billing_ratio"`
+	DailyQuotaLimit    *int64                       `json:"daily_quota_limit"`
+	QuotaResetTimezone *string                      `json:"quota_reset_timezone"`
+	Enabled            *bool                        `json:"enabled"`
+	SortOrder          int                          `json:"sort_order"`
+	ChannelIDs         []string                     `json:"channel_ids"`
+	ModelConfigs       []model.GroupModelConfigItem `json:"model_configs"`
 }
 
 type updateGroupChannelsRequest struct {
@@ -156,12 +158,30 @@ func CreateGroup(c *gin.Context) {
 		})
 		return
 	}
+	dailyQuotaLimit, err := resolveCreateDailyQuotaLimit(req.DailyQuotaLimit)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	quotaResetTimezone, err := resolveCreateQuotaResetTimezone(req.QuotaResetTimezone)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
 	createItem := model.GroupCatalog{
-		Id:           strings.TrimSpace(req.Id),
-		Name:         strings.TrimSpace(req.Name),
-		Description:  strings.TrimSpace(req.Description),
-		Source:       "manual",
-		BillingRatio: billingRatio,
+		Id:                 strings.TrimSpace(req.Id),
+		Name:               strings.TrimSpace(req.Name),
+		Description:        strings.TrimSpace(req.Description),
+		Source:             "manual",
+		BillingRatio:       billingRatio,
+		DailyQuotaLimit:    dailyQuotaLimit,
+		QuotaResetTimezone: quotaResetTimezone,
 	}
 	row := model.GroupCatalog{}
 	if req.ModelConfigs != nil {
@@ -223,13 +243,31 @@ func UpdateGroup(c *gin.Context) {
 		})
 		return
 	}
+	dailyQuotaLimit, err := resolveUpdateDailyQuotaLimit(req.DailyQuotaLimit, current.DailyQuotaLimit)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	quotaResetTimezone, err := resolveUpdateQuotaResetTimezone(req.QuotaResetTimezone, current.QuotaResetTimezone)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
 	item := model.GroupCatalog{
-		Id:           strings.TrimSpace(req.Id),
-		Name:         strings.TrimSpace(req.Name),
-		Description:  strings.TrimSpace(req.Description),
-		BillingRatio: billingRatio,
-		Enabled:      enabled,
-		SortOrder:    req.SortOrder,
+		Id:                 strings.TrimSpace(req.Id),
+		Name:               strings.TrimSpace(req.Name),
+		Description:        strings.TrimSpace(req.Description),
+		BillingRatio:       billingRatio,
+		DailyQuotaLimit:    dailyQuotaLimit,
+		QuotaResetTimezone: quotaResetTimezone,
+		Enabled:            enabled,
+		SortOrder:          req.SortOrder,
 	}
 	row := model.GroupCatalog{}
 	if req.ModelConfigs != nil {
@@ -302,6 +340,40 @@ func resolveUpdateBillingRatio(value *float64, fallback float64) (float64, error
 		return 0, errors.New("分组倍率不能小于 0")
 	}
 	return *value, nil
+}
+
+func resolveCreateDailyQuotaLimit(value *int64) (int64, error) {
+	if value == nil {
+		return 0, nil
+	}
+	if *value < 0 {
+		return 0, errors.New("分组每日额度上限不能小于 0")
+	}
+	return *value, nil
+}
+
+func resolveUpdateDailyQuotaLimit(value *int64, fallback int64) (int64, error) {
+	if value == nil {
+		return fallback, nil
+	}
+	if *value < 0 {
+		return 0, errors.New("分组每日额度上限不能小于 0")
+	}
+	return *value, nil
+}
+
+func resolveCreateQuotaResetTimezone(value *string) (string, error) {
+	if value == nil {
+		return model.DefaultGroupQuotaResetTimezone, nil
+	}
+	return model.ValidateGroupQuotaResetTimezone(*value)
+}
+
+func resolveUpdateQuotaResetTimezone(value *string, fallback string) (string, error) {
+	if value == nil {
+		return model.ValidateGroupQuotaResetTimezone(fallback)
+	}
+	return model.ValidateGroupQuotaResetTimezone(*value)
 }
 
 // GetGroupChannels godoc

@@ -119,6 +119,16 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return tx.AutoMigrate(&Log{})
 			},
 		},
+		{
+			Version:     "202603201500_group_daily_quota_limits",
+			Description: "add group daily quota limit columns and daily counter table",
+			Up: func(tx *gorm.DB) error {
+				if err := tx.AutoMigrate(&GroupCatalog{}); err != nil {
+					return err
+				}
+				return tx.AutoMigrate(&GroupQuotaDailyCounter{})
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }

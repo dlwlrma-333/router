@@ -27,6 +27,7 @@ func runMainBaselineMigrationWithDB(tx *gorm.DB) error {
 		&ProviderModelPriceComponent{},
 		&ChannelProtocolCatalog{},
 		&GroupCatalog{},
+		&GroupQuotaDailyCounter{},
 		&Log{},
 	); err != nil {
 		return err

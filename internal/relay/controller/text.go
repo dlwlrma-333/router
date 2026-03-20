@@ -66,6 +66,18 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	// pre-consume quota
 	promptTokens := getPromptTokens(textRequest, meta.Mode)
 	meta.PromptTokens = promptTokens
+	groupReservedQuota := billing.ComputeTextPreConsumedQuota(promptTokens, textRequest.MaxTokens, pricing, groupRatio)
+	groupReservation, groupQuotaErr := reserveGroupDailyQuota(meta.Group, groupReservedQuota)
+	if groupQuotaErr != nil {
+		return groupQuotaErr
+	}
+	groupQuotaSettled := false
+	defer func() {
+		if groupQuotaSettled {
+			return
+		}
+		releaseGroupDailyQuotaReservation(ctx, groupReservation)
+	}()
 	preConsumedQuota, bizErr := preConsumeQuota(ctx, textRequest, promptTokens, pricing, groupRatio, meta)
 	if bizErr != nil {
 		logger.Warnf(ctx, "preConsumeQuota failed: %+v", *bizErr)
@@ -110,7 +122,8 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 		return respErr
 	}
 	// post-consume quota
-	go postConsumeQuota(ctx, usage, meta, upstreamRequest, pricing, preConsumedQuota, groupRatio, systemPromptReset)
+	go postConsumeQuota(ctx, usage, meta, upstreamRequest, pricing, preConsumedQuota, groupRatio, systemPromptReset, groupReservation)
+	groupQuotaSettled = true
 	return nil
 }
 

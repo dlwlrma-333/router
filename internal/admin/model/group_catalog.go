@@ -13,15 +13,17 @@ import (
 )
 
 type GroupCatalog struct {
-	Id           string                    `json:"id" gorm:"primaryKey;type:char(36)"`
-	Name         string                    `json:"name" gorm:"type:varchar(64);not null;uniqueIndex"`
-	Description  string                    `json:"description" gorm:"type:varchar(255);default:''"`
-	Source       string                    `json:"source" gorm:"type:varchar(32);default:'system'"`
-	BillingRatio float64                   `json:"billing_ratio" gorm:"type:numeric(12,6);not null;default:1"`
-	Enabled      bool                      `json:"enabled" gorm:"default:true;index"`
-	SortOrder    int                       `json:"sort_order" gorm:"default:0;index"`
-	UpdatedAt    int64                     `json:"updated_at" gorm:"bigint;index"`
-	Channels     []GroupChannelBindingItem `json:"channels,omitempty" gorm:"-"`
+	Id                 string                    `json:"id" gorm:"primaryKey;type:char(36)"`
+	Name               string                    `json:"name" gorm:"type:varchar(64);not null;uniqueIndex"`
+	Description        string                    `json:"description" gorm:"type:varchar(255);default:''"`
+	Source             string                    `json:"source" gorm:"type:varchar(32);default:'system'"`
+	BillingRatio       float64                   `json:"billing_ratio" gorm:"type:numeric(12,6);not null;default:1"`
+	DailyQuotaLimit    int64                     `json:"daily_quota_limit" gorm:"type:bigint;not null;default:0"`
+	QuotaResetTimezone string                    `json:"quota_reset_timezone" gorm:"type:varchar(64);not null;default:'Asia/Shanghai'"`
+	Enabled            bool                      `json:"enabled" gorm:"default:true;index"`
+	SortOrder          int                       `json:"sort_order" gorm:"default:0;index"`
+	UpdatedAt          int64                     `json:"updated_at" gorm:"bigint;index"`
+	Channels           []GroupChannelBindingItem `json:"channels,omitempty" gorm:"-"`
 }
 
 func (GroupCatalog) TableName() string {
@@ -34,6 +36,7 @@ func (item *GroupCatalog) NormalizeIdentity() {
 	}
 	item.Id = strings.TrimSpace(item.Id)
 	item.Name = strings.TrimSpace(item.Name)
+	item.QuotaResetTimezone = strings.TrimSpace(item.QuotaResetTimezone)
 }
 
 func (item *GroupCatalog) AfterFind(tx *gorm.DB) error {
@@ -86,7 +89,7 @@ func CreateGroupCatalog(item GroupCatalog) (GroupCatalog, error) {
 	if err != nil {
 		return GroupCatalog{}, err
 	}
-	if err := syncGroupBillingRatiosRuntimeWithDB(DB); err != nil {
+	if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
 		return GroupCatalog{}, err
 	}
 	return row, nil
@@ -107,7 +110,7 @@ func CreateGroupCatalogWithChannelBindings(item GroupCatalog, channelIDs []strin
 	}); err != nil {
 		return GroupCatalog{}, err
 	}
-	if err := syncGroupBillingRatiosRuntimeWithDB(DB); err != nil {
+	if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
 		return GroupCatalog{}, err
 	}
 	RefreshAbilityCachesForGroups(row.Id)
@@ -119,7 +122,7 @@ func UpdateGroupCatalog(item GroupCatalog) (GroupCatalog, error) {
 	if err != nil {
 		return GroupCatalog{}, err
 	}
-	if err := syncGroupBillingRatiosRuntimeWithDB(DB); err != nil {
+	if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
 		return GroupCatalog{}, err
 	}
 	return row, nil
@@ -140,7 +143,7 @@ func UpdateGroupCatalogWithChannelBindings(item GroupCatalog, channelIDs []strin
 	}); err != nil {
 		return GroupCatalog{}, err
 	}
-	if err := syncGroupBillingRatiosRuntimeWithDB(DB); err != nil {
+	if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
 		return GroupCatalog{}, err
 	}
 	RefreshAbilityCachesForGroups(row.Id)
@@ -153,7 +156,7 @@ func DeleteGroupCatalog(id string) error {
 		return err
 	}
 	RefreshAbilityCachesForGroups(groupRefValues...)
-	return syncGroupBillingRatiosRuntimeWithDB(DB)
+	return syncGroupRuntimeCachesWithDB(DB)
 }
 
 func CreateGroupCatalogWithConfig(item GroupCatalog, channelIDs []string, modelConfigs []GroupModelConfigItem) (GroupCatalog, error) {
@@ -177,7 +180,7 @@ func CreateGroupCatalogWithConfig(item GroupCatalog, channelIDs []string, modelC
 	}); err != nil {
 		return GroupCatalog{}, err
 	}
-	if err := syncGroupBillingRatiosRuntimeWithDB(DB); err != nil {
+	if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
 		return GroupCatalog{}, err
 	}
 	RefreshAbilityCachesForGroups(row.Id)
@@ -203,7 +206,7 @@ func UpdateGroupCatalogWithConfig(item GroupCatalog, channelIDs []string, modelC
 	}); err != nil {
 		return GroupCatalog{}, err
 	}
-	if err := syncGroupBillingRatiosRuntimeWithDB(DB); err != nil {
+	if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
 		return GroupCatalog{}, err
 	}
 	RefreshAbilityCachesForGroups(row.Id)
@@ -447,14 +450,16 @@ func createGroupCatalogWithDB(db *gorm.DB, item GroupCatalog) (GroupCatalog, err
 	}
 	now := helper.GetTimestamp()
 	row := GroupCatalog{
-		Id:           strings.TrimSpace(item.Id),
-		Name:         item.Identifier(),
-		Description:  strings.TrimSpace(item.Description),
-		Source:       strings.TrimSpace(item.Source),
-		BillingRatio: normalizeGroupBillingRatio(item.BillingRatio),
-		Enabled:      true,
-		SortOrder:    maxSortOrder + 1,
-		UpdatedAt:    now,
+		Id:                 strings.TrimSpace(item.Id),
+		Name:               item.Identifier(),
+		Description:        strings.TrimSpace(item.Description),
+		Source:             strings.TrimSpace(item.Source),
+		BillingRatio:       normalizeGroupBillingRatio(item.BillingRatio),
+		DailyQuotaLimit:    normalizeGroupDailyQuotaLimit(item.DailyQuotaLimit),
+		QuotaResetTimezone: normalizeGroupQuotaResetTimezone(item.QuotaResetTimezone),
+		Enabled:            true,
+		SortOrder:          maxSortOrder + 1,
+		UpdatedAt:          now,
 	}
 	row.EnsureID()
 	if row.Source == "" {
@@ -501,6 +506,8 @@ func updateGroupCatalogWithDB(db *gorm.DB, item GroupCatalog) (GroupCatalog, err
 	row.Name = nextName
 	row.Description = strings.TrimSpace(item.Description)
 	row.BillingRatio = normalizeGroupBillingRatio(item.BillingRatio)
+	row.DailyQuotaLimit = normalizeGroupDailyQuotaLimit(item.DailyQuotaLimit)
+	row.QuotaResetTimezone = normalizeGroupQuotaResetTimezone(item.QuotaResetTimezone)
 	row.Enabled = item.Enabled
 	if item.SortOrder > 0 {
 		row.SortOrder = item.SortOrder

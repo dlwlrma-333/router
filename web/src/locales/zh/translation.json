@@ -436,6 +436,7 @@
       "description": "描述",
       "channels": "渠道",
       "billing_ratio": "业务倍率",
+      "daily_quota_limit": "每日额度上限",
       "source": "来源",
       "status": "状态",
       "sort_order": "排序",
@@ -455,6 +456,8 @@
       "description_placeholder": "可选，用于说明该分组用途",
       "billing_ratio": "业务倍率",
       "billing_ratio_placeholder": "默认为 1，可填 0 或更大值",
+      "daily_quota_limit": "每日额度上限",
+      "daily_quota_limit_placeholder": "0 表示不限额，单位为额度",
       "sort_order": "排序值",
       "channels": "绑定渠道",
       "channels_placeholder": "选择该分组可用的渠道"
@@ -506,6 +509,7 @@
       "empty": "暂无分组",
       "id_required": "分组标识不能为空",
       "billing_ratio_invalid": "业务倍率必须大于或等于 0",
+      "daily_quota_limit_invalid": "每日额度上限必须大于或等于 0",
       "load_failed": "加载分组失败",
       "bind_load_failed": "加载分组渠道失败",
       "model_load_failed": "加载分组模型失败",
@@ -623,6 +627,7 @@
     "download": "下载",
     "cancel": "取消",
     "confirm": "确认",
+    "unlimited": "不限额",
     "quota": {
       "display": "等价金额：${{amount}}",
       "display_short": "${{amount}}",

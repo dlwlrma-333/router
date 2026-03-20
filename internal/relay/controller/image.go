@@ -200,6 +200,17 @@ func RelayImageHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 	if err != nil {
 		return openai.ErrorWrapper(err, "calculate_image_quota_failed", http.StatusInternalServerError)
 	}
+	groupReservation, groupQuotaErr := reserveGroupDailyQuota(meta.Group, quota)
+	if groupQuotaErr != nil {
+		return groupQuotaErr
+	}
+	groupQuotaSettled := false
+	defer func() {
+		if groupQuotaSettled {
+			return
+		}
+		releaseGroupDailyQuotaReservation(ctx, groupReservation)
+	}()
 
 	if userQuota-quota < 0 {
 		return openai.ErrorWrapper(errors.New("user quota is not enough"), "insufficient_user_quota", http.StatusForbidden)
@@ -216,6 +227,7 @@ func RelayImageHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 		if resp != nil &&
 			resp.StatusCode != http.StatusCreated && // replicate returns 201
 			resp.StatusCode != http.StatusOK {
+			releaseGroupDailyQuotaReservation(ctx, groupReservation)
 			return
 		}
 
@@ -251,7 +263,9 @@ func RelayImageHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 			channelId := c.GetString(ctxkey.ChannelId)
 			model.UpdateChannelUsedQuota(channelId, quota)
 		}
+		settleGroupDailyQuotaReservation(ctx, groupReservation, quota)
 	}(c.Request.Context())
+	groupQuotaSettled = true
 
 	// do response
 	_, respErr := adaptor.DoResponse(c, resp, meta)

@@ -436,6 +436,7 @@
       "description": "Description",
       "channels": "Channels",
       "billing_ratio": "Billing Ratio",
+      "daily_quota_limit": "Daily Quota Limit",
       "source": "Source",
       "status": "Status",
       "sort_order": "Sort Order",
@@ -455,6 +456,8 @@
       "description_placeholder": "Optional description for this group",
       "billing_ratio": "Billing Ratio",
       "billing_ratio_placeholder": "Defaults to 1, use 0 or greater",
+      "daily_quota_limit": "Daily Quota Limit",
+      "daily_quota_limit_placeholder": "0 means unlimited, unit is quota",
       "sort_order": "Sort Value",
       "channels": "Bound Channels",
       "channels_placeholder": "Select channels available for this group"
@@ -506,6 +509,7 @@
       "empty": "No groups",
       "id_required": "Group ID is required",
       "billing_ratio_invalid": "Billing ratio must be greater than or equal to 0",
+      "daily_quota_limit_invalid": "Daily quota limit must be greater than or equal to 0",
       "load_failed": "Failed to load groups",
       "bind_load_failed": "Failed to load group channels",
       "model_load_failed": "Failed to load group models",
@@ -623,6 +627,7 @@
     "download": "Download",
     "cancel": "Cancel",
     "confirm": "Confirm",
+    "unlimited": "Unlimited",
     "quota": {
       "display": "Equivalent: ${{amount}}",
       "display_short": "${{amount}}",

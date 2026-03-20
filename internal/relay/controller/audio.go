@@ -86,6 +86,17 @@ func RelayAudioHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 			return openai.ErrorWrapper(err, "calculate_audio_quota_failed", http.StatusInternalServerError)
 		}
 	}
+	groupReservation, groupQuotaErr := reserveGroupDailyQuota(group, preConsumedQuota)
+	if groupQuotaErr != nil {
+		return groupQuotaErr
+	}
+	groupQuotaSettled := false
+	defer func() {
+		if groupQuotaSettled {
+			return
+		}
+		releaseGroupDailyQuotaReservation(ctx, groupReservation)
+	}()
 	userQuota, err := model.CacheGetUserQuota(ctx, userId)
 	if err != nil {
 		return openai.ErrorWrapper(err, "get_user_quota_failed", http.StatusInternalServerError)
@@ -250,8 +261,9 @@ func RelayAudioHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 	succeed = true
 	quotaDelta := quota - preConsumedQuota
 	defer func(ctx context.Context) {
-		go billing.PostConsumeQuota(ctx, tokenId, quotaDelta, quota, userId, group, channelId, pricing, groupRatio, audioModel, tokenName)
+		go billing.PostConsumeQuota(ctx, tokenId, quotaDelta, quota, userId, group, channelId, pricing, groupRatio, audioModel, tokenName, groupReservation)
 	}(c.Request.Context())
+	groupQuotaSettled = true
 
 	for k, v := range resp.Header {
 		c.Writer.Header().Set(k, v[0])

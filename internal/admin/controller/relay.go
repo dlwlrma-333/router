@@ -81,7 +81,7 @@ func Relay(c *gin.Context) {
 	traceID := c.GetString(helper.TraceIDKey)
 	retryTimes := config.RetryTimes
 	retryCount := 0
-	retryable := shouldRetry(c, bizErr.StatusCode)
+	retryable := shouldRetry(c, bizErr)
 	if !retryable {
 		logger.RelayWarnf(ctx, relaylogging.NewFields("RETRY").
 			String("decision", "skip").
@@ -188,10 +188,17 @@ func getEffectiveRelayMode(c *gin.Context) int {
 	return relaymode.GetByPath(c.Request.URL.Path)
 }
 
-func shouldRetry(c *gin.Context, statusCode int) bool {
+func shouldRetry(c *gin.Context, bizErr *model.ErrorWithStatusCode) bool {
+	if bizErr == nil {
+		return false
+	}
 	if _, ok := c.Get(ctxkey.SpecificChannelId); ok {
 		return false
 	}
+	if controller.IsGroupDailyQuotaExceededError(bizErr) {
+		return false
+	}
+	statusCode := bizErr.StatusCode
 	if statusCode == http.StatusPaymentRequired {
 		return true
 	}

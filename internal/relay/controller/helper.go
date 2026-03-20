@@ -107,9 +107,10 @@ func preConsumeQuota(ctx context.Context, textRequest *relaymodel.GeneralOpenAIR
 	return preConsumedQuota, nil
 }
 
-func postConsumeQuota(ctx context.Context, usage *relaymodel.Usage, meta *meta.Meta, textRequest *relaymodel.GeneralOpenAIRequest, pricing model.ResolvedModelPricing, preConsumedQuota int64, groupRatio float64, systemPromptReset bool) {
+func postConsumeQuota(ctx context.Context, usage *relaymodel.Usage, meta *meta.Meta, textRequest *relaymodel.GeneralOpenAIRequest, pricing model.ResolvedModelPricing, preConsumedQuota int64, groupRatio float64, systemPromptReset bool, groupReservation model.GroupDailyQuotaReservation) {
 	if usage == nil {
 		logger.Error(ctx, "usage is nil, which is unexpected")
+		releaseGroupDailyQuotaReservation(ctx, groupReservation)
 		return
 	}
 	promptTokens := usage.PromptTokens
@@ -158,6 +159,7 @@ func postConsumeQuota(ctx context.Context, usage *relaymodel.Usage, meta *meta.M
 	})
 	model.UpdateUserUsedQuotaAndRequestCount(meta.UserId, quota)
 	model.UpdateChannelUsedQuota(meta.ChannelId, quota)
+	settleGroupDailyQuotaReservation(ctx, groupReservation, quota)
 }
 
 func getMappedModelName(modelName string, mapping map[string]string) (string, bool) {

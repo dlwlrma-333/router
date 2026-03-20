@@ -367,6 +367,17 @@ func RelayVideoHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 	if err != nil {
 		return openai.ErrorWrapper(err, "calculate_video_quota_failed", http.StatusInternalServerError)
 	}
+	groupReservation, groupQuotaErr := reserveGroupDailyQuota(meta.Group, quota)
+	if groupQuotaErr != nil {
+		return groupQuotaErr
+	}
+	groupQuotaSettled := false
+	defer func() {
+		if groupQuotaSettled {
+			return
+		}
+		releaseGroupDailyQuotaReservation(ctx, groupReservation)
+	}()
 
 	userQuota, err := model.CacheGetUserQuota(ctx, meta.UserId)
 	if err != nil {
@@ -414,6 +425,7 @@ func RelayVideoHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 
 	defer func(ctx context.Context) {
 		if quota == 0 {
+			settleGroupDailyQuotaReservation(ctx, groupReservation, 0)
 			return
 		}
 		if strings.TrimSpace(meta.TokenId) != "" {
@@ -442,7 +454,9 @@ func RelayVideoHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 		})
 		model.UpdateUserUsedQuotaAndRequestCount(meta.UserId, quota)
 		model.UpdateChannelUsedQuota(meta.ChannelId, quota)
+		settleGroupDailyQuotaReservation(ctx, groupReservation, quota)
 	}(c.Request.Context())
+	groupQuotaSettled = true
 
 	for k, v := range resp.Header {
 		if len(v) == 0 {

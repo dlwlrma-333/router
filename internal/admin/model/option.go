@@ -61,8 +61,8 @@ func InitOptionMap() {
 	config.OptionMap["RetryTimes"] = strconv.Itoa(config.RetryTimes)
 	config.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
-	if err := syncGroupBillingRatiosRuntimeWithDB(DB); err != nil {
-		logger.SysError("failed to sync group billing ratios from groups table: " + err.Error())
+	if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
+		logger.SysError("failed to sync group runtime caches from groups table: " + err.Error())
 	}
 }
 
@@ -81,8 +81,8 @@ func SyncOptions(frequency int) {
 		time.Sleep(time.Duration(frequency) * time.Second)
 		logger.SysLog("syncing system settings from database")
 		loadOptionsFromDatabase()
-		if err := syncGroupBillingRatiosRuntimeWithDB(DB); err != nil {
-			logger.SysError("failed to sync group billing ratios from groups table: " + err.Error())
+		if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
+			logger.SysError("failed to sync group runtime caches from groups table: " + err.Error())
 		}
 	}
 }
