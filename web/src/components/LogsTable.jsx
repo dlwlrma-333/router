@@ -862,7 +862,7 @@ const LogsTable = () => {
                 onClick={() => {
                   sortLog('channel');
                 }}
-                width={1}
+                width={2}
               >
                 {t('log.table.channel')}
               </Table.HeaderCell>
@@ -914,7 +914,7 @@ const LogsTable = () => {
                   onClick={() => {
                     sortLog('token_name');
                   }}
-                  width={2}
+                  width={1}
                 >
                   {t('log.table.token_name')}
                 </Table.HeaderCell>
