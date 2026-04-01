@@ -12,6 +12,7 @@
     "resource": "Resources",
     "operation": "Operations",
     "config": "Config",
+    "package": "Package",
     "log": "Log",
     "task": "Tasks",
     "setting": "Settings",
@@ -566,6 +567,82 @@
       "bind_update_failed": "Failed to save group channel bindings",
       "delete_success": "Group deleted successfully",
       "delete_failed": "Failed to delete group"
+    }
+  },
+  "package_manage": {
+    "title": "Package Management",
+    "search": "Search package name or group",
+    "table": {
+      "name": "Package Name",
+      "group": "Group",
+      "daily_quota_limit": "Daily Quota Limit",
+      "monthly_emergency_quota_limit": "Monthly Emergency Quota",
+      "duration_days": "Duration (Days)",
+      "status": "Status",
+      "updated_at": "Updated At",
+      "actions": "Actions",
+      "empty": "No packages"
+    },
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "buttons": {
+      "add": "Add Package",
+      "refresh": "Refresh",
+      "edit": "Edit",
+      "assign": "Assign User",
+      "delete": "Delete"
+    },
+    "form": {
+      "name": "Package Name",
+      "name_placeholder": "Enter package name",
+      "description": "Description",
+      "group": "Group",
+      "group_placeholder": "Select group",
+      "daily_quota_limit": "Daily Quota Limit",
+      "monthly_emergency_quota_limit": "Monthly Emergency Quota",
+      "duration_days": "Duration (Days)",
+      "quota_reset_timezone": "Reset Timezone",
+      "enabled": "Status",
+      "sort_order": "Sort Order",
+      "source": "Source"
+    },
+    "assign": {
+      "user_id": "User",
+      "user_id_placeholder": "Select user",
+      "start_at": "Start At",
+      "start_at_placeholder": "Empty means effective immediately",
+      "package": "Package"
+    },
+    "dialog": {
+      "create_title": "Create Package",
+      "edit_title": "Edit Package",
+      "detail_title": "Package Detail",
+      "assign_title": "Assign Package",
+      "delete_title": "Delete Package",
+      "delete_content": "Are you sure to delete package {{name}}?"
+    },
+    "messages": {
+      "loading": "Loading...",
+      "load_failed": "Failed to load packages",
+      "group_load_failed": "Failed to load groups",
+      "user_load_failed": "Failed to load users",
+      "id_required": "Package ID is required",
+      "name_required": "Package name is required",
+      "group_required": "Group is required",
+      "quota_invalid": "Quota values must be greater than or equal to 0",
+      "duration_invalid": "Duration must be greater than 0",
+      "user_required": "Please select a user",
+      "start_at_invalid": "Invalid start time format",
+      "create_success": "Package created successfully",
+      "create_failed": "Failed to create package",
+      "update_success": "Package updated successfully",
+      "update_failed": "Failed to update package",
+      "delete_success": "Package deleted successfully",
+      "delete_failed": "Failed to delete package",
+      "assign_success": "Package assigned successfully",
+      "assign_failed": "Failed to assign package"
     }
   },
   "token": {

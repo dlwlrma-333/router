@@ -194,6 +194,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return decoupleCNYYYCFromSystemDefaultWithDB(tx)
 			},
 		},
+		{
+			Version:     "202604011430_service_packages",
+			Description: "add service package catalog and user package subscriptions",
+			Up: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&ServicePackage{}, &UserPackageSubscription{})
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }

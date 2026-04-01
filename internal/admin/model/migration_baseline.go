@@ -28,6 +28,8 @@ func runMainBaselineMigrationWithDB(tx *gorm.DB) error {
 		&ProviderModelPriceComponent{},
 		&ChannelProtocolCatalog{},
 		&GroupCatalog{},
+		&ServicePackage{},
+		&UserPackageSubscription{},
 		&GroupQuotaCounter{},
 		&UserQuotaCounter{},
 		&Log{},

@@ -34,6 +34,14 @@ type GroupDailyQuotaReservation struct {
 	ReservedQuota int64
 }
 
+type effectiveGroupDailyQuotaPolicy struct {
+	Limit       int64
+	Timezone    string
+	Source      string
+	PackageID   string
+	PackageName string
+}
+
 func (reservation GroupDailyQuotaReservation) Active() bool {
 	return strings.TrimSpace(reservation.GroupID) != "" &&
 		strings.TrimSpace(reservation.UserID) != "" &&
@@ -50,6 +58,39 @@ func businessDateByTimezone(now time.Time, timezone string) string {
 	return now.In(location).Format("2006-01-02")
 }
 
+func resolveEffectiveGroupDailyQuotaPolicyWithDB(db *gorm.DB, groupID string, userID string) (effectiveGroupDailyQuotaPolicy, error) {
+	if db == nil {
+		return effectiveGroupDailyQuotaPolicy{}, fmt.Errorf("database handle is nil")
+	}
+	normalizedGroupID := strings.TrimSpace(groupID)
+	normalizedUserID := strings.TrimSpace(userID)
+	if normalizedGroupID == "" {
+		return effectiveGroupDailyQuotaPolicy{}, fmt.Errorf("分组 ID 不能为空")
+	}
+	base := GetGroupDailyQuotaPolicy(normalizedGroupID)
+	effective := effectiveGroupDailyQuotaPolicy{
+		Limit:    normalizeGroupDailyQuotaLimit(base.Limit),
+		Timezone: normalizeGroupQuotaResetTimezone(base.Timezone),
+		Source:   "group",
+	}
+	if normalizedUserID == "" {
+		return effective, nil
+	}
+	subscription, err := getActiveUserPackageSubscriptionForGroupWithDB(db, normalizedUserID, normalizedGroupID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return effective, nil
+		}
+		return effectiveGroupDailyQuotaPolicy{}, err
+	}
+	effective.Limit = normalizeServicePackageDailyQuotaLimit(subscription.DailyQuotaLimit)
+	effective.Timezone = normalizeServicePackageTimezone(subscription.QuotaResetTimezone)
+	effective.Source = "package"
+	effective.PackageID = strings.TrimSpace(subscription.PackageID)
+	effective.PackageName = strings.TrimSpace(subscription.PackageName)
+	return effective, nil
+}
+
 func ReserveGroupDailyQuotaWithDB(db *gorm.DB, groupID string, userID string, quota int64) (GroupDailyQuotaReservation, bool, error) {
 	if db == nil {
 		return GroupDailyQuotaReservation{}, false, fmt.Errorf("database handle is nil")
@@ -63,12 +104,15 @@ func ReserveGroupDailyQuotaWithDB(db *gorm.DB, groupID string, userID string, qu
 	if normalizedUserID == "" {
 		return GroupDailyQuotaReservation{}, false, fmt.Errorf("用户 ID 不能为空")
 	}
-	policy := GetGroupDailyQuotaPolicy(normalizedGroupID)
-	if policy.Limit <= 0 {
+	effectivePolicy, err := resolveEffectiveGroupDailyQuotaPolicyWithDB(db, normalizedGroupID, normalizedUserID)
+	if err != nil {
+		return GroupDailyQuotaReservation{}, false, err
+	}
+	if effectivePolicy.Limit <= 0 {
 		return GroupDailyQuotaReservation{}, true, nil
 	}
 	now := time.Now()
-	bizDate := businessDateByTimezone(now, policy.Timezone)
+	bizDate := businessDateByTimezone(now, effectivePolicy.Timezone)
 	updatedAt := helper.GetTimestamp()
 	result := db.Exec(
 		`INSERT INTO group_quota_counters (group_id, user_id, counter_type, period_key, reserved_quota, consumed_quota, updated_at)
@@ -84,7 +128,7 @@ func ReserveGroupDailyQuotaWithDB(db *gorm.DB, groupID string, userID string, qu
 		bizDate,
 		normalizedQuota,
 		updatedAt,
-		policy.Limit,
+		effectivePolicy.Limit,
 	)
 	if result.Error != nil {
 		return GroupDailyQuotaReservation{}, false, result.Error
@@ -169,6 +213,9 @@ type GroupDailyQuotaSnapshot struct {
 	GroupID        string `json:"group_id"`
 	UserID         string `json:"user_id"`
 	BizDate        string `json:"biz_date"`
+	PolicySource   string `json:"policy_source,omitempty"`
+	PackageID      string `json:"package_id,omitempty"`
+	PackageName    string `json:"package_name,omitempty"`
 	Limit          int64  `json:"limit"`
 	ConsumedQuota  int64  `json:"consumed_quota"`
 	ReservedQuota  int64  `json:"reserved_quota"`
@@ -202,16 +249,19 @@ func GetGroupDailyQuotaSnapshotWithDB(db *gorm.DB, groupID string, userID string
 	if normalizedUserID == "" {
 		return GroupDailyQuotaSnapshot{}, fmt.Errorf("用户 ID 不能为空")
 	}
-	groupCatalog, err := getGroupCatalogByIDWithDB(db, normalizedGroupID)
+	_, err := getGroupCatalogByIDWithDB(db, normalizedGroupID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return GroupDailyQuotaSnapshot{}, fmt.Errorf("分组不存在")
 		}
 		return GroupDailyQuotaSnapshot{}, err
 	}
-
-	limit := normalizeGroupDailyQuotaLimit(groupCatalog.DailyQuotaLimit)
-	timezone := normalizeGroupQuotaResetTimezone(groupCatalog.QuotaResetTimezone)
+	effectivePolicy, err := resolveEffectiveGroupDailyQuotaPolicyWithDB(db, normalizedGroupID, normalizedUserID)
+	if err != nil {
+		return GroupDailyQuotaSnapshot{}, err
+	}
+	limit := normalizeGroupDailyQuotaLimit(effectivePolicy.Limit)
+	timezone := normalizeGroupQuotaResetTimezone(effectivePolicy.Timezone)
 	normalizedBizDate, err := normalizeGroupQuotaDate(bizDate, timezone)
 	if err != nil {
 		return GroupDailyQuotaSnapshot{}, err
@@ -253,6 +303,9 @@ func GetGroupDailyQuotaSnapshotWithDB(db *gorm.DB, groupID string, userID string
 		GroupID:        normalizedGroupID,
 		UserID:         normalizedUserID,
 		BizDate:        normalizedBizDate,
+		PolicySource:   strings.TrimSpace(effectivePolicy.Source),
+		PackageID:      strings.TrimSpace(effectivePolicy.PackageID),
+		PackageName:    strings.TrimSpace(effectivePolicy.PackageName),
 		Limit:          limit,
 		ConsumedQuota:  consumed,
 		ReservedQuota:  reserved,

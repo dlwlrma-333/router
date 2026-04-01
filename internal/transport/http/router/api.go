@@ -12,6 +12,7 @@ import (
 	group "github.com/yeying-community/router/internal/admin/controller/group"
 	log "github.com/yeying-community/router/internal/admin/controller/log"
 	option "github.com/yeying-community/router/internal/admin/controller/option"
+	plan "github.com/yeying-community/router/internal/admin/controller/plan"
 	task "github.com/yeying-community/router/internal/admin/controller/task"
 	token "github.com/yeying-community/router/internal/admin/controller/token"
 	user "github.com/yeying-community/router/internal/admin/controller/user"
@@ -266,6 +267,11 @@ func SetApiRouter(engine *gin.Engine) {
 		{
 			adminGroupsRoute.GET("/", group.GetGroups)
 		}
+		adminPackagesRoute := adminRouter.Group("/packages")
+		adminPackagesRoute.Use(middleware.AdminAuth())
+		{
+			adminPackagesRoute.GET("/", plan.GetPackages)
+		}
 
 		adminRedemptionRoute := adminRouter.Group("/redemption")
 		adminRedemptionRoute.Use(middleware.AdminAuth())
@@ -302,6 +308,15 @@ func SetApiRouter(engine *gin.Engine) {
 			adminGroupRoute.GET("/:id/model-configs", group.GetGroupModelConfigs)
 			adminGroupRoute.PUT("/:id/channels", group.UpdateGroupChannels)
 			adminGroupRoute.PUT("/:id/model-configs", group.UpdateGroupModelConfigs)
+		}
+		adminPackageRoute := adminRouter.Group("/package")
+		adminPackageRoute.Use(middleware.AdminAuth())
+		{
+			adminPackageRoute.GET("/:id", plan.GetPackage)
+			adminPackageRoute.POST("/", plan.CreatePackage)
+			adminPackageRoute.PUT("/", plan.UpdatePackage)
+			adminPackageRoute.DELETE("/:id", plan.DeletePackage)
+			adminPackageRoute.POST("/:id/assign", plan.AssignPackageToUser)
 		}
 
 		adminProviderRoute := adminRouter.Group("/providers")

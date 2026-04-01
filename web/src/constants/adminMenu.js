@@ -44,6 +44,11 @@ export const ADMIN_MENU_GROUPS = [
         icon: 'sliders horizontal',
       },
       {
+        name: 'header.package',
+        to: '/admin/package',
+        icon: 'gift',
+      },
+      {
         name: 'header.user',
         to: '/admin/user',
         icon: 'user',

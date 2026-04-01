@@ -854,6 +854,14 @@ func resolveUserDailyQuotaGroupID(user *model.User, requestedGroupRef string) (s
 	if user == nil {
 		return "", fmt.Errorf("用户不存在")
 	}
+	if subscription, err := model.GetActiveUserPackageSubscription(strings.TrimSpace(user.Id)); err == nil {
+		groupID := strings.TrimSpace(subscription.GroupID)
+		if groupID != "" {
+			return groupID, nil
+		}
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", err
+	}
 	groupRefs := parseGroupReferences(user.Group)
 	if len(groupRefs) == 0 {
 		return "", fmt.Errorf("当前用户未绑定分组")

@@ -12,6 +12,7 @@
     "resource": "资源",
     "operation": "运营",
     "config": "配置",
+    "package": "套餐",
     "log": "日志",
     "task": "任务",
     "setting": "设置",
@@ -566,6 +567,82 @@
       "bind_update_failed": "分组渠道配置保存失败",
       "delete_success": "分组删除成功",
       "delete_failed": "分组删除失败"
+    }
+  },
+  "package_manage": {
+    "title": "套餐管理",
+    "search": "搜索套餐名称或分组",
+    "table": {
+      "name": "套餐名称",
+      "group": "分组",
+      "daily_quota_limit": "每日额度上限",
+      "monthly_emergency_quota_limit": "每月应急额度",
+      "duration_days": "使用天数",
+      "status": "状态",
+      "updated_at": "更新时间",
+      "actions": "操作",
+      "empty": "暂无套餐"
+    },
+    "status": {
+      "enabled": "已启用",
+      "disabled": "已禁用"
+    },
+    "buttons": {
+      "add": "新增套餐",
+      "refresh": "刷新",
+      "edit": "编辑",
+      "assign": "开通用户",
+      "delete": "删除"
+    },
+    "form": {
+      "name": "套餐名称",
+      "name_placeholder": "请输入套餐名称",
+      "description": "描述",
+      "group": "分组",
+      "group_placeholder": "请选择分组",
+      "daily_quota_limit": "每日额度上限",
+      "monthly_emergency_quota_limit": "每月应急额度",
+      "duration_days": "使用天数",
+      "quota_reset_timezone": "重置时区",
+      "enabled": "状态",
+      "sort_order": "排序",
+      "source": "来源"
+    },
+    "assign": {
+      "user_id": "用户",
+      "user_id_placeholder": "请选择用户",
+      "start_at": "生效时间",
+      "start_at_placeholder": "留空表示立即生效",
+      "package": "套餐"
+    },
+    "dialog": {
+      "create_title": "新增套餐",
+      "edit_title": "编辑套餐",
+      "detail_title": "套餐详情",
+      "assign_title": "开通套餐",
+      "delete_title": "删除套餐",
+      "delete_content": "确定删除套餐 {{name}} 吗？"
+    },
+    "messages": {
+      "loading": "加载中...",
+      "load_failed": "加载套餐失败",
+      "group_load_failed": "加载分组失败",
+      "user_load_failed": "加载用户失败",
+      "id_required": "套餐 ID 不能为空",
+      "name_required": "套餐名称不能为空",
+      "group_required": "分组不能为空",
+      "quota_invalid": "额度配置必须大于或等于 0",
+      "duration_invalid": "使用天数必须大于 0",
+      "user_required": "请选择用户",
+      "start_at_invalid": "生效时间格式不正确",
+      "create_success": "套餐创建成功",
+      "create_failed": "套餐创建失败",
+      "update_success": "套餐更新成功",
+      "update_failed": "套餐更新失败",
+      "delete_success": "套餐删除成功",
+      "delete_failed": "套餐删除失败",
+      "assign_success": "套餐开通成功",
+      "assign_failed": "套餐开通失败"
     }
   },
   "token": {
