@@ -642,16 +642,21 @@ const OperationSetting = ({ section = '' }) => {
                   </Button>
                 </div>
               </div>
-              <Table compact celled className='router-detail-table'>
+              <div className='router-table-scroll-x'>
+                <Table
+                  compact
+                  celled
+                  className='router-detail-table router-billing-currency-table'
+                >
                 <Table.Header>
                   <Table.Row>
-                    <Table.HeaderCell collapsing>
+                    <Table.HeaderCell collapsing className='router-billing-code-cell'>
                       {t('setting.operation.billing.columns.code')}
                     </Table.HeaderCell>
                     <Table.HeaderCell>
                       {t('setting.operation.billing.columns.name')}
                     </Table.HeaderCell>
-                    <Table.HeaderCell collapsing>
+                    <Table.HeaderCell collapsing className='router-billing-symbol-cell'>
                       {t('setting.operation.billing.columns.symbol')}
                     </Table.HeaderCell>
                     <Table.HeaderCell collapsing>
@@ -669,7 +674,7 @@ const OperationSetting = ({ section = '' }) => {
                     <Table.HeaderCell collapsing>
                       {t('setting.operation.billing.columns.updated_at')}
                     </Table.HeaderCell>
-                    <Table.HeaderCell className='router-table-action-cell'>
+                    <Table.HeaderCell className='router-billing-action-cell'>
                       {t('setting.operation.billing.columns.action')}
                     </Table.HeaderCell>
                   </Table.Row>
@@ -693,9 +698,9 @@ const OperationSetting = ({ section = '' }) => {
                       const isSaving = billingSavingKey === savingKey;
                       return (
                         <Table.Row key={row.code || `new-${index}`}>
-                          <Table.Cell>
+                          <Table.Cell className='router-billing-code-cell'>
                             <Form.Input
-                              className='router-section-input'
+                              className='router-section-input router-billing-code-input'
                               transparent
                               value={row.code || ''}
                               onChange={(e, { value }) =>
@@ -716,9 +721,9 @@ const OperationSetting = ({ section = '' }) => {
                               placeholder={t('setting.operation.billing.placeholders.name')}
                             />
                           </Table.Cell>
-                          <Table.Cell>
+                          <Table.Cell className='router-billing-symbol-cell'>
                             <Form.Input
-                              className='router-section-input'
+                              className='router-section-input router-billing-symbol-input'
                               transparent
                               value={row.symbol || ''}
                               onChange={(e, { value }) =>
@@ -773,7 +778,7 @@ const OperationSetting = ({ section = '' }) => {
                           <Table.Cell>
                             {row.updated_at ? timestamp2string(row.updated_at) : '-'}
                           </Table.Cell>
-                          <Table.Cell className='router-table-action-cell'>
+                          <Table.Cell className='router-billing-action-cell'>
                             <div className='router-action-group'>
                               {row._isNew ? (
                                 <Button
@@ -803,6 +808,7 @@ const OperationSetting = ({ section = '' }) => {
                   )}
                 </Table.Body>
               </Table>
+              </div>
             </>
           ) : null}
         </Form>

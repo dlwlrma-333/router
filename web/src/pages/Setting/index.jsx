@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, Grid, Header, Menu } from 'semantic-ui-react';
+import { Card, Grid, Menu } from 'semantic-ui-react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import SystemSetting from '../../components/SystemSetting';
 import { isRoot } from '../../helpers';
@@ -64,11 +64,16 @@ const Setting = () => {
 
   const tabKeys = menuGroups.map((item) => item.key);
   const requestedTab = (searchParams.get('tab') || '').trim().toLowerCase();
-  const activeTab =
+  const visibleMenuGroups =
     tabKeys.includes(requestedTab) && requestedTab !== ''
+      ? menuGroups.filter((item) => item.key === requestedTab)
+      : menuGroups;
+  const visibleTabKeys = visibleMenuGroups.map((item) => item.key);
+  const activeTab =
+    visibleTabKeys.includes(requestedTab) && requestedTab !== ''
       ? requestedTab
-      : tabKeys[0] || '';
-  const activeGroup = menuGroups.find((item) => item.key === activeTab);
+      : visibleTabKeys[0] || '';
+  const activeGroup = visibleMenuGroups.find((item) => item.key === activeTab);
   const sectionKeys = (activeGroup?.sections || []).map((item) => item.key);
   const requestedSection = (searchParams.get('section') || '')
     .trim()
@@ -98,48 +103,56 @@ const Setting = () => {
     return <div className='router-empty-cell'>{t('setting.empty_admin', '暂无可配置项')}</div>;
   };
 
-  const activeSectionLabel =
-    activeGroup?.sections?.find((item) => item.key === activeSection)?.label ||
-    '';
+  const pageTitle = activeGroup?.label || t('setting.title');
+  const singleGroupMode = visibleMenuGroups.length === 1;
+  const singleGroup = singleGroupMode ? visibleMenuGroups[0] : null;
 
   return (
     <div className='dashboard-container'>
       <Card fluid className='chart-card'>
         <Card.Content>
           <Card.Header className='header router-page-title'>
-            {t('setting.title')}
+            {pageTitle}
           </Card.Header>
-          {menuGroups.length > 0 ? (
+          {visibleMenuGroups.length > 0 ? (
             <Grid stackable columns={2} className='router-settings-layout'>
-              <Grid.Column width={4}>
+              <Grid.Column width={3} className='router-settings-menu-column'>
                 <Menu fluid vertical className='router-settings-menu'>
-                  {menuGroups.map((group) => (
-                    <Menu.Item key={group.key} className='router-settings-menu-group'>
-                      <Menu.Header>{group.label}</Menu.Header>
-                      <Menu.Menu>
-                        {group.sections.map((section) => (
-                          <Menu.Item
-                            key={`${group.key}-${section.key}`}
-                            active={
-                              activeTab === group.key &&
-                              activeSection === section.key
-                            }
-                            onClick={() => goToSection(group.key, section.key)}
-                          >
-                            {section.label}
-                          </Menu.Item>
-                        ))}
-                      </Menu.Menu>
-                    </Menu.Item>
-                  ))}
+                  {singleGroupMode && singleGroup
+                    ? singleGroup.sections.map((section) => (
+                        <Menu.Item
+                          key={`${singleGroup.key}-${section.key}`}
+                          active={
+                            activeTab === singleGroup.key &&
+                            activeSection === section.key
+                          }
+                          onClick={() => goToSection(singleGroup.key, section.key)}
+                        >
+                          {section.label}
+                        </Menu.Item>
+                      ))
+                    : visibleMenuGroups.map((group) => (
+                        <Menu.Item key={group.key} className='router-settings-menu-group'>
+                          <Menu.Header>{group.label}</Menu.Header>
+                          <Menu.Menu>
+                            {group.sections.map((section) => (
+                              <Menu.Item
+                                key={`${group.key}-${section.key}`}
+                                active={
+                                  activeTab === group.key &&
+                                  activeSection === section.key
+                                }
+                                onClick={() => goToSection(group.key, section.key)}
+                              >
+                                {section.label}
+                              </Menu.Item>
+                            ))}
+                          </Menu.Menu>
+                        </Menu.Item>
+                      ))}
                 </Menu>
               </Grid.Column>
-              <Grid.Column width={12}>
-                {activeSectionLabel ? (
-                  <Header as='h3' className='router-section-title'>
-                    {activeSectionLabel}
-                  </Header>
-                ) : null}
+              <Grid.Column width={13}>
                 {renderContent()}
               </Grid.Column>
             </Grid>
