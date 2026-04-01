@@ -71,7 +71,11 @@ function DashboardRedirect() {
 function SettingRedirect() {
   return (
     <Navigate
-      to={isAdmin() ? '/admin/setting' : '/workspace/setting'}
+      to={
+        isAdmin()
+          ? '/admin/setting?tab=system&section=general'
+          : '/workspace/setting'
+      }
       replace
     />
   );

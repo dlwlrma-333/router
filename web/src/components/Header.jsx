@@ -13,55 +13,12 @@ import {
 import { API, getLogo, isAdmin, isMobile, showSuccess } from '../helpers';
 import { WEB3_TOKEN_STORAGE_KEY } from '../helpers/web3';
 import { logoutWallet } from '../services/web3Auth';
+import {
+  ADMIN_MENU_GROUPS,
+  isAdminGroupActive,
+  isAdminRouteActive,
+} from '../constants/adminMenu';
 import '../index.css';
-
-const ADMIN_HEADER_BUTTONS = [
-  {
-    name: 'header.dashboard',
-    to: '/admin/dashboard',
-    icon: 'chart bar',
-  },
-  {
-    name: 'header.providers',
-    to: '/admin/provider',
-    icon: 'cubes',
-  },
-  {
-    name: 'header.channel',
-    to: '/admin/channel',
-    icon: 'sitemap',
-  },
-  {
-    name: 'header.group',
-    to: '/admin/group',
-    icon: 'group',
-  },
-  {
-    name: 'header.user',
-    to: '/admin/user',
-    icon: 'user',
-  },
-  {
-    name: 'header.redemption',
-    to: '/admin/redemption',
-    icon: 'dollar sign',
-  },
-  {
-    name: 'header.log',
-    to: '/admin/log',
-    icon: 'book',
-  },
-  {
-    name: 'header.task',
-    to: '/admin/task',
-    icon: 'tasks',
-  },
-  {
-    name: 'header.setting',
-    to: '/admin/setting',
-    icon: 'setting',
-  },
-];
 
 const USER_HEADER_BUTTONS = [
   {
@@ -96,7 +53,7 @@ const USER_HEADER_BUTTONS = [
   },
 ];
 
-const Header = ({ workspace = 'user' }) => {
+const Header = ({ workspace = 'user', hideNavButtons = false }) => {
   const { t, i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
   const navigate = useNavigate();
@@ -105,6 +62,12 @@ const Header = ({ workspace = 'user' }) => {
   const [showSidebar, setShowSidebar] = useState(false);
   const logo = getLogo();
   const shouldFixHeader = Boolean(userState?.user);
+  const headerContainerClass = [
+    'router-header-container',
+    hideNavButtons ? 'router-header-container-full' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   useEffect(() => {
     const body = document.body;
@@ -117,9 +80,12 @@ const Header = ({ workspace = 'user' }) => {
 
   const currentWorkspace = workspace === 'admin' ? 'admin' : 'user';
   const hasAdminAccess = isAdmin();
+  const adminFlatButtons = ADMIN_MENU_GROUPS.flatMap(
+    (group) => group.items,
+  );
   const buttons = (() => {
     const baseButtons =
-      currentWorkspace === 'admin' ? ADMIN_HEADER_BUTTONS : USER_HEADER_BUTTONS;
+      currentWorkspace === 'admin' ? adminFlatButtons : USER_HEADER_BUTTONS;
     const next = [...baseButtons];
     if (currentWorkspace === 'user' && localStorage.getItem('chat_link')) {
       next.splice(2, 0, {
@@ -131,11 +97,66 @@ const Header = ({ workspace = 'user' }) => {
     return next;
   })();
 
-  const isActive = (path) => {
-    if (location.pathname === path) {
-      return true;
+  const isRouteActive = (to) => {
+    if (currentWorkspace === 'admin') {
+      return isAdminRouteActive(location, to);
     }
-    return location.pathname.startsWith(`${path}/`);
+    const [path] = String(to || '').split('?');
+    if (!path) {
+      return false;
+    }
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
+
+  const renderAdminDesktopButtons = () => {
+    return ADMIN_MENU_GROUPS.map((group) => {
+      if (!group?.items?.length) {
+        return null;
+      }
+      if (group.items.length === 1) {
+        const item = group.items[0];
+        return (
+          <Menu.Item
+            key={group.key}
+            as={Link}
+            to={item.to}
+            className={`router-header-item ${isAdminGroupActive(location, group) ? 'router-header-group-active' : ''}`}
+            active={isRouteActive(item.to)}
+          >
+            <Icon name={group.icon || item.icon} />
+            {t(group.name)}
+          </Menu.Item>
+        );
+      }
+      return (
+        <Dropdown
+          key={group.key}
+          className={`link item router-header-dropdown router-header-trigger router-header-item ${isAdminGroupActive(location, group) ? 'router-header-group-active' : ''}`}
+          item
+          pointing
+          trigger={
+            <span>
+              <Icon name={group.icon} />
+              {t(group.name)}
+            </span>
+          }
+        >
+          <Dropdown.Menu>
+            {group.items.map((item) => (
+              <Dropdown.Item
+                key={item.to}
+                active={isRouteActive(item.to)}
+                onClick={() => navigate(item.to)}
+                className='router-header-item'
+              >
+                <Icon name={item.icon} />
+                {t(item.name)}
+              </Dropdown.Item>
+            ))}
+          </Dropdown.Menu>
+        </Dropdown>
+      );
+    });
   };
 
   const toggleSidebar = () => {
@@ -178,7 +199,7 @@ const Header = ({ workspace = 'user' }) => {
               setShowSidebar(false);
             }}
             className='router-header-item-mobile'
-            active={isActive(button.to)}
+            active={isRouteActive(button.to)}
           >
             {t(button.name)}
           </Menu.Item>
@@ -190,7 +211,7 @@ const Header = ({ workspace = 'user' }) => {
           as={Link}
           to={button.to}
           className='router-header-item'
-          active={isActive(button.to)}
+          active={isRouteActive(button.to)}
         >
           <Icon name={button.icon} />
           {t(button.name)}
@@ -222,7 +243,7 @@ const Header = ({ workspace = 'user' }) => {
             .filter(Boolean)
             .join(' ')}
         >
-          <Container className='router-header-container'>
+          <Container className={headerContainerClass}>
             <Menu.Item
               as='a'
               href='https://www.yeying.pub'
@@ -330,7 +351,7 @@ const Header = ({ workspace = 'user' }) => {
           .filter(Boolean)
           .join(' ')}
       >
-        <Container className='router-header-container'>
+        <Container className={headerContainerClass}>
           <Menu.Item
             as='a'
             href='https://www.yeying.pub'
@@ -340,7 +361,11 @@ const Header = ({ workspace = 'user' }) => {
           >
             <img src={logo} alt='logo' />
           </Menu.Item>
-          {renderButtons(false)}
+          {!hideNavButtons
+            ? currentWorkspace === 'admin'
+              ? renderAdminDesktopButtons()
+              : renderButtons(false)
+            : null}
           <Menu.Menu position='right'>
             {hasAdminAccess && (
               <Dropdown
