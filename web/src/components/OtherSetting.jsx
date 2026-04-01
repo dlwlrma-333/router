@@ -9,7 +9,7 @@ const optionKeys = [
   'HomePageContent'
 ];
 
-const OtherSetting = () => {
+const OtherSetting = ({ section = '' }) => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
     Notice: '',
@@ -17,6 +17,13 @@ const OtherSetting = () => {
     HomePageContent: '',
   });
   let [loading, setLoading] = useState(false);
+  const normalizedSection = (section || '').trim().toLowerCase();
+  const showAllSections =
+    normalizedSection === '' || normalizedSection === 'all';
+  const sectionVisible = {
+    notice: showAllSections || normalizedSection === 'notice',
+    content: showAllSections || normalizedSection === 'content',
+  };
 
   const getOptions = useCallback(async () => {
     const res = await API.get('/api/v1/admin/option/');
@@ -73,54 +80,62 @@ const OtherSetting = () => {
     <Grid columns={1}>
       <Grid.Column>
         <Form loading={loading}>
-          <Header as='h3' className='router-section-title'>
-            {t('setting.system.notice', '站点公告')}
-          </Header>
-          <Form.Group widths='equal'>
-            <Form.TextArea
-              className='router-section-textarea router-code-textarea router-code-textarea-sm'
-              name='Notice'
-              value={inputs.Notice}
-              onChange={handleInputChange}
-              placeholder={t('setting.system.notice_placeholder', '支持 Markdown')}
-            />
-          </Form.Group>
-          <Form.Button className='router-section-button' onClick={submitNotice}>
-            {t('setting.system.buttons.save')}
-          </Form.Button>
+          {sectionVisible.notice ? (
+            <>
+              <Header as='h3' className='router-section-title'>
+                {t('setting.system.notice', '站点公告')}
+              </Header>
+              <Form.Group widths='equal'>
+                <Form.TextArea
+                  className='router-section-textarea router-code-textarea router-code-textarea-sm'
+                  name='Notice'
+                  value={inputs.Notice}
+                  onChange={handleInputChange}
+                  placeholder={t('setting.system.notice_placeholder', '支持 Markdown')}
+                />
+              </Form.Group>
+              <Form.Button className='router-section-button' onClick={submitNotice}>
+                {t('setting.system.buttons.save')}
+              </Form.Button>
 
-          <Message className='router-section-message'>
-            {t('setting.other.copyright.notice')}
-          </Message>
+              <Message className='router-section-message'>
+                {t('setting.other.copyright.notice')}
+              </Message>
+              {showAllSections && sectionVisible.content ? <Divider /> : null}
+            </>
+          ) : null}
 
-          <Divider />
-          <Header as='h3' className='router-section-title'>{t('setting.other.content.title')}</Header>
-          <Form.Group widths='equal'>
-            <Form.TextArea
-              className='router-section-textarea router-code-textarea router-code-textarea-md'
-              label={t('setting.other.content.homepage.title')}
-              placeholder={t('setting.other.content.homepage.placeholder')}
-              value={inputs.HomePageContent}
-              name='HomePageContent'
-              onChange={handleInputChange}
-            />
-          </Form.Group>
-          <Form.Button className='router-section-button' onClick={() => submitOption('HomePageContent')}>
-            {t('setting.other.content.buttons.save_homepage')}
-          </Form.Button>
-          <Form.Group widths='equal'>
-            <Form.TextArea
-              className='router-section-textarea router-code-textarea router-code-textarea-md'
-              label={t('setting.other.content.about.title')}
-              placeholder={t('setting.other.content.about.placeholder')}
-              value={inputs.About}
-              name='About'
-              onChange={handleInputChange}
-            />
-          </Form.Group>
-          <Form.Button className='router-section-button' onClick={submitAbout}>
-            {t('setting.other.content.buttons.save_about')}
-          </Form.Button>
+          {sectionVisible.content ? (
+            <>
+              <Header as='h3' className='router-section-title'>{t('setting.other.content.title')}</Header>
+              <Form.Group widths='equal'>
+                <Form.TextArea
+                  className='router-section-textarea router-code-textarea router-code-textarea-md'
+                  label={t('setting.other.content.homepage.title')}
+                  placeholder={t('setting.other.content.homepage.placeholder')}
+                  value={inputs.HomePageContent}
+                  name='HomePageContent'
+                  onChange={handleInputChange}
+                />
+              </Form.Group>
+              <Form.Button className='router-section-button' onClick={() => submitOption('HomePageContent')}>
+                {t('setting.other.content.buttons.save_homepage')}
+              </Form.Button>
+              <Form.Group widths='equal'>
+                <Form.TextArea
+                  className='router-section-textarea router-code-textarea router-code-textarea-md'
+                  label={t('setting.other.content.about.title')}
+                  placeholder={t('setting.other.content.about.placeholder')}
+                  value={inputs.About}
+                  name='About'
+                  onChange={handleInputChange}
+                />
+              </Form.Group>
+              <Form.Button className='router-section-button' onClick={submitAbout}>
+                {t('setting.other.content.buttons.save_about')}
+              </Form.Button>
+            </>
+          ) : null}
         </Form>
       </Grid.Column>
     </Grid>

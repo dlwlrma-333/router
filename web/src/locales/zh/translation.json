@@ -9,9 +9,15 @@
     "topup": "充值",
     "user": "用户",
     "dashboard": "总览",
+    "resource": "资源",
+    "operation": "运营",
+    "config": "配置",
     "log": "日志",
     "task": "任务",
     "setting": "设置",
+    "setting_center": "设置中心",
+    "sidebar_expand": "展开侧栏",
+    "sidebar_compact": "收起侧栏",
     "chat": "聊天",
     "admin_workspace": "管理工作区",
     "user_workspace": "用户工作区",
@@ -22,22 +28,58 @@
   "topup": {
     "title": "充值中心",
     "get_code": {
-      "title": "获取兑换码",
-      "current_quota": "当前可用额度",
-      "button": "前往充值"
+      "title": "外部充值",
+      "current_quota": "当前 YYC 余额",
+      "button": "前往外部充值",
+      "creating": "创建订单中...",
+      "description": "Router 会先创建充值订单，再跳转到外部充值页面完成支付。",
+      "request_failed": "创建充值订单失败",
+      "popup_blocked": "浏览器拦截了新窗口，请允许弹窗后重试"
     },
-    "history": {
-      "title": "充值记录",
+    "orders": {
+      "title": "外部充值订单",
       "refresh": "刷新",
-      "empty": "暂无充值记录",
+      "empty": "暂无外部充值订单",
+      "columns": {
+        "time": "创建时间",
+        "status": "状态",
+        "order_id": "订单号",
+        "transaction_id": "交易号"
+      },
+      "status": {
+        "created": "已创建",
+        "pending": "处理中",
+        "paid": "已支付",
+        "fulfilled": "已完成",
+        "failed": "失败",
+        "canceled": "已取消"
+      }
+    },
+    "redemptions": {
+      "title": "兑换入账记录",
+      "refresh": "刷新",
+      "empty": "暂无兑换入账记录",
       "columns": {
         "time": "时间",
-        "quota": "额度",
+        "quota": "充值 YYC",
         "detail": "明细"
+      }
+    },
+    "result": {
+      "title": "最近一次兑换结果",
+      "close": "关闭",
+      "fields": {
+        "redeemed_yyc": "到账 YYC",
+        "before_balance": "充值前余额",
+        "after_balance": "充值后余额",
+        "redemption_name": "兑换码名称",
+        "redemption_id": "兑换码记录",
+        "redeemed_at": "兑换时间"
       }
     },
     "redeem_code": {
       "title": "兑换码充值",
+      "description": "如果你已经拿到兑换码，可以在这里直接完成入账。",
       "placeholder": "请输入兑换码",
       "paste": "粘贴",
       "paste_error": "无法访问剪贴板，请手动粘贴",
@@ -533,8 +575,8 @@
       "name": "名称",
       "status": "状态",
       "token": "令牌",
-      "used_quota": "已用额度",
-      "remain_quota": "剩余额度",
+      "used_quota": "已用 YYC",
+      "remain_quota": "剩余 YYC",
       "created_time": "创建时间",
       "expired_time": "过期时间",
       "actions": "操作",
@@ -581,9 +623,9 @@
       "ip_limit_placeholder": "请输入允许访问的网段，例如：192.168.0.0/24，请使用英文逗号分隔多个网段",
       "expire_time": "过期时间",
       "expire_time_placeholder": "请输入过期时间，格式为 yyyy-MM-dd HH:mm:ss，-1 表示无限制",
-      "quota_notice": "注意，令牌的额度仅用于限制令牌本身的最大额度使用量，实际的使用受到账户的剩余额度限制。",
-      "quota": "额度",
-      "quota_placeholder": "请输入额度",
+      "quota_notice": "注意，令牌的 YYC 仅用于限制令牌本身的最大使用量，实际使用仍受到账户剩余 YYC 限制。",
+      "quota": "可用 YYC",
+      "quota_placeholder": "请输入 YYC",
       "buttons": {
         "never_expire": "永不过期",
         "expire_1_month": "一个月后过期",
@@ -617,8 +659,8 @@
     "sort": {
       "placeholder": "排序方式",
       "default": "默认排序",
-      "by_remain": "按剩余额度排序",
-      "by_used": "按已用额度排序"
+      "by_remain": "按剩余 YYC 排序",
+      "by_used": "按已用 YYC 排序"
     }
   },
   "common": {
@@ -641,7 +683,7 @@
       "id": "ID",
       "name": "名称",
       "status": "状态",
-      "quota": "额度",
+      "quota": "YYC 面额",
       "created_time": "创建时间",
       "redeemed_time": "兑换时间",
       "actions": "操作",
@@ -669,8 +711,8 @@
       "title_create": "创建新的兑换码",
       "name": "名称",
       "name_placeholder": "请输入名称",
-      "quota": "额度",
-      "quota_placeholder": "请输入单个兑换码中包含的额度",
+      "quota": "YYC 面额",
+      "quota_placeholder": "请输入单个兑换码包含的 YYC",
       "count": "生成数量",
       "count_placeholder": "请输入生成数量",
       "buttons": {
@@ -751,6 +793,7 @@
       },
       "sections": {
         "basic": "基础信息",
+        "billing": "计费快照",
         "content": "详情内容"
       },
       "fields": {
@@ -768,6 +811,16 @@
         "quota": "额度",
         "user_daily_quota": "用户基础额度",
         "user_emergency_quota": "用户应急额度",
+        "billing_price_unit": "计价单位",
+        "billing_currency": "计费币种",
+        "billing_group_ratio": "业务倍率",
+        "billing_yyc_rate": "YYC 折算比率",
+        "billing_input_quantity": "输入计费数量",
+        "billing_output_quantity": "输出计费数量",
+        "billing_input_amount": "输入金额",
+        "billing_output_amount": "输出金额",
+        "billing_amount": "计费金额",
+        "billing_yyc_amount": "折算 YYC",
         "elapsed_time": "耗时",
         "is_stream": "流式输出",
         "system_prompt_reset": "重置系统提示词"
@@ -856,20 +909,20 @@
     "title": "用户管理",
     "detail": {
       "title": "用户详情",
-      "user_quota_title": "用户额度",
-      "user_quota_daily_limit": "每日额度上限",
+      "user_quota_title": "用户 YYC 概览",
+      "user_quota_daily_limit": "每日 YYC 上限",
       "user_quota_daily_consumed": "今日基础已用",
       "user_quota_daily_reserved": "今日基础预占",
       "user_quota_daily_remaining": "今日基础剩余",
-      "user_quota_biz_date": "额度业务日",
-      "user_quota_monthly_emergency_limit": "本月应急额度",
+      "user_quota_biz_date": "YYC 业务日",
+      "user_quota_monthly_emergency_limit": "本月应急 YYC",
       "user_quota_monthly_emergency_consumed": "本月应急已用",
       "user_quota_monthly_emergency_reserved": "本月应急预占",
       "user_quota_monthly_emergency_remaining": "本月应急剩余",
-      "user_quota_biz_month": "额度业务月",
-      "user_quota_timezone": "额度时区",
-      "user_quota_updated_at": "额度更新时间",
-      "daily_quota_title": "今日套餐额度",
+      "user_quota_biz_month": "YYC 业务月",
+      "user_quota_timezone": "YYC 时区",
+      "user_quota_updated_at": "YYC 更新时间",
+      "daily_quota_title": "今日套餐 YYC",
       "daily_quota_group": "套餐分组",
       "daily_quota_limit": "今日上限",
       "daily_quota_consumed": "今日已用",
@@ -894,13 +947,13 @@
       "group": "分组",
       "group_placeholder": "请选择分组",
       "group_addition": "可在分组管理页面新增分组：",
-      "quota": "剩余额度",
-      "quota_placeholder": "请输入新的剩余额度",
-      "daily_quota_limit": "每日额度上限",
+      "quota": "剩余 YYC",
+      "quota_placeholder": "请输入新的剩余 YYC",
+      "daily_quota_limit": "每日 YYC 上限",
       "daily_quota_limit_placeholder": "0 表示不限额",
-      "monthly_emergency_quota_limit": "每月应急额度",
+      "monthly_emergency_quota_limit": "每月应急 YYC",
       "monthly_emergency_quota_limit_placeholder": "0 表示不启用",
-      "quota_reset_timezone": "额度重置时区",
+      "quota_reset_timezone": "YYC 重置时区",
       "quota_reset_timezone_placeholder": "例如 Asia/Shanghai",
       "github_id": "已绑定的 GitHub 账户",
       "github_id_placeholder": "此项只读，需要用户通过个人设置页面的相关绑定按钮进行绑定，不可直接修改",
@@ -932,12 +985,12 @@
       "username": "用户名",
       "wallet": "钱包",
       "group": "分组",
-      "quota": "额度",
+      "quota": "YYC",
       "role_text": "角色",
       "status_text": "状态",
       "actions": "操作",
-      "remaining_quota": "剩余额度",
-      "used_quota": "已用额度",
+      "remaining_quota": "剩余 YYC",
+      "used_quota": "已用 YYC",
       "request_count": "请求次数",
       "role_types": {
         "normal": "普通用户",
@@ -952,8 +1005,8 @@
       },
       "sort": {
         "default": "默认排序",
-        "by_quota": "按剩余额度排序",
-        "by_used_quota": "按已用额度排序",
+        "by_quota": "按剩余 YYC 排序",
+        "by_used_quota": "按已用 YYC 排序",
         "by_request_count": "按请求次数排序"
       },
       "sort_by": "排序方式"
@@ -1437,15 +1490,53 @@
         "topup_link_placeholder": "例如发卡网站的购买链接",
         "chat_link": "聊天页面链接",
         "chat_link_placeholder": "例如 ChatGPT Next Web 的部署地址",
-        "quota_per_unit": "单位美元额度",
-        "quota_per_unit_placeholder": "一单位货币能兑换的额度",
+        "quota_per_unit": "USD -> YYC 兑换比率",
+        "quota_per_unit_placeholder": "1 美元可兑换多少 YYC",
         "retry_times": "失败重试次数",
         "retry_times_placeholder": "失败重试次数",
-        "display_in_currency": "以货币形式显示额度",
+        "display_in_currency": "以法币形式显示 YYC",
         "display_token_stat": "Billing 相关 API 显示令牌额度而非用户额度",
         "approximate_token": "使用近似的方式估算 token 数以减少计算量",
         "buttons": {
           "save": "保存通用设置"
+        }
+      },
+      "billing": {
+        "title": "计费币种",
+        "subtitle": "维护上游计费币种与 YYC 的兑换比率。供应商价格会先按原币种计算，再折算为 YYC 入账。",
+        "empty": "暂无计费币种",
+        "columns": {
+          "code": "代码",
+          "name": "名称",
+          "symbol": "符号",
+          "minor_unit": "精度",
+          "yyc_per_unit": "每单位兑换 YYC",
+          "status": "状态",
+          "source": "来源",
+          "updated_at": "更新时间",
+          "action": "操作"
+        },
+        "status": {
+          "enabled": "启用",
+          "disabled": "停用"
+        },
+        "placeholders": {
+          "name": "例如 US Dollar",
+          "yyc_per_unit": "例如 500000"
+        },
+        "buttons": {
+          "add": "新增币种",
+          "save": "保存",
+          "cancel": "取消"
+        },
+        "messages": {
+          "load_failed": "加载计费币种失败",
+          "save_failed": "保存计费币种失败",
+          "save_success": "计费币种已保存",
+          "code_required": "币种代码不能为空",
+          "name_required": "币种名称不能为空",
+          "minor_unit_invalid": "精度必须大于或等于 0",
+          "yyc_per_unit_invalid": "YYC 兑换比率必须大于 0"
         }
       }
     },
