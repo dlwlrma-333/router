@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Breadcrumb,
   Button,
   Form,
   Header,
@@ -332,6 +333,7 @@ const createEmptyRow = () => ({
   model_details: [],
   sort_order: 0,
   source: 'manual',
+  created_at: 0,
   updated_at: 0,
 });
 
@@ -346,6 +348,7 @@ const toEditableRows = (items) => {
     model_details: detailsFromCatalogItem(item),
     sort_order: Number(item?.sort_order || 0),
     source: item?.source || 'manual',
+    created_at: item?.created_at || 0,
     updated_at: item?.updated_at || 0,
   }));
 };
@@ -366,6 +369,10 @@ const OFFICIAL_PROVIDER_BASE_URLS = {
   stepfun: 'https://api.stepfun.com/v1',
   volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
 };
+
+const cloneEditableRow = (row) => toEditableRows([row])[0] || createEmptyRow();
+const cloneModelDetail = (detail) =>
+  normalizeModelDetails([detail])[0] || createEmptyModelDetail('');
 
 const MODEL_TYPE_OPTIONS = [
   { key: 'text', value: 'text', text: 'text' },
@@ -496,6 +503,7 @@ const ProvidersManager = () => {
   const { t } = useTranslation();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [activePage, setActivePage] = useState(1);
@@ -503,14 +511,16 @@ const ProvidersManager = () => {
   const [deletingRow, setDeletingRow] = useState(null);
   const [creating, setCreating] = useState(false);
   const [createRow, setCreateRow] = useState(createEmptyRow());
-
-  const [editing, setEditing] = useState(false);
-  const [editRow, setEditRow] = useState(createEmptyRow());
-  const [editModelSearchKeyword, setEditModelSearchKeyword] = useState('');
   const [viewingProvider, setViewingProvider] = useState('');
   const [viewRow, setViewRow] = useState(null);
   const [viewModelSearchKeyword, setViewModelSearchKeyword] = useState('');
   const [viewModelPage, setViewModelPage] = useState(1);
+  const [detailEditingSection, setDetailEditingSection] = useState('');
+  const [detailBasicDraft, setDetailBasicDraft] = useState(createEmptyRow());
+  const [detailModelsDraft, setDetailModelsDraft] = useState(createEmptyRow());
+  const [detailEditingModelIndex, setDetailEditingModelIndex] = useState(-1);
+  const [modelDetailEditorOpen, setModelDetailEditorOpen] = useState(false);
+  const [modelDetailEditorMode, setModelDetailEditorMode] = useState('edit');
   const [pricingDetailOpen, setPricingDetailOpen] = useState(false);
   const [pricingDetailModel, setPricingDetailModel] = useState(null);
 
@@ -525,8 +535,12 @@ const ProvidersManager = () => {
   }, [totalCount]);
 
   const loadCatalog = useCallback(
-    async (page, keyword) => {
+    async (page, keyword, options = {}) => {
+      const withRefreshIndicator = options.withRefreshIndicator === true;
       setLoading(true);
+      if (withRefreshIndicator) {
+        setRefreshing(true);
+      }
       try {
         const res = await API.get('/api/v1/admin/providers', {
           params: {
@@ -547,6 +561,9 @@ const ProvidersManager = () => {
         showError(error);
       } finally {
         setLoading(false);
+        if (withRefreshIndicator) {
+          setRefreshing(false);
+        }
       }
     },
     [t],
@@ -562,39 +579,28 @@ const ProvidersManager = () => {
     }
   }, [activePage, totalPages]);
 
-  const setEditValue = (key, value) => {
-    setEditRow((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  };
-
   const setCreateValue = (key, value) => {
     setCreateRow((prev) => ({
       ...prev,
-      [key]: value,
+      [key]:
+        typeof value === 'function' ? value(prev[key], prev) : value,
     }));
   };
 
-  const openEditor = (row) => {
-    if (!row || creating) return;
-    setViewingProvider('');
-    setViewRow(null);
-    setEditModelSearchKeyword('');
-    setEditRow({ ...row });
-    setEditing(true);
-  };
-
-  const rollbackEditor = () => {
-    setEditing(false);
-    setEditModelSearchKeyword('');
-    setEditRow(createEmptyRow());
-  };
+  const resetDetailEditingState = useCallback(() => {
+    setDetailEditingSection('');
+    setDetailBasicDraft(createEmptyRow());
+    setDetailModelsDraft(createEmptyRow());
+    setDetailEditingModelIndex(-1);
+    setModelDetailEditorOpen(false);
+    setModelDetailEditorMode('edit');
+  }, []);
 
   const openCreatePanel = () => {
-    if (editing || creating || saving) return;
+    if (creating || saving) return;
     setViewingProvider('');
     setViewRow(null);
+    resetDetailEditingState();
     setCreateRow(createEmptyRow());
     setCreating(true);
   };
@@ -605,13 +611,14 @@ const ProvidersManager = () => {
   };
 
   const openViewer = (row) => {
-    if (creating || editing || saving) return;
+    if (creating || saving) return;
     const normalized = normalizeProvider(row?.id || '');
     if (!normalized) return;
     setViewModelSearchKeyword('');
     setViewModelPage(1);
+    resetDetailEditingState();
     setViewingProvider(normalized);
-    setViewRow({ ...row });
+    setViewRow(cloneEditableRow(row));
   };
 
   const closeViewer = () => {
@@ -619,6 +626,40 @@ const ProvidersManager = () => {
     setViewModelPage(1);
     setViewingProvider('');
     setViewRow(null);
+    resetDetailEditingState();
+  };
+
+  const startDetailSectionEdit = useCallback(
+    (section, row = null) => {
+      const sourceRow = cloneEditableRow(row || viewRow);
+      if (!sourceRow?.id || saving || creating) {
+        return;
+      }
+      setDetailEditingSection(section);
+      if (section === 'basic') {
+        setDetailBasicDraft(sourceRow);
+      }
+    },
+    [creating, saving, viewRow],
+  );
+
+  const cancelDetailSectionEdit = useCallback(() => {
+    resetDetailEditingState();
+  }, [resetDetailEditingState]);
+
+  const setDetailBasicValue = (key, value) => {
+    setDetailBasicDraft((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const setDetailModelsValue = (key, value) => {
+    setDetailModelsDraft((prev) => ({
+      ...prev,
+      [key]:
+        typeof value === 'function' ? value(prev[key], prev) : value,
+    }));
   };
 
   const openPricingDetail = useCallback((detail) => {
@@ -631,52 +672,52 @@ const ProvidersManager = () => {
     setPricingDetailModel(null);
   }, []);
 
-  const setModelDetailField = (setter, row, index, key, value) => {
-    const details = Array.isArray(row.model_details)
-      ? [...row.model_details]
-      : [];
-    if (index < 0 || index >= details.length) return;
-    const next = { ...details[index] };
-    if (key === 'input_price' || key === 'output_price') {
-      const parsed = Number(value);
-      next[key] = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-    } else if (key === 'currency') {
-      next[key] = (value || '').toUpperCase();
-    } else if (key === 'source') {
-      next[key] = (value || '').toLowerCase();
-    } else if (key === 'type') {
-      const normalizedType =
-        (value || '').toLowerCase() || inferModelType(next.model || '');
-      next.type = normalizedType;
-      next.capabilities = normalizeCapabilities(
-        next.capabilities,
-        next.model || '',
-      );
-      if (!next.price_unit) {
-        next.price_unit = defaultPriceUnitByType(
-          normalizedType,
+  const setModelDetailField = (setter, _row, index, key, value) => {
+    setter('model_details', (currentDetails) => {
+      const details = Array.isArray(currentDetails) ? [...currentDetails] : [];
+      if (index < 0 || index >= details.length) return details;
+      const next = { ...details[index] };
+      if (key === 'input_price' || key === 'output_price') {
+        next[key] =
+          value === null || value === undefined ? '' : `${value}`;
+      } else if (key === 'currency') {
+        next[key] = (value || '').toUpperCase();
+      } else if (key === 'source') {
+        next[key] = (value || '').toLowerCase();
+      } else if (key === 'type') {
+        const normalizedType =
+          (value || '').toLowerCase() || inferModelType(next.model || '');
+        next.type = normalizedType;
+        next.capabilities = normalizeCapabilities(
+          next.capabilities,
           next.model || '',
         );
+        if (!next.price_unit) {
+          next.price_unit = defaultPriceUnitByType(
+            normalizedType,
+            next.model || '',
+          );
+        }
+      } else if (key === 'model') {
+        next.model = value || '';
+        if (!next.type) {
+          next.type = inferModelType(next.model);
+        }
+        next.capabilities = normalizeCapabilities(
+          next.capabilities,
+          next.model || '',
+        );
+        if (!next.price_unit) {
+          next.price_unit = defaultPriceUnitByType(next.type, next.model);
+        }
+      } else if (key === 'capabilities') {
+        next.capabilities = normalizeCapabilities(value, next.model || '');
+      } else {
+        next[key] = value || '';
       }
-    } else if (key === 'model') {
-      next.model = value || '';
-      if (!next.type) {
-        next.type = inferModelType(next.model);
-      }
-      next.capabilities = normalizeCapabilities(
-        next.capabilities,
-        next.model || '',
-      );
-      if (!next.price_unit) {
-        next.price_unit = defaultPriceUnitByType(next.type, next.model);
-      }
-    } else if (key === 'capabilities') {
-      next.capabilities = normalizeCapabilities(value, next.model || '');
-    } else {
-      next[key] = value || '';
-    }
-    details[index] = next;
-    setter('model_details', details);
+      details[index] = next;
+      return details;
+    });
   };
 
   const setPriceComponentField = (
@@ -687,38 +728,38 @@ const ProvidersManager = () => {
     key,
     value,
   ) => {
-    const details = Array.isArray(row.model_details)
-      ? [...row.model_details]
-      : [];
-    if (detailIndex < 0 || detailIndex >= details.length) return;
-    const detail = { ...details[detailIndex] };
-    const components = Array.isArray(detail.price_components)
-      ? [...detail.price_components]
-      : [];
-    if (componentIndex < 0 || componentIndex >= components.length) return;
-    const next = { ...components[componentIndex] };
-    if (
-      key === 'input_price' ||
-      key === 'output_price' ||
-      key === 'sort_order'
-    ) {
-      const parsed = Number(value);
-      next[key] = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-    } else if (key === 'currency') {
-      next[key] = (value || '').toUpperCase();
-    } else if (key === 'source') {
-      next[key] = (value || '').toLowerCase();
-    } else if (key === 'component') {
-      next.component = (value || '').toLowerCase();
-      next.condition = '';
-      next.price_unit = defaultPriceUnitByComponent(next.component);
-    } else {
-      next[key] = value || '';
-    }
-    components[componentIndex] = next;
-    detail.price_components = normalizePriceComponents(components);
-    details[detailIndex] = detail;
-    setter('model_details', details);
+    setter('model_details', (currentDetails) => {
+      const details = Array.isArray(currentDetails) ? [...currentDetails] : [];
+      if (detailIndex < 0 || detailIndex >= details.length) return details;
+      const detail = { ...details[detailIndex] };
+      const components = Array.isArray(detail.price_components)
+        ? [...detail.price_components]
+        : [];
+      if (componentIndex < 0 || componentIndex >= components.length) {
+        return details;
+      }
+      const next = { ...components[componentIndex] };
+      if (key === 'input_price' || key === 'output_price') {
+        next[key] =
+          value === null || value === undefined ? '' : `${value}`;
+      } else if (key === 'sort_order') {
+        next[key] = value === null || value === undefined ? '' : `${value}`;
+      } else if (key === 'currency') {
+        next[key] = (value || '').toUpperCase();
+      } else if (key === 'source') {
+        next[key] = (value || '').toLowerCase();
+      } else if (key === 'component') {
+        next.component = (value || '').toLowerCase();
+        next.condition = '';
+        next.price_unit = defaultPriceUnitByComponent(next.component);
+      } else {
+        next[key] = value || '';
+      }
+      components[componentIndex] = next;
+      detail.price_components = components;
+      details[detailIndex] = detail;
+      return details;
+    });
   };
 
   const updatePriceComponentConditionTemplate = (
@@ -846,64 +887,188 @@ const ProvidersManager = () => {
     return null;
   };
 
-  const addPriceComponentRow = (setter, row, detailIndex) => {
-    const details = Array.isArray(row.model_details)
-      ? [...row.model_details]
-      : [];
-    if (detailIndex < 0 || detailIndex >= details.length) return;
-    const detail = { ...details[detailIndex] };
-    const components = Array.isArray(detail.price_components)
-      ? [...detail.price_components]
-      : [];
-    components.push(createEmptyPriceComponent('text'));
-    detail.price_components = normalizePriceComponents(components);
-    details[detailIndex] = detail;
-    setter('model_details', details);
+  const addPriceComponentRow = (setter, _row, detailIndex) => {
+    setter('model_details', (currentDetails) => {
+      const details = Array.isArray(currentDetails) ? [...currentDetails] : [];
+      if (detailIndex < 0 || detailIndex >= details.length) return details;
+      const detail = { ...details[detailIndex] };
+      const components = Array.isArray(detail.price_components)
+        ? [...detail.price_components]
+        : [];
+      components.push(createEmptyPriceComponent('text'));
+      detail.price_components = components;
+      details[detailIndex] = detail;
+      return details;
+    });
   };
 
   const removePriceComponentRow = (
     setter,
-    row,
+    _row,
     detailIndex,
     componentIndex,
   ) => {
-    const details = Array.isArray(row.model_details)
-      ? [...row.model_details]
-      : [];
-    if (detailIndex < 0 || detailIndex >= details.length) return;
-    const detail = { ...details[detailIndex] };
-    const components = Array.isArray(detail.price_components)
-      ? [...detail.price_components]
-      : [];
-    if (componentIndex < 0 || componentIndex >= components.length) return;
-    components.splice(componentIndex, 1);
-    detail.price_components = normalizePriceComponents(components);
-    details[detailIndex] = detail;
-    setter('model_details', details);
+    setter('model_details', (currentDetails) => {
+      const details = Array.isArray(currentDetails) ? [...currentDetails] : [];
+      if (detailIndex < 0 || detailIndex >= details.length) return details;
+      const detail = { ...details[detailIndex] };
+      const components = Array.isArray(detail.price_components)
+        ? [...detail.price_components]
+        : [];
+      if (componentIndex < 0 || componentIndex >= components.length) {
+        return details;
+      }
+      components.splice(componentIndex, 1);
+      detail.price_components = components;
+      details[detailIndex] = detail;
+      return details;
+    });
   };
 
-  const addModelDetailRow = (setter, row) => {
-    const details = Array.isArray(row.model_details)
-      ? [...row.model_details]
-      : [];
-    details.unshift(createEmptyModelDetail(''));
-    setter('model_details', details);
+  const addModelDetailRow = (setter, _row) => {
+    setter('model_details', (currentDetails) => {
+      const details = Array.isArray(currentDetails) ? [...currentDetails] : [];
+      details.unshift(createEmptyModelDetail(''));
+      return details;
+    });
   };
 
-  const removeModelDetailRow = (setter, row, index) => {
-    const details = Array.isArray(row.model_details)
-      ? [...row.model_details]
-      : [];
-    if (index < 0 || index >= details.length) return;
-    details.splice(index, 1);
-    setter('model_details', details);
+  const removeModelDetailRow = (setter, _row, index) => {
+    setter('model_details', (currentDetails) => {
+      const details = Array.isArray(currentDetails) ? [...currentDetails] : [];
+      if (index < 0 || index >= details.length) return details;
+      details.splice(index, 1);
+      return details;
+    });
   };
 
   const reloadCurrentPage = async () => {
-    await loadCatalog(activePage, normalizedSearchKeyword);
+    await loadCatalog(activePage, normalizedSearchKeyword, {
+      withRefreshIndicator: true,
+    });
   };
 
-  const saveProvider = async (method, url, row, options = {}) => {
+  const persistViewerModelDetails = useCallback(
+    async (modelDetails) => {
+      const sourceRow = cloneEditableRow(viewRow);
+      const provider = normalizeProvider(sourceRow.id);
+      if (!provider) {
+        showInfo(t('channel.providers.messages.provider_required'));
+        return null;
+      }
+      const saved = await saveProvider(
+        'put',
+        `/api/v1/admin/providers/${provider}`,
+        {
+          ...sourceRow,
+          model_details: normalizeModelDetails(modelDetails || []),
+          updated_at: Math.floor(Date.now() / 1000),
+        },
+      );
+      if (saved) {
+        setViewingProvider(saved.id || '');
+        setViewRow(saved);
+        resetDetailEditingState();
+      }
+      return saved;
+    },
+    [resetDetailEditingState, saveProvider, t, viewRow],
+  );
+
+  const closeModelDetailEditor = useCallback(() => {
+    if (saving) {
+      return;
+    }
+    resetDetailEditingState();
+  }, [resetDetailEditingState, saving]);
+
+  const startDetailModelEdit = useCallback(
+    (index) => {
+      const sourceRow = cloneEditableRow(viewRow);
+      const details = Array.isArray(sourceRow.model_details)
+        ? sourceRow.model_details
+        : [];
+      if (
+        saving ||
+        creating ||
+        !sourceRow?.id ||
+        index < 0 ||
+        index >= details.length
+      ) {
+        return;
+      }
+      setDetailEditingSection('models');
+      setDetailModelsDraft(sourceRow);
+      setDetailEditingModelIndex(index);
+      setModelDetailEditorMode('edit');
+      setModelDetailEditorOpen(true);
+    },
+    [creating, saving, viewRow],
+  );
+
+  const startDetailModelCreate = useCallback(() => {
+    const sourceRow = cloneEditableRow(viewRow);
+    if (saving || creating || !sourceRow?.id) {
+      return;
+    }
+    const nextDetails = [
+      createEmptyModelDetail(''),
+      ...(Array.isArray(sourceRow.model_details) ? sourceRow.model_details : []),
+    ];
+    setDetailEditingSection('models');
+    setDetailModelsDraft({
+      ...sourceRow,
+      model_details: nextDetails,
+    });
+    setDetailEditingModelIndex(0);
+    setModelDetailEditorMode('create');
+    setModelDetailEditorOpen(true);
+    setViewModelSearchKeyword('');
+    setViewModelPage(1);
+  }, [creating, saving, viewRow]);
+
+  const saveDetailModelEdit = useCallback(async () => {
+    const currentDetails = Array.isArray(detailModelsDraft.model_details)
+      ? detailModelsDraft.model_details
+      : [];
+    const currentDetail =
+      detailEditingModelIndex >= 0 && detailEditingModelIndex < currentDetails.length
+        ? cloneModelDetail(currentDetails[detailEditingModelIndex])
+        : null;
+    if (!currentDetail?.model) {
+      showInfo(t('channel.providers.messages.model_required'));
+      return;
+    }
+    await persistViewerModelDetails(currentDetails);
+  }, [
+    detailEditingModelIndex,
+    detailModelsDraft.model_details,
+    persistViewerModelDetails,
+    t,
+  ]);
+
+  const deleteDetailModel = useCallback(
+    async (index) => {
+      const sourceRow = cloneEditableRow(viewRow);
+      const details = Array.isArray(sourceRow.model_details)
+        ? [...sourceRow.model_details]
+        : [];
+      if (saving || creating || index < 0 || index >= details.length) {
+        return;
+      }
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm(t('channel.providers.model_detail_table.delete_confirm'))
+      ) {
+        return;
+      }
+      details.splice(index, 1);
+      await persistViewerModelDetails(details);
+    },
+    [creating, persistViewerModelDetails, saving, t, viewRow],
+  );
+
+  async function saveProvider(method, url, row, options = {}) {
     const provider = normalizeProvider(row.id);
     if (!provider) {
       showInfo(t('channel.providers.messages.provider_required'));
@@ -946,10 +1111,10 @@ const ProvidersManager = () => {
     } finally {
       setSaving(false);
     }
-  };
+  }
 
   const openDeleteModal = (row) => {
-    if (saving || creating || editing) return;
+    if (saving || creating) return;
     if (!row) return;
     setDeletingRow(row);
   };
@@ -990,35 +1155,53 @@ const ProvidersManager = () => {
     }
   };
 
-  const applyEditToRows = async () => {
-    const provider = normalizeProvider(editRow.id);
+  const saveViewerSection = async (section) => {
+    const sourceRow = cloneEditableRow(viewRow);
+    const provider = normalizeProvider(sourceRow.id);
     if (!provider) {
       showInfo(t('channel.providers.messages.provider_required'));
       return;
     }
-    const normalizedRow = {
-      ...editRow,
+    let normalizedRow = {
+      ...sourceRow,
       id: provider,
-      name: (editRow.name || '').trim() || provider,
+      name: (sourceRow.name || '').trim() || provider,
       base_url:
-        (editRow.base_url || '').trim() ||
+        (sourceRow.base_url || '').trim() ||
         OFFICIAL_PROVIDER_BASE_URLS[provider] ||
         '',
-      official_url: (editRow.official_url || '').trim(),
-      model_details: normalizeModelDetails(editRow.model_details || []),
-      sort_order: Number(editRow.sort_order || 0),
-      source: editRow.source || 'manual',
+      official_url: (sourceRow.official_url || '').trim(),
+      model_details: normalizeModelDetails(sourceRow.model_details || []),
+      sort_order: Number(sourceRow.sort_order || 0),
+      source: sourceRow.source || 'manual',
       updated_at: Math.floor(Date.now() / 1000),
     };
+    if (section === 'basic') {
+      normalizedRow = {
+        ...normalizedRow,
+        name: (detailBasicDraft.name || '').trim() || provider,
+        base_url:
+          (detailBasicDraft.base_url || '').trim() ||
+          OFFICIAL_PROVIDER_BASE_URLS[provider] ||
+          '',
+        official_url: (detailBasicDraft.official_url || '').trim(),
+      };
+    }
+    if (section === 'models') {
+      normalizedRow = {
+        ...normalizedRow,
+        model_details: normalizeModelDetails(detailModelsDraft.model_details || []),
+      };
+    }
     const saved = await saveProvider(
       'put',
       `/api/v1/admin/providers/${provider}`,
       normalizedRow,
     );
     if (saved) {
-      rollbackEditor();
       setViewingProvider(saved.id || '');
       setViewRow(saved);
+      resetDetailEditingState();
     }
   };
 
@@ -1064,11 +1247,13 @@ const ProvidersManager = () => {
     const searchable = options.searchable === true;
     const modelSearchKeyword =
       typeof options.searchKeyword === 'string' ? options.searchKeyword : '';
+    const hideTitle = options.hideTitle === true;
+    const showToolbar = options.showToolbar !== false;
     const normalizedModelSearchKeyword = modelSearchKeyword
       .trim()
       .toLowerCase();
     const detailRows = details.map((detail, index) => ({ detail, index }));
-    const visibleDetailRows =
+    let visibleDetailRows =
       normalizedModelSearchKeyword === ''
         ? detailRows
         : detailRows.filter(({ detail }) => {
@@ -1086,37 +1271,43 @@ const ProvidersManager = () => {
           });
     return (
       <div>
-        <div className='router-toolbar router-toolbar-compact'>
-          <div className='router-toolbar-title'>
-            {t('channel.providers.dialog.model_details')}
+        {showToolbar ? (
+          <div className='router-toolbar router-toolbar-compact'>
+            <div className='router-toolbar-start'>
+              {!hideTitle ? (
+                <div className='router-toolbar-title'>
+                  {t('channel.providers.dialog.model_details')}
+                </div>
+              ) : null}
+            </div>
+            <div className='router-toolbar-end'>
+              {searchable ? (
+                <Form.Input
+                  className='router-inline-input router-search-form-xs'
+                  icon='search'
+                  iconPosition='left'
+                  placeholder={t(
+                    'channel.providers.model_detail_table.search_placeholder',
+                  )}
+                  value={modelSearchKeyword}
+                  onChange={(e, { value }) => {
+                    if (typeof options.onSearchChange === 'function') {
+                      options.onSearchChange(value || '');
+                    }
+                  }}
+                />
+              ) : null}
+              <Button
+                type='button'
+                className='router-inline-button'
+                disabled={disabled}
+                onClick={() => addModelDetailRow(setValueFn, row)}
+              >
+                {t('channel.providers.model_detail_table.add')}
+              </Button>
+            </div>
           </div>
-          <div className='router-toolbar-end'>
-            {searchable ? (
-              <Form.Input
-                className='router-inline-input router-search-form-xs'
-                icon='search'
-                iconPosition='left'
-                placeholder={t(
-                  'channel.providers.model_detail_table.search_placeholder',
-                )}
-                value={modelSearchKeyword}
-                onChange={(e, { value }) => {
-                  if (typeof options.onSearchChange === 'function') {
-                    options.onSearchChange(value || '');
-                  }
-                }}
-              />
-            ) : null}
-            <Button
-              type='button'
-              className='router-inline-button'
-              disabled={disabled}
-              onClick={() => addModelDetailRow(setValueFn, row)}
-            >
-              {t('channel.providers.model_detail_table.add')}
-            </Button>
-          </div>
-        </div>
+        ) : null}
         <Table compact celled className='router-detail-table'>
           <Table.Header>
             <Table.Row>
@@ -1232,7 +1423,7 @@ const ProvidersManager = () => {
                         fluid
                         type='number'
                         step='0.000001'
-                        value={detail.input_price || 0}
+                        value={detail.input_price ?? ''}
                         disabled={disabled}
                         onChange={(e, { value }) =>
                           setModelDetailField(
@@ -1240,7 +1431,7 @@ const ProvidersManager = () => {
                             row,
                             detailIndex,
                             'input_price',
-                            value || 0,
+                            value ?? '',
                           )
                         }
                       />
@@ -1251,7 +1442,7 @@ const ProvidersManager = () => {
                         fluid
                         type='number'
                         step='0.000001'
-                        value={detail.output_price || 0}
+                        value={detail.output_price ?? ''}
                         disabled={disabled}
                         onChange={(e, { value }) =>
                           setModelDetailField(
@@ -1259,7 +1450,7 @@ const ProvidersManager = () => {
                             row,
                             detailIndex,
                             'output_price',
-                            value || 0,
+                            value ?? '',
                           )
                         }
                       />
@@ -1268,7 +1459,7 @@ const ProvidersManager = () => {
                       <Form.Input
                         className='router-inline-input'
                         fluid
-                        value={detail.price_unit || ''}
+                        value={detail.price_unit ?? ''}
                         disabled={disabled}
                         onChange={(e, { value }) =>
                           setModelDetailField(
@@ -1285,7 +1476,7 @@ const ProvidersManager = () => {
                       <Form.Input
                         className='router-inline-input'
                         fluid
-                        value={detail.currency || 'USD'}
+                        value={detail.currency ?? ''}
                         disabled={disabled}
                         onChange={(e, { value }) =>
                           setModelDetailField(
@@ -1293,7 +1484,7 @@ const ProvidersManager = () => {
                             row,
                             detailIndex,
                             'currency',
-                            value || 'USD',
+                            value ?? '',
                           )
                         }
                       />
@@ -1494,7 +1685,7 @@ const ProvidersManager = () => {
                                         fluid
                                         type='number'
                                         step='0.000001'
-                                        value={component.input_price || 0}
+                                        value={component.input_price ?? ''}
                                         disabled={disabled}
                                         onChange={(e, { value }) =>
                                           setPriceComponentField(
@@ -1503,7 +1694,7 @@ const ProvidersManager = () => {
                                             detailIndex,
                                             componentIndex,
                                             'input_price',
-                                            value || 0,
+                                            value ?? '',
                                           )
                                         }
                                       />
@@ -1514,7 +1705,7 @@ const ProvidersManager = () => {
                                         fluid
                                         type='number'
                                         step='0.000001'
-                                        value={component.output_price || 0}
+                                        value={component.output_price ?? ''}
                                         disabled={disabled}
                                         onChange={(e, { value }) =>
                                           setPriceComponentField(
@@ -1523,7 +1714,7 @@ const ProvidersManager = () => {
                                             detailIndex,
                                             componentIndex,
                                             'output_price',
-                                            value || 0,
+                                            value ?? '',
                                           )
                                         }
                                       />
@@ -1534,7 +1725,7 @@ const ProvidersManager = () => {
                                         fluid
                                         options={PRICE_UNIT_OPTIONS}
                                         value={
-                                          component.price_unit ||
+                                          component.price_unit ??
                                           defaultPriceUnitByComponent(
                                             component.component,
                                           )
@@ -1556,7 +1747,7 @@ const ProvidersManager = () => {
                                       <Form.Input
                                         className='router-inline-input'
                                         fluid
-                                        value={component.currency || 'USD'}
+                                        value={component.currency ?? ''}
                                         disabled={disabled}
                                         onChange={(e, { value }) =>
                                           setPriceComponentField(
@@ -1565,7 +1756,7 @@ const ProvidersManager = () => {
                                             detailIndex,
                                             componentIndex,
                                             'currency',
-                                            value || 'USD',
+                                            value ?? '',
                                           )
                                         }
                                       />
@@ -1647,6 +1838,10 @@ const ProvidersManager = () => {
   const renderModelDetailsReadonly = (row, options = {}) => {
     const details = Array.isArray(row?.model_details) ? row.model_details : [];
     const searchable = options.searchable === true;
+    const hideTitle = options.hideTitle === true;
+    const showToolbar = options.showToolbar !== false;
+    const actions = options.actions || {};
+    const actionsDisabled = Boolean(options.actionsDisabled) || saving;
     const pageSize =
       Number(options.pageSize || 0) > 0
         ? Number(options.pageSize)
@@ -1658,10 +1853,11 @@ const ProvidersManager = () => {
     const normalizedModelSearchKeyword = modelSearchKeyword
       .trim()
       .toLowerCase();
+    const detailRows = details.map((detail, index) => ({ detail, index }));
     const visibleDetailRows =
       normalizedModelSearchKeyword === ''
-        ? details
-        : details.filter((detail) => {
+        ? detailRows
+        : detailRows.filter(({ detail }) => {
             const haystack = [
               detail.model || '',
               detail.type || '',
@@ -1685,37 +1881,45 @@ const ProvidersManager = () => {
     );
     return (
       <div className='router-block-top-sm'>
-        <div className='router-toolbar router-block-gap-xs'>
-          <div className='router-toolbar-title'>
-            {t('channel.providers.dialog.model_details')}
+        {showToolbar ? (
+          <div className='router-toolbar router-block-gap-xs'>
+            <div className='router-toolbar-start'>
+              {!hideTitle ? (
+                <div className='router-toolbar-title'>
+                  {t('channel.providers.dialog.model_details')}
+                </div>
+              ) : null}
+            </div>
+            <div className='router-toolbar-end'>
+              {searchable ? (
+                <Form.Input
+                  className='router-inline-input router-search-form-xs'
+                  icon='search'
+                  iconPosition='left'
+                  placeholder={t(
+                    'channel.providers.model_detail_table.search_placeholder',
+                  )}
+                  value={modelSearchKeyword}
+                  onChange={(e, { value }) => {
+                    if (typeof options.onSearchChange === 'function') {
+                      options.onSearchChange(value || '');
+                    }
+                  }}
+                />
+              ) : null}
+            </div>
           </div>
-          {searchable ? (
-            <Form.Input
-              className='router-inline-input router-search-form-xs'
-              icon='search'
-              iconPosition='left'
-              placeholder={t(
-                'channel.providers.model_detail_table.search_placeholder',
-              )}
-              value={modelSearchKeyword}
-              onChange={(e, { value }) => {
-                if (typeof options.onSearchChange === 'function') {
-                  options.onSearchChange(value || '');
-                }
-              }}
-            />
-          ) : null}
-        </div>
+        ) : null}
         <Table compact celled className='router-detail-table'>
           <Table.Header>
             <Table.Row>
               <Table.HeaderCell width={4}>
                 {t('channel.providers.model_detail_table.model')}
               </Table.HeaderCell>
-              <Table.HeaderCell width={2}>
+              <Table.HeaderCell width={1}>
                 {t('channel.providers.model_detail_table.type')}
               </Table.HeaderCell>
-              <Table.HeaderCell width={3}>
+              <Table.HeaderCell width={1}>
                 {t('channel.providers.model_detail_table.capabilities')}
               </Table.HeaderCell>
               <Table.HeaderCell>
@@ -1733,6 +1937,9 @@ const ProvidersManager = () => {
               <Table.HeaderCell>
                 {t('channel.providers.model_detail_table.source')}
               </Table.HeaderCell>
+              <Table.HeaderCell width={2}>
+                {t('channel.providers.model_detail_table.actions')}
+              </Table.HeaderCell>
             </Table.Row>
           </Table.Header>
           <Table.Body>
@@ -1740,25 +1947,25 @@ const ProvidersManager = () => {
               <Table.Row>
                 <Table.Cell
                   className='router-empty-cell'
-                  colSpan={8}
+                  colSpan={9}
                   textAlign='center'
                 >
                   {t('channel.providers.model_detail_table.empty')}
                 </Table.Cell>
               </Table.Row>
             ) : (
-              pageRows.map((detail, index) => {
+              pageRows.map(({ detail, index: detailIndex }) => {
                 const showInputDetail = hasComplexInputPricing(detail);
                 const showOutputDetail = hasComplexOutputPricing(detail);
                 return (
-                  <Table.Row key={`${detail.model || 'model'}-${index}`}>
+                  <Table.Row key={`${detail.model || 'model'}-${detailIndex}`}>
                     <Table.Cell className='router-cell-min-260'>
                       {detail.model || '-'}
                     </Table.Cell>
-                    <Table.Cell className='router-cell-min-120'>
+                    <Table.Cell className='router-cell-min-80'>
                       {detail.type || 'text'}
                     </Table.Cell>
-                    <Table.Cell>
+                    <Table.Cell className='router-cell-min-90'>
                       {(detail.capabilities || []).length > 0
                         ? detail.capabilities.map((type) => (
                             <Label
@@ -1802,6 +2009,32 @@ const ProvidersManager = () => {
                     <Table.Cell>{detail.price_unit || '-'}</Table.Cell>
                     <Table.Cell>{detail.currency || 'USD'}</Table.Cell>
                     <Table.Cell>{detail.source || 'manual'}</Table.Cell>
+                    <Table.Cell className='router-nowrap'>
+                      <Button
+                        type='button'
+                        className='router-inline-button'
+                        disabled={actionsDisabled}
+                        onClick={() =>
+                          typeof actions.onStartEdit === 'function'
+                            ? actions.onStartEdit(detailIndex)
+                            : null
+                        }
+                      >
+                        {t('common.edit')}
+                      </Button>
+                      <Button
+                        type='button'
+                        className='router-inline-button'
+                        disabled={actionsDisabled}
+                        onClick={() =>
+                          typeof actions.onDelete === 'function'
+                            ? actions.onDelete(detailIndex)
+                            : null
+                        }
+                      >
+                        {t('common.delete')}
+                      </Button>
+                    </Table.Cell>
                   </Table.Row>
                 );
               })
@@ -1826,6 +2059,464 @@ const ProvidersManager = () => {
     );
   };
 
+  const renderModelDetailEditorModal = () => {
+    const details = Array.isArray(detailModelsDraft.model_details)
+      ? detailModelsDraft.model_details
+      : [];
+    if (
+      !modelDetailEditorOpen ||
+      detailEditingModelIndex < 0 ||
+      detailEditingModelIndex >= details.length
+    ) {
+      return null;
+    }
+    const detail = details[detailEditingModelIndex];
+    return (
+      <Modal
+        size='large'
+        open={modelDetailEditorOpen}
+        onClose={closeModelDetailEditor}
+        closeOnDimmerClick={!saving}
+        closeOnEscape={!saving}
+      >
+        <Modal.Header>
+          {modelDetailEditorMode === 'create'
+            ? t('channel.providers.model_detail_table.create_title')
+            : t('channel.providers.model_detail_table.edit_title')}
+        </Modal.Header>
+        <Modal.Content scrolling>
+          <Form>
+            <Form.Group widths='equal'>
+              <Form.Input
+                className='router-section-input'
+                label={t('channel.providers.model_detail_table.model')}
+                value={detail.model || ''}
+                onChange={(e, { value }) =>
+                  setModelDetailField(
+                    setDetailModelsValue,
+                    detailModelsDraft,
+                    detailEditingModelIndex,
+                    'model',
+                    value || '',
+                  )
+                }
+              />
+              <Form.Select
+                className='router-section-dropdown'
+                label={t('channel.providers.model_detail_table.type')}
+                options={MODEL_TYPE_OPTIONS}
+                value={detail.type || 'text'}
+                onChange={(e, { value }) =>
+                  setModelDetailField(
+                    setDetailModelsValue,
+                    detailModelsDraft,
+                    detailEditingModelIndex,
+                    'type',
+                    value || 'text',
+                  )
+                }
+              />
+            </Form.Group>
+            <Form.Group widths='equal'>
+              <Form.Input
+                className='router-section-input'
+                label={t('channel.providers.model_detail_table.capabilities')}
+                placeholder='text,image,audio'
+                value={
+                  Array.isArray(detail.capabilities)
+                    ? detail.capabilities.join(', ')
+                    : ''
+                }
+                onChange={(e, { value }) =>
+                  setModelDetailField(
+                    setDetailModelsValue,
+                    detailModelsDraft,
+                    detailEditingModelIndex,
+                    'capabilities',
+                    value || '',
+                  )
+                }
+              />
+              <Form.Select
+                className='router-section-dropdown'
+                label={t('channel.providers.model_detail_table.source')}
+                options={SOURCE_OPTIONS}
+                value={detail.source || 'manual'}
+                onChange={(e, { value }) =>
+                  setModelDetailField(
+                    setDetailModelsValue,
+                    detailModelsDraft,
+                    detailEditingModelIndex,
+                    'source',
+                    value || 'manual',
+                  )
+                }
+              />
+            </Form.Group>
+            <Form.Group widths='equal'>
+              <Form.Input
+                className='router-section-input'
+                type='number'
+                step='0.000001'
+                label={t('channel.providers.model_detail_table.input_price')}
+                value={detail.input_price ?? ''}
+                onChange={(e, { value }) =>
+                  setModelDetailField(
+                    setDetailModelsValue,
+                    detailModelsDraft,
+                    detailEditingModelIndex,
+                    'input_price',
+                    value ?? '',
+                  )
+                }
+              />
+              <Form.Input
+                className='router-section-input'
+                type='number'
+                step='0.000001'
+                label={t('channel.providers.model_detail_table.output_price')}
+                value={detail.output_price ?? ''}
+                onChange={(e, { value }) =>
+                  setModelDetailField(
+                    setDetailModelsValue,
+                    detailModelsDraft,
+                    detailEditingModelIndex,
+                    'output_price',
+                    value ?? '',
+                  )
+                }
+              />
+            </Form.Group>
+            <Form.Group widths='equal'>
+              <Form.Input
+                className='router-section-input'
+                label={t('channel.providers.model_detail_table.price_unit')}
+                value={detail.price_unit ?? ''}
+                onChange={(e, { value }) =>
+                  setModelDetailField(
+                    setDetailModelsValue,
+                    detailModelsDraft,
+                    detailEditingModelIndex,
+                    'price_unit',
+                    value || '',
+                  )
+                }
+              />
+              <Form.Input
+                className='router-section-input'
+                label={t('channel.providers.model_detail_table.currency')}
+                value={detail.currency ?? ''}
+                onChange={(e, { value }) =>
+                  setModelDetailField(
+                    setDetailModelsValue,
+                    detailModelsDraft,
+                    detailEditingModelIndex,
+                    'currency',
+                    value ?? '',
+                  )
+                }
+              />
+            </Form.Group>
+          </Form>
+          <div className='router-block-top-md'>
+            <div className='router-toolbar router-toolbar-compact'>
+              <div className='router-toolbar-title'>
+                {t('channel.providers.model_detail_table.price_components')}
+              </div>
+              <div className='router-toolbar-end'>
+                <Button
+                  type='button'
+                  className='router-inline-button'
+                  disabled={saving}
+                  onClick={() =>
+                    addPriceComponentRow(
+                      setDetailModelsValue,
+                      detailModelsDraft,
+                      detailEditingModelIndex,
+                    )
+                  }
+                >
+                  {t(
+                    'channel.providers.model_detail_table.add_price_component',
+                  )}
+                </Button>
+              </div>
+            </div>
+            <Table compact celled className='router-detail-subtable'>
+              <Table.Header>
+                <Table.Row>
+                  <Table.HeaderCell>
+                    {t('channel.providers.price_component_table.component')}
+                  </Table.HeaderCell>
+                  <Table.HeaderCell>
+                    {t('channel.providers.price_component_table.condition')}
+                  </Table.HeaderCell>
+                  <Table.HeaderCell>
+                    {t('channel.providers.price_component_table.input_price')}
+                  </Table.HeaderCell>
+                  <Table.HeaderCell>
+                    {t('channel.providers.price_component_table.output_price')}
+                  </Table.HeaderCell>
+                  <Table.HeaderCell>
+                    {t('channel.providers.price_component_table.price_unit')}
+                  </Table.HeaderCell>
+                  <Table.HeaderCell>
+                    {t('channel.providers.price_component_table.currency')}
+                  </Table.HeaderCell>
+                  <Table.HeaderCell>
+                    {t('channel.providers.price_component_table.source')}
+                  </Table.HeaderCell>
+                  <Table.HeaderCell>
+                    {t('channel.providers.price_component_table.source_url')}
+                  </Table.HeaderCell>
+                  <Table.HeaderCell>
+                    {t('channel.providers.price_component_table.actions')}
+                  </Table.HeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {(detail.price_components || []).length === 0 ? (
+                  <Table.Row>
+                    <Table.Cell
+                      className='router-empty-cell'
+                      colSpan={9}
+                      textAlign='center'
+                    >
+                      {t('channel.providers.price_component_table.empty')}
+                    </Table.Cell>
+                  </Table.Row>
+                ) : (
+                  (detail.price_components || []).map(
+                    (component, componentIndex) => (
+                      <Table.Row
+                        key={`${detail.model || 'model'}-${component.component || 'component'}-${component.condition || 'condition'}-${componentIndex}`}
+                      >
+                        <Table.Cell>
+                          <Form.Select
+                            className='router-inline-dropdown'
+                            fluid
+                            options={PRICE_COMPONENT_OPTIONS}
+                            value={component.component || 'text'}
+                            disabled={saving}
+                            onChange={(e, { value }) =>
+                              setPriceComponentField(
+                                setDetailModelsValue,
+                                detailModelsDraft,
+                                detailEditingModelIndex,
+                                componentIndex,
+                                'component',
+                                value || '',
+                              )
+                            }
+                          />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Form.Input
+                            className='router-inline-input'
+                            fluid
+                            placeholder='quality=hd;size=1024x1024'
+                            value={component.condition || ''}
+                            disabled={saving}
+                            onChange={(e, { value }) =>
+                              setPriceComponentField(
+                                setDetailModelsValue,
+                                detailModelsDraft,
+                                detailEditingModelIndex,
+                                componentIndex,
+                                'condition',
+                                value || '',
+                              )
+                            }
+                            action={{
+                              icon: 'erase',
+                              type: 'button',
+                              disabled: saving,
+                              onClick: () =>
+                                setPriceComponentField(
+                                  setDetailModelsValue,
+                                  detailModelsDraft,
+                                  detailEditingModelIndex,
+                                  componentIndex,
+                                  'condition',
+                                  '',
+                                ),
+                            }}
+                          />
+                          {renderPriceComponentConditionTemplate(
+                            setDetailModelsValue,
+                            detailModelsDraft,
+                            detailEditingModelIndex,
+                            componentIndex,
+                            component,
+                            saving,
+                          )}
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Form.Input
+                            className='router-inline-input'
+                            fluid
+                            type='number'
+                            step='0.000001'
+                            value={component.input_price ?? ''}
+                            disabled={saving}
+                            onChange={(e, { value }) =>
+                              setPriceComponentField(
+                                setDetailModelsValue,
+                                detailModelsDraft,
+                                detailEditingModelIndex,
+                                componentIndex,
+                                'input_price',
+                                value ?? '',
+                              )
+                            }
+                          />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Form.Input
+                            className='router-inline-input'
+                            fluid
+                            type='number'
+                            step='0.000001'
+                            value={component.output_price ?? ''}
+                            disabled={saving}
+                            onChange={(e, { value }) =>
+                              setPriceComponentField(
+                                setDetailModelsValue,
+                                detailModelsDraft,
+                                detailEditingModelIndex,
+                                componentIndex,
+                                'output_price',
+                                value ?? '',
+                              )
+                            }
+                          />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Form.Select
+                            className='router-inline-dropdown'
+                            fluid
+                            options={PRICE_UNIT_OPTIONS}
+                            value={
+                              component.price_unit ??
+                              defaultPriceUnitByComponent(component.component)
+                            }
+                            disabled={saving}
+                            onChange={(e, { value }) =>
+                              setPriceComponentField(
+                                setDetailModelsValue,
+                                detailModelsDraft,
+                                detailEditingModelIndex,
+                                componentIndex,
+                                'price_unit',
+                                value || '',
+                              )
+                            }
+                          />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Form.Input
+                            className='router-inline-input'
+                            fluid
+                            value={component.currency ?? ''}
+                            disabled={saving}
+                            onChange={(e, { value }) =>
+                              setPriceComponentField(
+                                setDetailModelsValue,
+                                detailModelsDraft,
+                                detailEditingModelIndex,
+                                componentIndex,
+                                'currency',
+                                value ?? '',
+                              )
+                            }
+                          />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Form.Select
+                            className='router-inline-dropdown'
+                            fluid
+                            options={SOURCE_OPTIONS}
+                            value={component.source || 'manual'}
+                            disabled={saving}
+                            onChange={(e, { value }) =>
+                              setPriceComponentField(
+                                setDetailModelsValue,
+                                detailModelsDraft,
+                                detailEditingModelIndex,
+                                componentIndex,
+                                'source',
+                                value || 'manual',
+                              )
+                            }
+                          />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Form.Input
+                            className='router-inline-input'
+                            fluid
+                            value={component.source_url || ''}
+                            disabled={saving}
+                            onChange={(e, { value }) =>
+                              setPriceComponentField(
+                                setDetailModelsValue,
+                                detailModelsDraft,
+                                detailEditingModelIndex,
+                                componentIndex,
+                                'source_url',
+                                value || '',
+                              )
+                            }
+                          />
+                        </Table.Cell>
+                        <Table.Cell textAlign='center'>
+                          <Button
+                            type='button'
+                            className='router-inline-button'
+                            disabled={saving}
+                            onClick={() =>
+                              removePriceComponentRow(
+                                setDetailModelsValue,
+                                detailModelsDraft,
+                                detailEditingModelIndex,
+                                componentIndex,
+                              )
+                            }
+                          >
+                            {t('common.delete')}
+                          </Button>
+                        </Table.Cell>
+                      </Table.Row>
+                    ),
+                  )
+                )}
+              </Table.Body>
+            </Table>
+          </div>
+        </Modal.Content>
+        <Modal.Actions>
+          <Button
+            type='button'
+            className='router-page-button'
+            onClick={closeModelDetailEditor}
+            disabled={saving}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type='button'
+            className='router-page-button'
+            color='blue'
+            loading={saving}
+            disabled={saving}
+            onClick={saveDetailModelEdit}
+          >
+            {t('common.confirm')}
+          </Button>
+        </Modal.Actions>
+      </Modal>
+    );
+  };
+
   const renderRows = () => (
     <div>
       <div className='router-toolbar router-block-gap-sm'>
@@ -1841,8 +2532,8 @@ const ProvidersManager = () => {
           <Button
             type='button'
             className='router-page-button'
-            disabled={saving || loading}
-            loading={loading}
+            disabled={saving || refreshing}
+            loading={refreshing}
             onClick={reloadCurrentPage}
           >
             {t('channel.providers.buttons.refresh')}
@@ -1880,6 +2571,9 @@ const ProvidersManager = () => {
               {t('channel.providers.table.capabilities')}
             </Table.HeaderCell>
             <Table.HeaderCell width={3} textAlign='left'>
+              {t('channel.providers.table.created_at')}
+            </Table.HeaderCell>
+            <Table.HeaderCell width={3} textAlign='left'>
               {t('channel.providers.table.updated_at')}
             </Table.HeaderCell>
             <Table.HeaderCell width={2} textAlign='left'>
@@ -1892,7 +2586,7 @@ const ProvidersManager = () => {
             <Table.Row>
               <Table.Cell
                 className='router-empty-cell'
-                colSpan={5}
+                colSpan={6}
                 textAlign='center'
               >
                 {loading
@@ -1910,7 +2604,7 @@ const ProvidersManager = () => {
                     openViewer(row);
                   }}
                   className={
-                    creating || editing || saving
+                    creating || saving
                       ? undefined
                       : 'router-row-clickable'
                   }
@@ -1931,6 +2625,9 @@ const ProvidersManager = () => {
                       : '-'}
                   </Table.Cell>
                   <Table.Cell textAlign='left'>
+                    {row.created_at ? timestamp2string(row.created_at) : '-'}
+                  </Table.Cell>
+                  <Table.Cell textAlign='left'>
                     {row.updated_at ? timestamp2string(row.updated_at) : '-'}
                   </Table.Cell>
                   <Table.Cell textAlign='left' className='router-nowrap'>
@@ -1942,7 +2639,8 @@ const ProvidersManager = () => {
                       disabled={creating || saving}
                       onClick={(e) => {
                         e.stopPropagation();
-                        openEditor(row);
+                        openViewer(row);
+                        startDetailSectionEdit('basic', row);
                       }}
                     >
                       <Icon name='edit' />
@@ -1982,151 +2680,215 @@ const ProvidersManager = () => {
     </div>
   );
 
-  const renderEditor = () => (
-    <div>
-      <div className='router-toolbar-start router-block-gap-sm'>
-        <Button
-          type='button'
-          className='router-page-button'
-          onClick={rollbackEditor}
-          disabled={saving}
-        >
-          {t('channel.providers.dialog.cancel_create')}
-        </Button>
-        <Button
-          type='button'
-          className='router-page-button'
-          color='blue'
-          loading={saving}
-          disabled={saving}
-          onClick={applyEditToRows}
-        >
-          {t('channel.providers.dialog.confirm')}
-        </Button>
-      </div>
-      <Form>
-        <Form.Group widths='equal'>
-          <Form.Input
-            className='router-section-input'
-            label={t('channel.providers.dialog.provider')}
-            value={editRow.id}
-            readOnly
-          />
-          <Form.Input
-            className='router-section-input'
-            label={t('channel.providers.dialog.name')}
-            placeholder={t('channel.providers.dialog.name_placeholder')}
-            value={editRow.name}
-            onChange={(e, { value }) => setEditValue('name', value || '')}
-          />
-        </Form.Group>
-        <Form.Input
-          className='router-section-input'
-          label={t('channel.providers.dialog.base_url')}
-          placeholder={t('channel.providers.dialog.base_url_placeholder')}
-          value={editRow.base_url}
-          onChange={(e, { value }) => setEditValue('base_url', value || '')}
-        />
-        <Form.Input
-          className='router-section-input'
-          label={t('channel.providers.dialog.official_url')}
-          placeholder={t('channel.providers.dialog.official_url_placeholder')}
-          value={editRow.official_url}
-          onChange={(e, { value }) => setEditValue('official_url', value || '')}
-        />
-      </Form>
-
-      {renderModelDetailsTable(editRow, setEditValue, saving, {
-        searchable: true,
-        searchKeyword: editModelSearchKeyword,
-        onSearchChange: setEditModelSearchKeyword,
-      })}
-    </div>
-  );
-
   const renderViewer = () => {
     if (!viewRow) return null;
+    const basicEditing = detailEditingSection === 'basic';
+    const modelsEditing = detailEditingSection === 'models';
+    const basicSourceRow = basicEditing ? detailBasicDraft : viewRow;
     return (
-      <div>
-        <Header as='h2' className='router-page-title'>
-          {t('channel.providers.dialog.title_detail')}
-        </Header>
-        <div className='router-toolbar-start router-block-gap-sm'>
-          <Button
-            type='button'
-          className='router-page-button'
-          onClick={closeViewer}
-          disabled={saving}
-        >
-            {t('channel.providers.dialog.cancel')}
-          </Button>
-          <Button
-            type='button'
-            className='router-page-button'
-            color='blue'
-            disabled={saving}
-            onClick={() => openEditor(viewRow)}
-          >
-            {t('channel.providers.dialog.edit')}
-          </Button>
+      <div className='router-provider-detail-page'>
+        <div className='router-provider-detail-breadcrumb'>
+          <Breadcrumb size='small'>
+            <Breadcrumb.Section
+              link
+              onClick={closeViewer}
+            >
+              {t('header.providers')}
+            </Breadcrumb.Section>
+            <Breadcrumb.Divider icon='right chevron' />
+            <Breadcrumb.Section active>
+              {viewRow.name || viewRow.id || '-'}
+            </Breadcrumb.Section>
+          </Breadcrumb>
         </div>
-        <Form>
-          <Form.Group widths='equal'>
-            <Form.Input
-              className='router-section-input'
-              label={t('channel.providers.dialog.provider')}
-              value={viewRow.id || ''}
-              readOnly
-            />
-            <Form.Input
-              className='router-section-input'
-              label={t('channel.providers.dialog.name')}
-              value={viewRow.name || ''}
-              readOnly
-            />
-          </Form.Group>
-          <Form.Group widths='equal'>
-            <Form.Input
-              className='router-section-input'
-              label={t('channel.providers.dialog.base_url')}
-              value={viewRow.base_url || ''}
-              readOnly
-            />
-            <Form.Input
-              className='router-section-input'
-              label={t('channel.providers.dialog.official_url')}
-              value={viewRow.official_url || ''}
-              readOnly
-            />
-          </Form.Group>
-          <Form.Group widths='equal'>
-            <Form.Input
-              className='router-section-input'
-              label={t('channel.providers.table.source')}
-              value={viewRow.source || '-'}
-              readOnly
-            />
-          </Form.Group>
-          <Form.Input
-            className='router-section-input'
-            label={t('channel.providers.table.updated_at')}
-            value={
-              viewRow.updated_at ? timestamp2string(viewRow.updated_at) : '-'
-            }
-            readOnly
-          />
-        </Form>
-        {renderModelDetailsReadonly(viewRow, {
-          searchable: true,
-          searchKeyword: viewModelSearchKeyword,
-          currentPage: viewModelPage,
-          pageSize: PROVIDER_DETAIL_MODEL_PAGE_SIZE,
-          onSearchChange: (value) => {
-            setViewModelSearchKeyword(value || '');
-            setViewModelPage(1);
-          },
-          onPageChange: setViewModelPage,
-        })}
+        <div className='router-provider-detail-sections'>
+          <section className='router-provider-detail-section'>
+            <div className='router-provider-detail-section-header'>
+              <div>
+                <Header
+                  as='h3'
+                  className='router-provider-detail-section-title'
+                >
+                  {t('channel.providers.dialog.detail_basic_title')}
+                </Header>
+              </div>
+              <div className='router-toolbar-start'>
+                {basicEditing ? (
+                  <>
+                    <Button
+                      type='button'
+                      className='router-page-button'
+                      onClick={cancelDetailSectionEdit}
+                      disabled={saving}
+                    >
+                      {t('common.cancel')}
+                    </Button>
+                    <Button
+                      type='button'
+                      className='router-page-button'
+                      color='blue'
+                      loading={saving}
+                      disabled={saving}
+                      onClick={() => saveViewerSection('basic')}
+                    >
+                      {t('common.save')}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type='button'
+                    className='router-page-button'
+                    disabled={saving || modelsEditing}
+                    onClick={() => startDetailSectionEdit('basic')}
+                  >
+                    {t('common.edit')}
+                  </Button>
+                )}
+              </div>
+            </div>
+            <Form>
+              <Form.Group widths='equal'>
+                <Form.Input
+                  className='router-section-input'
+                  label={t('channel.providers.dialog.provider')}
+                  value={basicSourceRow.id || ''}
+                  readOnly
+                />
+                {basicEditing ? (
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('channel.providers.dialog.name')}
+                    placeholder={t('channel.providers.dialog.name_placeholder')}
+                    value={detailBasicDraft.name}
+                    onChange={(e, { value }) =>
+                      setDetailBasicValue('name', value || '')
+                    }
+                  />
+                ) : (
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('channel.providers.dialog.name')}
+                    value={basicSourceRow.name || ''}
+                    readOnly
+                  />
+                )}
+              </Form.Group>
+              <Form.Group widths='equal'>
+                {basicEditing ? (
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('channel.providers.dialog.base_url')}
+                    placeholder={t('channel.providers.dialog.base_url_placeholder')}
+                    value={detailBasicDraft.base_url}
+                    onChange={(e, { value }) =>
+                      setDetailBasicValue('base_url', value || '')
+                    }
+                  />
+                ) : (
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('channel.providers.dialog.base_url')}
+                    value={basicSourceRow.base_url || ''}
+                    readOnly
+                  />
+                )}
+                {basicEditing ? (
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('channel.providers.dialog.official_url')}
+                    placeholder={t(
+                      'channel.providers.dialog.official_url_placeholder',
+                    )}
+                    value={detailBasicDraft.official_url}
+                    onChange={(e, { value }) =>
+                      setDetailBasicValue('official_url', value || '')
+                    }
+                  />
+                ) : (
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('channel.providers.dialog.official_url')}
+                    value={basicSourceRow.official_url || ''}
+                    readOnly
+                  />
+                )}
+              </Form.Group>
+              <Form.Group widths='equal'>
+                <Form.Input
+                  className='router-section-input'
+                  label={t('channel.providers.table.source')}
+                  value={viewRow.source || '-'}
+                  readOnly
+                />
+                <Form.Input
+                  className='router-section-input'
+                  label={t('channel.providers.table.created_at')}
+                  value={
+                    viewRow.created_at ? timestamp2string(viewRow.created_at) : '-'
+                  }
+                  readOnly
+                />
+                <Form.Input
+                  className='router-section-input'
+                  label={t('channel.providers.table.updated_at')}
+                  value={
+                    viewRow.updated_at ? timestamp2string(viewRow.updated_at) : '-'
+                  }
+                  readOnly
+                />
+              </Form.Group>
+            </Form>
+          </section>
+          <section className='router-provider-detail-section'>
+            <div className='router-provider-detail-section-header'>
+              <div>
+                <Header
+                  as='h3'
+                  className='router-provider-detail-section-title'
+                >
+                  {t('channel.providers.dialog.model_details')}
+                </Header>
+              </div>
+              <div className='router-toolbar-end'>
+                <Form.Input
+                  className='router-inline-input router-search-form-xs router-section-header-search'
+                  icon='search'
+                  iconPosition='left'
+                  placeholder={t(
+                    'channel.providers.model_detail_table.search_placeholder',
+                  )}
+                  value={viewModelSearchKeyword}
+                  onChange={(e, { value }) => {
+                    setViewModelSearchKeyword(value || '');
+                    setViewModelPage(1);
+                  }}
+                />
+                <Button
+                  type='button'
+                  className='router-page-button'
+                  disabled={saving || basicEditing || modelsEditing}
+                  onClick={startDetailModelCreate}
+                >
+                  {t('channel.providers.model_detail_table.add')}
+                </Button>
+              </div>
+            </div>
+            {renderModelDetailsReadonly(viewRow, {
+              searchable: false,
+              hideTitle: true,
+              showToolbar: false,
+              searchKeyword: viewModelSearchKeyword,
+              currentPage: viewModelPage,
+              pageSize: PROVIDER_DETAIL_MODEL_PAGE_SIZE,
+              onPageChange: setViewModelPage,
+              actions: {
+                onStartEdit: startDetailModelEdit,
+                onDelete: deleteDetailModel,
+              },
+              actionsDisabled: basicEditing || modelsEditing,
+            })}
+          </section>
+        </div>
       </div>
     );
   };
@@ -2365,12 +3127,11 @@ const ProvidersManager = () => {
   return (
     <div>
       {renderDeleteModal()}
+      {renderModelDetailEditorModal()}
       {renderPricingDetailModal()}
       {creating
         ? renderCreatePanel()
-        : editing
-          ? renderEditor()
-          : viewingProvider && viewRow
+        : viewingProvider && viewRow
             ? renderViewer()
             : renderRows()}
     </div>

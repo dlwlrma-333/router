@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, Form, Label } from 'semantic-ui-react';
+import { Breadcrumb, Button, Card, Form, Label } from 'semantic-ui-react';
 import { useTranslation } from 'react-i18next';
 import {
   useLocation,
@@ -277,176 +277,195 @@ const TaskDetail = () => {
     <div className='dashboard-container'>
       <Card fluid className='chart-card'>
         <Card.Content>
-          <Card.Header className='header router-page-title'>
-            {t('task.detail.title')}
-          </Card.Header>
-          <div className='router-toolbar-start router-block-gap-sm'>
-            <Button className='router-page-button' onClick={backToList}>
-              {t('task.detail.buttons.back')}
-            </Button>
-            <Button
-              className='router-page-button'
-              onClick={loadTask}
-              loading={loading}
-            >
-              {t('task.buttons.refresh')}
-            </Button>
-            {!isUserScope ? (
-              <>
-                <Button
-                  className='router-page-button'
-                  disabled={!canRetry}
-                  onClick={handleRetry}
-                >
-                  {t('task.buttons.retry')}
-                </Button>
-                <Button
-                  className='router-page-button'
-                  disabled={!canCancel}
-                  onClick={handleCancel}
-                >
-                  {t('task.buttons.cancel')}
-                </Button>
-              </>
-            ) : null}
-            <Button
-              className='router-page-button'
-              disabled={!channelDetailPath}
-              onClick={() =>
-                navigate(channelDetailPath, {
-                  state: {
-                    from: currentPagePath,
-                  },
-                })
-              }
-            >
-              {t('task.detail.buttons.channel')}
-            </Button>
-          </div>
+          <div className='router-entity-detail-page'>
+            <div className='router-entity-detail-breadcrumb'>
+              <Breadcrumb size='small'>
+                <Breadcrumb.Section link onClick={backToList}>
+                  {t('header.task')}
+                </Breadcrumb.Section>
+                <Breadcrumb.Divider icon='right chevron' />
+                <Breadcrumb.Section active>
+                  {task?.id || id}
+                </Breadcrumb.Section>
+              </Breadcrumb>
+            </div>
 
-          <Form loading={loading}>
-            <Form.Group widths='equal'>
-              <Form.Input
-                className='router-section-input'
-                label={t('task.table.type')}
-                value={task ? t(`task.types.${task.type || 'video'}`) : ''}
-                readOnly
-              />
-              <Form.Field>
-                <label>{t('task.table.status')}</label>
-                <div className='router-field-display'>
-                  {task ? renderTaskStatus(task.status, t) : null}
+            <div className='router-detail-section'>
+              <div className='router-entity-detail-section-header'>
+                <div className='router-detail-section-title'>
+                  {t('common.basic_info')}
                 </div>
-              </Form.Field>
-            </Form.Group>
-
-            <Form.Group widths='equal'>
-              {isAdminPage && isUserScope ? (
-                <Form.Input
-                  className='router-section-input'
-                  label={t('task.table.user')}
-                  value={task?.user_name || task?.user_id || '-'}
-                  readOnly
-                />
-              ) : null}
-              <Form.Input
-                className='router-section-input'
-                label={t('task.table.channel')}
-                value={task?.channel_name || task?.channel_id || '-'}
-                readOnly
-              />
-              <Form.Input
-                className='router-section-input'
-                label={t('task.table.model')}
-                value={task?.model || '-'}
-                readOnly
-              />
-            </Form.Group>
-
-            <Form.Group widths='equal'>
-              <Form.Input
-                className='router-section-input'
-                label={t('task.table.created_at')}
-                value={
-                  task?.created_at ? timestamp2string(task.created_at) : '-'
-                }
-                readOnly
-              />
-              <Form.Input
-                className='router-section-input'
-                label={
-                  isUserScope
-                    ? t('task.table.updated_at')
-                    : t('task.table.finished_at')
-                }
-                value={
-                  isUserScope
-                    ? task?.updated_at
-                      ? timestamp2string(task.updated_at)
-                      : '-'
-                    : task?.finished_at
-                      ? timestamp2string(task.finished_at)
-                      : '-'
-                }
-                readOnly
-              />
-            </Form.Group>
-
-            {isUserScope ? (
-              <>
+                <div className='router-toolbar-start'>
+                  <Button
+                    className='router-page-button'
+                    onClick={loadTask}
+                    loading={loading}
+                  >
+                    {t('task.buttons.refresh')}
+                  </Button>
+                  {!isUserScope ? (
+                    <>
+                      <Button
+                        className='router-page-button'
+                        disabled={!canRetry}
+                        onClick={handleRetry}
+                      >
+                        {t('task.buttons.retry')}
+                      </Button>
+                      <Button
+                        className='router-page-button'
+                        disabled={!canCancel}
+                        onClick={handleCancel}
+                      >
+                        {t('task.buttons.cancel')}
+                      </Button>
+                    </>
+                  ) : null}
+                  <Button
+                    className='router-page-button'
+                    disabled={!channelDetailPath}
+                    onClick={() =>
+                      navigate(channelDetailPath, {
+                        state: {
+                          from: currentPagePath,
+                        },
+                      })
+                    }
+                  >
+                    {t('task.detail.buttons.channel')}
+                  </Button>
+                </div>
+              </div>
+              <Form loading={loading}>
                 <Form.Group widths='equal'>
                   <Form.Input
                     className='router-section-input'
-                    label={t('task.detail.provider')}
-                    value={task?.provider || '-'}
+                    label={t('task.table.type')}
+                    value={task ? t(`task.types.${task.type || 'video'}`) : ''}
+                    readOnly
+                  />
+                  <Form.Field>
+                    <label>{t('task.table.status')}</label>
+                    <div className='router-field-display'>
+                      {task ? renderTaskStatus(task.status, t) : null}
+                    </div>
+                  </Form.Field>
+                </Form.Group>
+
+                <Form.Group widths='equal'>
+                  {isAdminPage && isUserScope ? (
+                    <Form.Input
+                      className='router-section-input'
+                      label={t('task.table.user')}
+                      value={task?.user_name || task?.user_id || '-'}
+                      readOnly
+                    />
+                  ) : null}
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('task.table.channel')}
+                    value={task?.channel_name || task?.channel_id || '-'}
                     readOnly
                   />
                   <Form.Input
                     className='router-section-input'
-                    label={t('task.detail.request_id')}
-                    value={task?.request_id || '-'}
+                    label={t('task.table.model')}
+                    value={task?.model || '-'}
                     readOnly
                   />
                 </Form.Group>
-                <Form.Input
-                  className='router-section-input'
-                  label={t('task.detail.result_url')}
-                  value={task?.result_url || '-'}
-                  readOnly
-                />
-                <Form.Input
-                  className='router-section-input'
-                  label={t('task.detail.source')}
-                  value={task?.source || '-'}
-                  readOnly
-                />
-              </>
-            ) : (
-              <>
-                <Form.Input
-                  className='router-section-input'
-                  label={t('task.detail.endpoint')}
-                  value={task?.endpoint || '-'}
-                  readOnly
-                />
-                {renderStructuredContent(
-                  t('task.detail.payload'),
-                  task?.payload || '',
-                  payloadFields,
+
+                <Form.Group widths='equal'>
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('task.table.created_at')}
+                    value={
+                      task?.created_at ? timestamp2string(task.created_at) : '-'
+                    }
+                    readOnly
+                  />
+                  <Form.Input
+                    className='router-section-input'
+                    label={
+                      isUserScope
+                        ? t('task.table.updated_at')
+                        : t('task.table.finished_at')
+                    }
+                    value={
+                      isUserScope
+                        ? task?.updated_at
+                          ? timestamp2string(task.updated_at)
+                          : '-'
+                        : task?.finished_at
+                          ? timestamp2string(task.finished_at)
+                          : '-'
+                    }
+                    readOnly
+                  />
+                </Form.Group>
+
+                {isUserScope ? (
+                  <>
+                    <Form.Group widths='equal'>
+                      <Form.Input
+                        className='router-section-input'
+                        label={t('task.detail.provider')}
+                        value={task?.provider || '-'}
+                        readOnly
+                      />
+                      <Form.Input
+                        className='router-section-input'
+                        label={t('task.detail.request_id')}
+                        value={task?.request_id || '-'}
+                        readOnly
+                      />
+                    </Form.Group>
+                    <Form.Input
+                      className='router-section-input'
+                      label={t('task.detail.result_url')}
+                      value={task?.result_url || '-'}
+                      readOnly
+                    />
+                    <Form.Input
+                      className='router-section-input'
+                      label={t('task.detail.source')}
+                      value={task?.source || '-'}
+                      readOnly
+                    />
+                  </>
+                ) : (
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('task.detail.endpoint')}
+                    value={task?.endpoint || '-'}
+                    readOnly
+                  />
                 )}
-                {renderStructuredContent(
-                  t('task.detail.result'),
-                  task?.result || '',
-                  resultFields,
-                )}
-                {renderStructuredContent(
-                  t('task.detail.error'),
-                  task?.error_message || '',
-                  errorFields,
-                )}
-              </>
-            )}
-          </Form>
+              </Form>
+            </div>
+
+            {!isUserScope
+              ? (
+                <>
+                  {renderStructuredContent(
+                    t('task.detail.payload'),
+                    task?.payload || '',
+                    payloadFields,
+                  )}
+                  {renderStructuredContent(
+                    t('task.detail.result'),
+                    task?.result || '',
+                    resultFields,
+                  )}
+                  {renderStructuredContent(
+                    t('task.detail.error'),
+                    task?.error_message || '',
+                    errorFields,
+                  )}
+                </>
+              )
+              : null}
+          </div>
         </Card.Content>
       </Card>
     </div>

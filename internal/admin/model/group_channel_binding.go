@@ -55,9 +55,6 @@ func listGroupChannelBindingsWithDB(db *gorm.DB, groupID string, enabledOnly boo
 		query := db.Model(&Ability{}).
 			Distinct("channel_id").
 			Where(groupCol+" = ?", groupID)
-		if enabledOnly {
-			query = query.Where("enabled = ?", true)
-		}
 		if err := query.Pluck("channel_id", &boundIDs).Error; err != nil {
 			return nil, err
 		}
@@ -309,8 +306,10 @@ func SyncGroupAbilitiesForChannel(groupID string, channel *Channel, existing []A
 		item.ChannelId = channelID
 		item.Model = modelName
 		item.UpstreamModel = upstream
-		item.Enabled = channel.Status == ChannelStatusEnabled
-		item.Priority = channel.Priority
+		item.Enabled = item.Enabled && channel.Status == ChannelStatusEnabled
+		if item.Priority == nil {
+			item.Priority = helperInt64Pointer(channel.Priority)
+		}
 		result = append(result, item)
 	}
 	for upstream, ability := range defaultByUpstream {

@@ -16,6 +16,7 @@ type ChannelModel struct {
 	ChannelId     string   `json:"channel_id" gorm:"primaryKey;type:varchar(64);index"`
 	Model         string   `json:"model" gorm:"primaryKey;type:varchar(255)"`
 	UpstreamModel string   `json:"upstream_model" gorm:"type:varchar(255);default:'';index"`
+	Provider      string   `json:"provider,omitempty" gorm:"type:varchar(128);default:'';index"`
 	Type          string   `json:"type" gorm:"type:varchar(32);default:'text'"`
 	Endpoint      string   `json:"endpoint" gorm:"type:varchar(255);default:''"`
 	Inactive      bool     `json:"inactive,omitempty" gorm:"not null;default:false;index"`
@@ -489,6 +490,7 @@ func normalizeChannelModelRow(row *ChannelModel) {
 	row.ChannelId = strings.TrimSpace(row.ChannelId)
 	row.Model = strings.TrimSpace(row.Model)
 	row.UpstreamModel = strings.TrimSpace(row.UpstreamModel)
+	row.Provider = strings.TrimSpace(strings.ToLower(row.Provider))
 	if row.Model == "" && row.UpstreamModel != "" {
 		row.Model = row.UpstreamModel
 	}
@@ -650,6 +652,9 @@ func BuildFetchedChannelModelConfigs(existingRows []ChannelModel, fetchedRows []
 			}
 			if strings.TrimSpace(fetchedRow.Currency) != "" {
 				row.Currency = strings.TrimSpace(fetchedRow.Currency)
+			}
+			if strings.TrimSpace(fetchedRow.Provider) != "" {
+				row.Provider = strings.TrimSpace(fetchedRow.Provider)
 			}
 		}
 		row.UpstreamModel = upstreamModel

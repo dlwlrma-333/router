@@ -134,9 +134,14 @@ const AdminSidebar = ({ compact = false }) => {
                         navigate(item.to);
                       }}
                     >
-                      <Icon name={item.icon} />
-                      <span className='router-admin-compact-popup-item-label'>
-                        {t(item.name)}
+                      <span className='router-admin-compact-popup-item-content'>
+                        <Icon
+                          name={item.icon}
+                          className='router-admin-compact-popup-item-icon'
+                        />
+                        <span className='router-admin-compact-popup-item-label'>
+                          {t(item.name)}
+                        </span>
                       </span>
                     </Menu.Item>
                   );
@@ -186,9 +191,14 @@ const AdminSidebar = ({ compact = false }) => {
                       className='router-admin-sidebar-item'
                       title={t(item.name)}
                     >
-                      <Icon name={item.icon} />
-                      <span className='router-admin-sidebar-item-label'>
-                        {t(item.name)}
+                      <span className='router-admin-sidebar-item-content'>
+                        <Icon
+                          name={item.icon}
+                          className='router-admin-sidebar-item-icon'
+                        />
+                        <span className='router-admin-sidebar-item-label'>
+                          {t(item.name)}
+                        </span>
                       </span>
                     </Menu.Item>
                   );

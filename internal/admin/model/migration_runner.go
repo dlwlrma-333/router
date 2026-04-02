@@ -208,6 +208,77 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return dropLegacyGroupQuotaColumnsWithDB(tx)
 			},
 		},
+		{
+			Version:     "202604021730_channel_model_provider",
+			Description: "add persisted provider field for channel model selection",
+			Up: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&ChannelModel{})
+			},
+		},
+		{
+			Version:     "202604021930_group_created_at",
+			Description: "add created_at column to groups and backfill existing rows from updated_at",
+			Up: func(tx *gorm.DB) error {
+				if err := tx.AutoMigrate(&GroupCatalog{}); err != nil {
+					return err
+				}
+				return tx.Exec(
+					"UPDATE groups SET created_at = COALESCE(NULLIF(updated_at, 0), ?) WHERE COALESCE(created_at, 0) = 0",
+					helper.GetTimestamp(),
+				).Error
+			},
+		},
+		{
+			Version:     "202604022030_provider_created_at",
+			Description: "add created_at column to providers and backfill existing rows from updated_at",
+			Up: func(tx *gorm.DB) error {
+				if err := tx.AutoMigrate(&Provider{}); err != nil {
+					return err
+				}
+				return tx.Exec(
+					"UPDATE providers SET created_at = COALESCE(NULLIF(updated_at, 0), ?) WHERE COALESCE(created_at, 0) = 0",
+					helper.GetTimestamp(),
+				).Error
+			},
+		},
+		{
+			Version:     "202604022130_channel_updated_at",
+			Description: "add updated_at column to channels and backfill existing rows from created_time",
+			Up: func(tx *gorm.DB) error {
+				if err := tx.AutoMigrate(&Channel{}); err != nil {
+					return err
+				}
+				return tx.Exec(
+					"UPDATE channels SET updated_at = COALESCE(NULLIF(created_time, 0), ?) WHERE COALESCE(updated_at, 0) = 0",
+					helper.GetTimestamp(),
+				).Error
+			},
+		},
+		{
+			Version:     "202604022330_redemption_group_face_value",
+			Description: "add redemption group binding and multi-unit face value fields",
+			Up: func(tx *gorm.DB) error {
+				if err := tx.AutoMigrate(&Redemption{}); err != nil {
+					return err
+				}
+				if err := tx.Exec(
+					"UPDATE redemptions SET face_value_unit = ? WHERE COALESCE(face_value_unit, '') = ''",
+					RedemptionFaceValueUnitYYC,
+				).Error; err != nil {
+					return err
+				}
+				return tx.Exec(
+					"UPDATE redemptions SET face_value_amount = quota WHERE COALESCE(face_value_amount, 0) = 0 AND COALESCE(quota, 0) > 0",
+				).Error
+			},
+		},
+		{
+			Version:     "202604030010_redemption_default_group_backfill",
+			Description: "backfill historical redemptions with the configured default user group",
+			Up: func(tx *gorm.DB) error {
+				return backfillRedemptionGroupWithDefaultGroupWithDB(tx)
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }

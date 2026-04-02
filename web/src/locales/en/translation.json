@@ -5,7 +5,7 @@
     "providers": "Providers",
     "group": "Group",
     "token": "Token",
-    "redemption": "Redemption",
+    "redemption": "Redemption Codes",
     "topup": "Top Up",
     "user": "User",
     "dashboard": "Dashboard",
@@ -75,6 +75,8 @@
         "after_balance": "Balance After",
         "redemption_name": "Redemption Name",
         "redemption_id": "Redemption Record",
+        "group": "Group",
+        "face_value": "Face Value",
         "redeemed_at": "Redeemed At"
       }
     },
@@ -103,10 +105,12 @@
       "id": "Channel Identifier",
       "name": "Channel",
       "group": "Group",
-      "type": "Protocol Type",
-      "status": "Status",
-      "response_time": "Response Time",
-      "capabilities": "Capabilities",
+  "type": "Protocol Type",
+  "status": "Status",
+  "created_time": "Created Time",
+  "updated_at": "Updated At",
+  "response_time": "Response Time",
+  "capabilities": "Capabilities",
       "balance": "Balance",
       "priority": "Priority",
       "actions": "Actions",
@@ -184,14 +188,15 @@
         "key": "API Key",
         "key_set": "Configured",
         "key_not_set": "Not Set",
-        "models": "Supported Models",
-        "source": "Source",
-        "complex_pricing_count": "{{count}} complex pricing models",
-        "updated_at": "Updated At",
-        "actions": "Actions",
-        "empty": "No provider catalog",
-        "model_count": "{{count}} models"
-      },
+    "models": "Supported Models",
+    "source": "Source",
+    "complex_pricing_count": "{{count}} complex pricing models",
+    "created_at": "Created At",
+    "updated_at": "Updated At",
+    "actions": "Actions",
+    "empty": "No provider catalog",
+    "model_count": "{{count}} models"
+  },
       "model_detail_table": {
         "add": "Add Model",
         "search_placeholder": "Search model details...",
@@ -207,7 +212,10 @@
         "detail": "Detail",
         "add_price_component": "Add Rule",
         "actions": "Actions",
-        "empty": "No model details"
+        "empty": "No model details",
+        "delete_confirm": "Delete this model?",
+        "edit_title": "Edit Model",
+        "create_title": "Add Model"
       },
       "price_component_table": {
         "component": "Component",
@@ -231,6 +239,7 @@
         "title_create": "Add Provider",
         "title_edit": "Edit Provider",
         "title_detail": "Provider Details",
+        "detail_basic_title": "Basic Information",
         "delete_title": "Confirm Delete Provider",
         "delete_content": "Are you sure you want to delete provider {{provider}}?",
         "delete_confirm": "Delete",
@@ -266,7 +275,8 @@
         "fetch_provider_required": "Please choose a provider first",
         "fetch_key_required": "Please provide API key first, or save one in provider config",
         "fetch_failed": "Failed to fetch models from provider API",
-        "fetch_success": "Models fetched and applied to catalog"
+        "fetch_success": "Models fetched and applied to catalog",
+        "model_required": "Please enter a model name"
       }
     },
     "edit": {
@@ -281,11 +291,12 @@
       "group": "Group",
       "group_placeholder": "Please select groups that can use this channel",
       "group_addition": "You can add a group in Group Management:",
-      "models": "Models",
-      "models_placeholder": "Please select models supported by this channel",
-      "detail_basic_title": "Basic Info",
-      "detail_models_title": "Model Selection",
-      "system_prompt": "System Prompt",
+  "models": "Models",
+  "models_placeholder": "Please select models supported by this channel",
+  "detail_basic_title": "Basic Info",
+  "detail_models_title": "Model Selection",
+  "created_time": "Created Time",
+  "system_prompt": "System Prompt",
       "system_prompt_placeholder": "Optional, used to force set system prompt. Use with custom model & model mapping. First create a unique custom model name above, then map it to a natively supported model",
       "proxy_url": "Address",
       "proxy_url_placeholder": "This is optional and used for API calls via a proxy. Please enter the proxy URL, formatted as: https://domain.com",
@@ -374,6 +385,14 @@
         "pricing_detail_model": "Model: {{model}}",
         "pricing_detail_alias": "Alias: {{alias}}",
         "pricing_detail_empty": "No complex pricing details for this model",
+        "editor": {
+          "info_title": "Model Info",
+          "status_title": "Model Status",
+          "pricing_title": "Pricing",
+          "status_hint": "When disabled, this model will not participate in the current channel's available model set.",
+          "provider_placeholder": "Select a provider",
+          "provider_empty": "No provider is assigned to this model yet"
+        },
         "pricing_detail_table": {
           "component": "Component",
           "condition": "Condition",
@@ -481,11 +500,12 @@
       "billing_ratio": "Billing Ratio",
       "daily_quota_limit": "Daily Quota Limit",
       "source": "Source",
-      "status": "Status",
-      "sort_order": "Sort Order",
-      "updated_at": "Updated At",
-      "actions": "Actions"
-    },
+    "status": "Status",
+    "sort_order": "Sort Order",
+    "created_at": "Created At",
+    "updated_at": "Updated At",
+    "actions": "Actions"
+  },
     "status": {
       "enabled": "Enabled",
       "disabled": "Disabled"
@@ -525,17 +545,22 @@
       "delete_confirm": "Are you sure you want to delete group {{id}}?",
       "bind_channels_title": "Configure Channels for Group {{id}}"
     },
-    "detail": {
-      "title": "Group Detail",
-      "model": "Model",
-      "channel_count": "Channel Count",
-      "model_channels": "Channels",
-      "model_search_placeholder": "Search model or channel",
-      "supported_models": "Supported Models",
-      "empty_models": "No supported models",
-      "bound_channels": "Related Channels",
-      "empty_channels": "No related channels"
-    },
+  "detail": {
+    "title": "Group Detail",
+    "model": "Model",
+    "enabled": "Enabled",
+    "selected": "Use",
+    "priority": "Priority",
+    "channel_count": "Channel Count",
+    "model_channels": "Channels",
+    "model_search_placeholder": "Search model or channel",
+    "supported_models": "Supported Models",
+    "empty_models": "No supported models",
+    "empty_model_channels": "No configurable channels for this model",
+    "edit_model_title": "Edit Model {{model}}",
+    "bound_channels": "Related Channels",
+    "empty_channels": "No related channels"
+  },
     "edit": {
       "model_configs": "Group Model Mappings",
       "model": "Visible Model",
@@ -555,11 +580,13 @@
       "daily_quota_limit_invalid": "Daily quota limit must be greater than or equal to 0",
       "load_failed": "Failed to load groups",
       "bind_load_failed": "Failed to load group channels",
-      "model_load_failed": "Failed to load group models",
-      "model_config_load_failed": "Failed to load group model configs",
-      "model_config_incomplete": "Please complete the group model config before submitting",
-      "model_config_duplicate": "The same visible model cannot use the same channel twice",
-      "create_success": "Group created successfully",
+    "model_load_failed": "Failed to load group models",
+    "model_config_load_failed": "Failed to load group model configs",
+    "model_config_incomplete": "Please complete the group model config before submitting",
+    "model_config_duplicate": "The same visible model cannot use the same channel twice",
+    "model_channel_empty": "This model has no available related channels",
+    "model_channel_required": "Please select at least one channel",
+    "create_success": "Group created successfully",
       "create_failed": "Failed to create group",
       "update_success": "Group updated successfully",
       "update_failed": "Failed to update group",
@@ -679,6 +706,10 @@
     },
     "detail": {
       "title": "Token Detail",
+      "sections": {
+        "models": "Model Scope",
+        "limits": "Limits"
+      },
       "buttons": {
         "back": "Back"
       }
@@ -744,22 +775,28 @@
     "loading": "Loading...",
     "no_data": "No data",
     "download": "Download",
+    "basic_info": "Basic Information",
     "cancel": "Cancel",
     "confirm": "Confirm",
+    "edit": "Edit",
+    "save": "Save",
     "unlimited": "Unlimited",
     "quota": {
       "display": "Equivalent: ${{amount}}",
       "display_short": "${{amount}}",
       "unit": "$"
-    }
+    },
+    "delete": "Delete"
   },
   "redemption": {
-    "title": "Redemption Management",
+    "title": "Redemption Code Management",
     "search": "Search redemption codes and names ...",
     "table": {
       "id": "ID",
       "name": "Name",
+      "group": "Group",
       "status": "Status",
+      "face_value": "Face Value",
       "quota": "YYC Value",
       "created_time": "Created Time",
       "redeemed_time": "Redeemed Time",
@@ -785,11 +822,16 @@
     },
     "edit": {
       "title_edit": "Update Redemption Code",
-      "title_create": "Create New Redemption Code",
+      "title_create": "Add Redemption Code",
       "name": "Name",
       "name_placeholder": "Please enter name",
-      "quota": "YYC Value",
-      "quota_placeholder": "Please enter YYC per redemption code",
+      "group": "Group",
+      "group_placeholder": "Please select group",
+      "face_value_amount": "Face Value",
+      "face_value_amount_placeholder": "Please enter redemption face value",
+      "face_value_unit": "Unit",
+      "face_value_unit_placeholder": "Please select unit",
+      "credit_yyc": "Credited YYC",
       "count": "Generate Count",
       "count_placeholder": "Please enter number of codes to generate",
       "buttons": {
@@ -807,7 +849,13 @@
     },
     "messages": {
       "update_success": "Redemption code updated successfully!",
-      "create_success": "Redemption code created successfully!"
+      "create_success": "Redemption code created successfully!",
+      "load_groups_failed": "Failed to load groups",
+      "load_units_failed": "Failed to load face value units",
+      "name_required": "Please enter the redemption code name",
+      "group_required": "Please select a group",
+      "count_invalid": "Generate count must be greater than 0",
+      "face_value_invalid": "Face value must be greater than 0"
     }
   },
   "log": {
@@ -1559,6 +1607,9 @@
         "inviter_reward_placeholder": "e.g.: 2000",
         "invitee_reward": "Reward Quota for Using Invite Code",
         "invitee_reward_placeholder": "e.g.: 1000",
+        "messages": {
+          "amount_invalid": "Quota must be greater than or equal to 0"
+        },
         "buttons": {
           "save": "Save Quota Settings"
         }

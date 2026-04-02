@@ -12,6 +12,8 @@ type GroupModelConfigItem struct {
 	Model           string `json:"model"`
 	ChannelId       string `json:"channel_id"`
 	UpstreamModel   string `json:"upstream_model"`
+	Enabled         *bool  `json:"enabled,omitempty"`
+	Priority        *int64 `json:"priority,omitempty"`
 	ChannelName     string `json:"channel_name,omitempty"`
 	ChannelProtocol string `json:"channel_protocol,omitempty"`
 	ChannelStatus   int    `json:"channel_status,omitempty"`
@@ -28,6 +30,7 @@ type GroupModelConfigChannel struct {
 	Name     string                         `json:"name"`
 	Protocol string                         `json:"protocol"`
 	Status   int                            `json:"status"`
+	Priority *int64                         `json:"priority,omitempty"`
 	Bound    bool                           `json:"bound"`
 	Models   []GroupModelConfigChannelModel `json:"models"`
 }
@@ -82,8 +85,7 @@ func listGroupModelConfigItemsWithDB(db *gorm.DB, groupID string) ([]GroupModelC
 	groupCol := `"group"`
 	if err := db.
 		Where(groupCol+" = ?", groupCatalog.Id).
-		Where("enabled = ?", true).
-		Order("model asc, channel_id asc").
+		Order("model asc, priority desc, channel_id asc").
 		Find(&abilities).Error; err != nil {
 		return nil, err
 	}
@@ -141,6 +143,8 @@ func listGroupModelConfigItemsWithDB(db *gorm.DB, groupID string) ([]GroupModelC
 			Model:           modelName,
 			ChannelId:       channelID,
 			UpstreamModel:   NormalizeAbilityUpstreamModel(modelName, ability.UpstreamModel),
+			Enabled:         helperBoolPointer(ability.Enabled),
+			Priority:        helperInt64Pointer(ability.Priority),
 			ChannelName:     channel.DisplayName(),
 			ChannelProtocol: channel.GetProtocol(),
 			ChannelStatus:   channel.Status,
@@ -175,7 +179,7 @@ func listGroupModelConfigChannelsWithDB(db *gorm.DB, groupID string) ([]GroupMod
 
 	channels := make([]Channel, 0)
 	if err := db.
-		Select("id", "name", "protocol", "status", "created_time").
+		Select("id", "name", "protocol", "status", "priority", "created_time").
 		Where("status = ?", ChannelStatusEnabled).
 		Order("created_time desc").
 		Find(&channels).Error; err != nil {
@@ -202,6 +206,7 @@ func listGroupModelConfigChannelsWithDB(db *gorm.DB, groupID string) ([]GroupMod
 			Name:     channel.DisplayName(),
 			Protocol: channel.GetProtocol(),
 			Status:   channel.Status,
+			Priority: helperInt64Pointer(channel.Priority),
 			Bound:    bound,
 			Models:   buildGroupModelConfigChannelModels(&channel),
 		})
@@ -275,8 +280,8 @@ func replaceGroupModelConfigsWithDB(db *gorm.DB, groupID string, channelIDs []st
 			Model:         item.Model,
 			ChannelId:     item.ChannelId,
 			UpstreamModel: upstreamModel,
-			Enabled:       channel.Status == ChannelStatusEnabled,
-			Priority:      channel.Priority,
+			Enabled:       resolveGroupModelConfigEnabled(item) && channel.Status == ChannelStatusEnabled,
+			Priority:      resolveGroupModelConfigPriority(item, channel),
 		})
 	}
 
@@ -310,7 +315,6 @@ func listGroupBoundChannelIDsWithDB(db *gorm.DB, groupID string) ([]string, erro
 	if err := db.Model(&Ability{}).
 		Distinct("channel_id").
 		Where(groupCol+" = ?", groupCatalog.Id).
-		Where("enabled = ?", true).
 		Pluck("channel_id", &boundIDs).Error; err != nil {
 		return nil, err
 	}
@@ -327,6 +331,8 @@ func normalizeGroupModelConfigItems(items []GroupModelConfigItem) ([]GroupModelC
 			Model:         strings.TrimSpace(item.Model),
 			ChannelId:     strings.TrimSpace(item.ChannelId),
 			UpstreamModel: strings.TrimSpace(item.UpstreamModel),
+			Enabled:       item.Enabled,
+			Priority:      helperInt64Pointer(item.Priority),
 		}
 		if normalized.Model == "" && normalized.ChannelId == "" && normalized.UpstreamModel == "" {
 			continue
@@ -407,6 +413,36 @@ func buildDefaultAbilitiesForGroupChannel(groupID string, channel *Channel) []Ab
 		})
 	}
 	return abilities
+}
+
+func resolveGroupModelConfigEnabled(item GroupModelConfigItem) bool {
+	if item.Enabled == nil {
+		return true
+	}
+	return *item.Enabled
+}
+
+func resolveGroupModelConfigPriority(item GroupModelConfigItem, channel *Channel) *int64 {
+	if item.Priority != nil {
+		return helperInt64Pointer(item.Priority)
+	}
+	if channel == nil {
+		return nil
+	}
+	return helperInt64Pointer(channel.Priority)
+}
+
+func helperBoolPointer(value bool) *bool {
+	result := value
+	return &result
+}
+
+func helperInt64Pointer(value *int64) *int64 {
+	if value == nil {
+		return nil
+	}
+	result := *value
+	return &result
 }
 
 func channelSelectedModelConfigs(channel *Channel) []ChannelModel {

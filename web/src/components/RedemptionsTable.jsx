@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -19,10 +19,51 @@ import {
 } from '../helpers';
 
 import { ITEMS_PER_PAGE } from '../constants';
-import { renderYYC } from '../helpers/render';
+import {
+  formatDecimalNumber,
+  YYC_SYMBOL,
+} from '../helpers/render';
 
 function renderTimestamp(timestamp) {
   return <>{timestamp2string(timestamp)}</>;
+}
+
+function renderGroupLabel(redemption) {
+  const groupName = (redemption?.group_name || '').toString().trim();
+  if (groupName) {
+    return groupName;
+  }
+  const groupID = (redemption?.group_id || '').toString().trim();
+  return groupID || '-';
+}
+
+function formatByCurrencyMinorUnit(amount, currency) {
+  const normalizedAmount = Number(amount || 0);
+  if (!Number.isFinite(normalizedAmount)) {
+    return '-';
+  }
+  const minorUnit = Number(currency?.minor_unit);
+  const maximumFractionDigits =
+    Number.isInteger(minorUnit) && minorUnit >= 0 ? minorUnit : 8;
+  const unit = (currency?.code || '').toString().trim().toUpperCase();
+  if (unit === 'YYC') {
+    return formatDecimalNumber(Math.round(normalizedAmount), 0);
+  }
+  return formatDecimalNumber(normalizedAmount, maximumFractionDigits);
+}
+
+function buildDisplayValue(redemption, displayUnit, currencyIndex) {
+  const yycValue = Number(redemption?.yyc_value ?? redemption?.quota ?? 0);
+  const targetCurrency = currencyIndex[displayUnit] || currencyIndex.YYC;
+  const rate = Number(targetCurrency?.yyc_per_unit || 0);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    return '-';
+  }
+  return formatByCurrencyMinorUnit(yycValue / rate, targetCurrency);
+}
+
+function renderFaceValue(redemption, displayUnit, currencyIndex) {
+  return buildDisplayValue(redemption, displayUnit, currencyIndex);
 }
 
 function renderStatus(status, t) {
@@ -66,6 +107,94 @@ const RedemptionsTable = () => {
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searching, setSearching] = useState(false);
+  const [displayUnit, setDisplayUnit] = useState('USD');
+  const [currencyIndex, setCurrencyIndex] = useState({
+    USD: {
+      code: 'USD',
+      symbol: '$',
+      minor_unit: 2,
+      yyc_per_unit: 0,
+    },
+    CNY: {
+      code: 'CNY',
+      symbol: '¥',
+      minor_unit: 2,
+      yyc_per_unit: 0,
+    },
+    YYC: {
+      code: 'YYC',
+      symbol: YYC_SYMBOL,
+      minor_unit: 0,
+      yyc_per_unit: 1,
+    },
+  });
+
+  const displayUnitOptions = useMemo(() => {
+    const items = [
+      {
+        value: 'YYC',
+        label: YYC_SYMBOL,
+      },
+    ];
+    Object.values(currencyIndex)
+      .filter((item) => item && item.code && item.code !== 'YYC')
+      .sort((a, b) => `${a.code}`.localeCompare(`${b.code}`))
+      .forEach((item) => {
+        const symbol = (item?.symbol || '').toString().trim();
+        items.push({
+          value: item.code,
+          label: symbol || item.code,
+        });
+      });
+    return items;
+  }, [currencyIndex]);
+
+  const loadDisplayUnits = useCallback(async () => {
+    try {
+      const res = await API.get('/api/v1/admin/billing/currencies');
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        showError(message);
+        return;
+      }
+      const next = {
+        YYC: {
+          code: 'YYC',
+          symbol: YYC_SYMBOL,
+          minor_unit: 0,
+          yyc_per_unit: 1,
+        },
+      };
+      (Array.isArray(data) ? data : [])
+        .filter((item) => Number(item?.status || 0) === 1)
+        .forEach((item) => {
+          const code = (item?.code || '').toString().trim().toUpperCase();
+          if (!code) {
+            return;
+          }
+          next[code] = {
+            ...item,
+            code,
+          };
+        });
+      setCurrencyIndex(next);
+      setDisplayUnit((current) => {
+        const normalizedCurrent = (current || '').toString().trim().toUpperCase();
+        if (normalizedCurrent && next[normalizedCurrent]) {
+          return normalizedCurrent;
+        }
+        if (next.USD) {
+          return 'USD';
+        }
+        const fallbackUnit = Object.keys(next)
+          .filter((code) => code)
+          .sort((a, b) => a.localeCompare(b))[0];
+        return fallbackUnit || 'YYC';
+      });
+    } catch (error) {
+      showError(error?.message || error);
+    }
+  }, []);
 
   const loadRedemptions = useCallback(async (page) => {
     const normalizedPage = Number(page) > 0 ? Number(page) : 1;
@@ -113,6 +242,10 @@ const RedemptionsTable = () => {
         showError(reason);
       });
   }, [loadRedemptions]);
+
+  useEffect(() => {
+    loadDisplayUnits().then();
+  }, [loadDisplayUnits]);
 
   const manageRedemption = async (id, action, idx) => {
     let data = { id };
@@ -252,18 +385,48 @@ const RedemptionsTable = () => {
             <Table.HeaderCell
               className='router-sortable-header'
               onClick={() => {
+                sortRedemption('group_name');
+              }}
+            >
+              {t('redemption.table.group')}
+            </Table.HeaderCell>
+            <Table.HeaderCell
+              className='router-sortable-header'
+              onClick={() => {
                 sortRedemption('status');
               }}
             >
               {t('redemption.table.status')}
             </Table.HeaderCell>
             <Table.HeaderCell
-              className='router-sortable-header'
-              onClick={() => {
-                sortRedemption('quota');
-              }}
+              className='router-redemption-face-value-header'
             >
-              {t('redemption.table.quota')}
+              <div className='router-table-header-with-control'>
+                <span
+                  className='router-sortable-header'
+                  onClick={() => {
+                    sortRedemption('quota');
+                  }}
+                >
+                  {t('redemption.table.face_value')}
+                </span>
+                <select
+                  className='router-table-header-select'
+                  value={displayUnit}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onChange={(e) => {
+                    setDisplayUnit(e.target.value);
+                  }}
+                >
+                  {displayUnitOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </Table.HeaderCell>
             <Table.HeaderCell
               className='router-sortable-header'
@@ -294,7 +457,7 @@ const RedemptionsTable = () => {
               activePage * ITEMS_PER_PAGE
             )
             .map((redemption, idx) => {
-              if (redemption.deleted) return <></>;
+              if (redemption.deleted) return null;
               return (
                 <Table.Row
                   key={redemption.id}
@@ -310,8 +473,9 @@ const RedemptionsTable = () => {
                   <Table.Cell>
                     {redemption.name ? redemption.name : t('redemption.table.no_name')}
                   </Table.Cell>
+                  <Table.Cell>{renderGroupLabel(redemption)}</Table.Cell>
                   <Table.Cell>{renderStatus(redemption.status, t)}</Table.Cell>
-                  <Table.Cell>{renderYYC(redemption.yyc_value ?? redemption.quota, t)}</Table.Cell>
+                  <Table.Cell>{renderFaceValue(redemption, displayUnit, currencyIndex)}</Table.Cell>
                   <Table.Cell>
                     {renderTimestamp(redemption.created_time)}
                   </Table.Cell>
@@ -396,7 +560,7 @@ const RedemptionsTable = () => {
 
         <Table.Footer>
           <Table.Row>
-            <Table.HeaderCell colSpan='6'>
+            <Table.HeaderCell colSpan='7'>
               <Pagination
                 className='router-page-pagination'
                 floated='right'

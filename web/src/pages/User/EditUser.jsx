@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Dropdown, Form, Label } from 'semantic-ui-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Breadcrumb, Button, Card, Dropdown, Form, Header, Label } from 'semantic-ui-react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { API, isRoot, showError, showSuccess } from '../../helpers';
 import {
   formatYYCValue,
@@ -208,6 +208,7 @@ const parseFirstGroupRef = (raw) => {
 const UserDetail = () => {
   const { t } = useTranslation();
   const { id: userId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const quotaDisplayInCurrency = isQuotaDisplayedInCurrency();
   const quotaFieldStep = quotaInputStep();
@@ -247,6 +248,14 @@ const UserDetail = () => {
     monthly_emergency_quota_limit: 0,
     quota_reset_timezone: 'Asia/Shanghai',
   });
+  const returnPath = useMemo(() => {
+    const from = location.state?.from;
+    if (typeof from !== 'string') {
+      return '';
+    }
+    const normalized = from.trim();
+    return normalized.startsWith('/') ? normalized : '';
+  }, [location.state]);
 
   const loadGroups = useCallback(async () => {
     try {
@@ -645,63 +654,73 @@ const UserDetail = () => {
     userId,
   ]);
 
+  const backToList = useCallback(() => {
+    if (returnPath !== '') {
+      navigate(-1);
+      return;
+    }
+    navigate('/admin/user');
+  }, [navigate, returnPath]);
+
   return (
     <div className='dashboard-container'>
       <Card fluid className='chart-card'>
         <Card.Content>
-          <Card.Header className='header router-page-title'>
-            {t('user.detail.title')}
-          </Card.Header>
-          <Form loading={loading || actionLoading === 'save'} autoComplete='new-password'>
-            <div className='router-toolbar router-block-gap-sm'>
-              <div className='router-toolbar-start'>
-                {isEditing ? (
-                  <>
-                    <Button
-                      type='button'
-                      className='router-page-button'
-                      onClick={cancelEditing}
-                      disabled={actionLoading !== ''}
-                    >
-                      {t('user.edit.buttons.cancel')}
-                    </Button>
-                    <Button
-                      type='button'
-                      positive
-                      className='router-page-button'
-                      onClick={submit}
-                      loading={actionLoading === 'save'}
-                      disabled={actionLoading !== ''}
-                    >
-                      {t('user.edit.buttons.submit')}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      type='button'
-                      className='router-page-button'
-                      onClick={() => navigate('/user')}
-                    >
-                      {t('user.detail.buttons.back')}
-                    </Button>
-                    <Button
-                      type='button'
-                      className='router-page-button'
-                      onClick={startEditing}
-                      disabled={loading || actionLoading !== ''}
-                    >
-                      {t('user.detail.buttons.edit')}
-                    </Button>
-                  </>
-                )}
-              </div>
-              <div className='router-toolbar-end'>
-                {renderStatusLabel(inputs.status, t)}
-              </div>
+          <div className='router-entity-detail-page'>
+            <div className='router-entity-detail-breadcrumb'>
+              <Breadcrumb size='small'>
+                <Breadcrumb.Section link onClick={backToList}>
+                  {t('header.user')}
+                </Breadcrumb.Section>
+                <Breadcrumb.Divider icon='right chevron' />
+                <Breadcrumb.Section active>
+                  {readOnlyValue(inputs.username || userId)}
+                </Breadcrumb.Section>
+              </Breadcrumb>
             </div>
+            <Form loading={loading || actionLoading === 'save'} autoComplete='new-password'>
+              <section className='router-entity-detail-section'>
+                <div className='router-entity-detail-section-header'>
+                  <Header as='h3' className='router-entity-detail-section-title'>
+                    {t('common.basic_info')}
+                  </Header>
+                  <div className='router-toolbar-start'>
+                    {renderStatusLabel(inputs.status, t)}
+                    {isEditing ? (
+                      <>
+                        <Button
+                          type='button'
+                          className='router-page-button'
+                          onClick={cancelEditing}
+                          disabled={actionLoading !== ''}
+                        >
+                          {t('user.edit.buttons.cancel')}
+                        </Button>
+                        <Button
+                          type='button'
+                          positive
+                          className='router-page-button'
+                          onClick={submit}
+                          loading={actionLoading === 'save'}
+                          disabled={actionLoading !== ''}
+                        >
+                          {t('user.edit.buttons.submit')}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        type='button'
+                        className='router-page-button'
+                        onClick={startEditing}
+                        disabled={loading || actionLoading !== ''}
+                      >
+                        {t('user.detail.buttons.edit')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
 
-            <Form.Group widths='equal'>
+                <Form.Group widths='equal'>
               {isEditing ? (
                 <Form.Input
                   className='router-section-input'
@@ -832,44 +851,66 @@ const UserDetail = () => {
                   readOnly
                 />
               )}
-            </Form.Group>
+                </Form.Group>
 
-            <Form.Group widths='equal'>
-              <Form.Input
-                className='router-section-input'
-                label={t('user.table.wallet')}
-                value={readOnlyValue(inputs.wallet_address)}
-                readOnly
-              />
-              <Form.Input
-                className='router-section-input'
-                label={t('user.table.used_quota')}
-                value={formatYYCValue(inputs.used_quota)}
-                readOnly
-              />
-              <Form.Input
-                className='router-section-input'
-                label={t('user.table.request_count')}
-                value={inputs.request_count}
-                readOnly
-              />
-            </Form.Group>
+                <Form.Group widths='equal'>
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('user.table.wallet')}
+                    value={readOnlyValue(inputs.wallet_address)}
+                    readOnly
+                  />
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('user.table.used_quota')}
+                    value={formatYYCValue(inputs.used_quota)}
+                    readOnly
+                  />
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('user.table.request_count')}
+                    value={inputs.request_count}
+                    readOnly
+                  />
+                </Form.Group>
 
-            <div className='router-block-top-sm'>
-              <div className='router-toolbar router-block-gap-xs'>
-                <div className='router-toolbar-title'>
-                  {t('user.detail.package_title')}
+                {isEditing ? (
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('user.edit.email')}
+                    name='email'
+                    value={editInputs.email}
+                    placeholder={t('user.edit.email_placeholder')}
+                    onChange={handleEditInputChange}
+                    autoComplete='off'
+                  />
+                ) : (
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('user.edit.email')}
+                    name='email'
+                    value={readOnlyValue(inputs.email)}
+                    autoComplete='new-password'
+                    readOnly
+                  />
+                )}
+              </section>
+
+              <section className='router-entity-detail-section'>
+                <div className='router-entity-detail-section-header'>
+                  <Header as='h3' className='router-entity-detail-section-title'>
+                    {t('user.detail.package_title')}
+                  </Header>
+                  <Button
+                    type='button'
+                    className='router-inline-button'
+                    loading={activePackageLoading}
+                    disabled={activePackageLoading || loading || actionLoading !== ''}
+                    onClick={() => loadActivePackage()}
+                  >
+                    {t('user.buttons.refresh')}
+                  </Button>
                 </div>
-                <Button
-                  type='button'
-                  className='router-inline-button'
-                  loading={activePackageLoading}
-                  disabled={activePackageLoading || loading || actionLoading !== ''}
-                  onClick={() => loadActivePackage()}
-                >
-                  {t('user.buttons.refresh')}
-                </Button>
-              </div>
               <Form.Group widths='equal'>
                 <Form.Input
                   className='router-section-input'
@@ -975,23 +1016,23 @@ const UserDetail = () => {
                   readOnly
                 />
               </Form.Group>
-            </div>
+              </section>
 
-            <div className='router-block-top-sm'>
-              <div className='router-toolbar router-block-gap-xs'>
-                <div className='router-toolbar-title'>
-                  {t('user.detail.user_quota_title')}
+              <section className='router-entity-detail-section'>
+                <div className='router-entity-detail-section-header'>
+                  <Header as='h3' className='router-entity-detail-section-title'>
+                    {t('user.detail.user_quota_title')}
+                  </Header>
+                  <Button
+                    type='button'
+                    className='router-inline-button'
+                    loading={userQuotaSummaryLoading}
+                    disabled={userQuotaSummaryLoading || loading || actionLoading !== ''}
+                    onClick={() => loadUserQuotaSummary()}
+                  >
+                    {t('user.buttons.refresh')}
+                  </Button>
                 </div>
-                <Button
-                  type='button'
-                  className='router-inline-button'
-                  loading={userQuotaSummaryLoading}
-                  disabled={userQuotaSummaryLoading || loading || actionLoading !== ''}
-                  onClick={() => loadUserQuotaSummary()}
-                >
-                  {t('user.buttons.refresh')}
-                </Button>
-              </div>
               <Form.Group widths='equal'>
                 <Form.Input
                   className='router-section-input'
@@ -1092,23 +1133,23 @@ const UserDetail = () => {
                   readOnly
                 />
               </Form.Group>
-            </div>
+              </section>
 
-            <div className='router-block-top-sm'>
-              <div className='router-toolbar router-block-gap-xs'>
-                <div className='router-toolbar-title'>
-                  {t('user.detail.daily_quota_title')}
+              <section className='router-entity-detail-section'>
+                <div className='router-entity-detail-section-header'>
+                  <Header as='h3' className='router-entity-detail-section-title'>
+                    {t('user.detail.daily_quota_title')}
+                  </Header>
+                  <Button
+                    type='button'
+                    className='router-inline-button'
+                    loading={dailyQuotaLoading}
+                    disabled={dailyQuotaLoading || loading || actionLoading !== ''}
+                    onClick={() => loadDailyQuota()}
+                  >
+                    {t('user.buttons.refresh')}
+                  </Button>
                 </div>
-                <Button
-                  type='button'
-                  className='router-inline-button'
-                  loading={dailyQuotaLoading}
-                  disabled={dailyQuotaLoading || loading || actionLoading !== ''}
-                  onClick={() => loadDailyQuota()}
-                >
-                  {t('user.buttons.refresh')}
-                </Button>
-              </div>
               <Form.Group widths='equal'>
                 <Form.Input
                   className='router-section-input'
@@ -1169,28 +1210,9 @@ const UserDetail = () => {
                   readOnly
                 />
               </Form.Group>
-            </div>
-            {isEditing ? (
-              <Form.Input
-                className='router-section-input'
-                label={t('user.edit.email')}
-                name='email'
-                value={editInputs.email}
-                placeholder={t('user.edit.email_placeholder')}
-                onChange={handleEditInputChange}
-                autoComplete='off'
-              />
-            ) : (
-              <Form.Input
-                className='router-section-input'
-                label={t('user.edit.email')}
-                name='email'
-                value={readOnlyValue(inputs.email)}
-                autoComplete='new-password'
-                readOnly
-              />
-            )}
-          </Form>
+              </section>
+            </Form>
+          </div>
         </Card.Content>
       </Card>
     </div>

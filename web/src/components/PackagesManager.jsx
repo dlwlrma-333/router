@@ -11,20 +11,20 @@ import { useTranslation } from 'react-i18next';
 import { API, showError, showInfo, showSuccess, timestamp2string } from '../helpers';
 import { ITEMS_PER_PAGE } from '../constants';
 import {
-  isQuotaDisplayedInCurrency,
-  quotaInputStep,
-  quotaInputToStoredValue,
-  quotaToInputValue,
+  formatDecimalNumber,
   renderQuota,
+  YYC_SYMBOL,
 } from '../helpers/render';
 
-const createEmptyForm = () => ({
+const createEmptyForm = (defaultQuotaUnit = 'USD') => ({
   id: '',
   name: '',
   description: '',
   group_id: '',
-  daily_quota_limit: quotaToInputValue(0),
-  monthly_emergency_quota_limit: quotaToInputValue(0),
+  daily_quota_limit: '0',
+  daily_quota_limit_unit: defaultQuotaUnit,
+  monthly_emergency_quota_limit: '0',
+  monthly_emergency_quota_limit_unit: defaultQuotaUnit,
   duration_days: 30,
   quota_reset_timezone: 'Asia/Shanghai',
   enabled: true,
@@ -66,6 +66,25 @@ const toGroupOptions = (rows) =>
     text: item.name || item.id,
   }));
 
+const appendGroupOptionIfMissing = (options, groupID, groupName) => {
+  const normalizedGroupID = (groupID || '').toString().trim();
+  if (!normalizedGroupID) {
+    return options;
+  }
+  const currentOptions = Array.isArray(options) ? options : [];
+  if (currentOptions.some((item) => (item?.value || '').toString().trim() === normalizedGroupID)) {
+    return currentOptions;
+  }
+  return [
+    ...currentOptions,
+    {
+      key: normalizedGroupID,
+      value: normalizedGroupID,
+      text: (groupName || '').toString().trim() || normalizedGroupID,
+    },
+  ];
+};
+
 const toUserOptions = (rows) =>
   (Array.isArray(rows) ? rows : []).map((item) => {
     const id = (item?.id || '').toString().trim();
@@ -79,6 +98,176 @@ const toUserOptions = (rows) =>
       text: `${label} (${shortID})`,
     };
   });
+
+const buildDisplayCurrencyIndex = (rows) => {
+  const next = {
+    YYC: {
+      code: 'YYC',
+      symbol: YYC_SYMBOL,
+      minor_unit: 0,
+      yyc_per_unit: 1,
+    },
+  };
+  (Array.isArray(rows) ? rows : [])
+    .filter((item) => Number(item?.status || 0) === 1)
+    .forEach((item) => {
+      const code = (item?.code || '').toString().trim().toUpperCase();
+      if (!code) {
+        return;
+      }
+      next[code] = {
+        ...item,
+        code,
+      };
+    });
+  return next;
+};
+
+const formatByCurrencyMinorUnit = (amount, currency) => {
+  const normalizedAmount = Number(amount || 0);
+  if (!Number.isFinite(normalizedAmount)) {
+    return '-';
+  }
+  const minorUnit = Number(currency?.minor_unit);
+  const maximumFractionDigits =
+    Number.isInteger(minorUnit) && minorUnit >= 0 ? minorUnit : 8;
+  const unit = (currency?.code || '').toString().trim().toUpperCase();
+  if (unit === 'YYC') {
+    return formatDecimalNumber(Math.round(normalizedAmount), 0);
+  }
+  return formatDecimalNumber(normalizedAmount, maximumFractionDigits);
+};
+
+const renderPackageQuotaValue = (quota, displayUnit, currencyIndex) => {
+  const yycValue = Number(quota || 0);
+  if (!Number.isFinite(yycValue)) {
+    return '-';
+  }
+  const targetCurrency = currencyIndex[displayUnit] || currencyIndex.YYC;
+  const rate = Number(targetCurrency?.yyc_per_unit || 0);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    return '-';
+  }
+  return formatByCurrencyMinorUnit(yycValue / rate, targetCurrency);
+};
+
+const resolveDefaultQuotaUnit = (currencyIndex) => {
+  if (currencyIndex?.USD) {
+    return 'USD';
+  }
+  if (currencyIndex?.YYC) {
+    return 'YYC';
+  }
+  return (
+    Object.keys(currencyIndex || {})
+      .filter((code) => code)
+      .sort((a, b) => a.localeCompare(b))[0] || 'YYC'
+  );
+};
+
+const getCurrencyRateToYYC = (unit, currencyIndex) => {
+  const normalizedUnit = (unit || '').toString().trim().toUpperCase();
+  if (normalizedUnit === 'YYC') {
+    return 1;
+  }
+  const rate = Number(currencyIndex?.[normalizedUnit]?.yyc_per_unit || 0);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    return 0;
+  }
+  return rate;
+};
+
+const formatQuotaInputAmount = (amount, unit, currencyIndex) => {
+  const normalizedAmount = Number(amount || 0);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount === 0) {
+    return '0';
+  }
+  const normalizedUnit = (unit || '').toString().trim().toUpperCase();
+  if (normalizedUnit === 'YYC') {
+    return `${Math.round(normalizedAmount)}`;
+  }
+  const minorUnit = Number(currencyIndex?.[normalizedUnit]?.minor_unit);
+  const fractionDigits =
+    Number.isInteger(minorUnit) && minorUnit >= 0 ? Math.min(minorUnit, 8) : 6;
+  return normalizedAmount.toFixed(fractionDigits).replace(/\.?0+$/, '');
+};
+
+const quotaToInputValueByUnit = (quota, unit, currencyIndex) => {
+  const storedYYC = Number(quota || 0);
+  if (!Number.isFinite(storedYYC) || storedYYC <= 0) {
+    return '0';
+  }
+  const rate = getCurrencyRateToYYC(unit, currencyIndex);
+  if (rate <= 0) {
+    return '0';
+  }
+  return formatQuotaInputAmount(storedYYC / rate, unit, currencyIndex);
+};
+
+const quotaInputToStoredValueByUnit = (value, unit, currencyIndex) => {
+  const normalizedAmount = Number(value ?? 0);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount < 0) {
+    return NaN;
+  }
+  const rate = getCurrencyRateToYYC(unit, currencyIndex);
+  if (rate <= 0) {
+    return NaN;
+  }
+  if ((unit || '').toString().trim().toUpperCase() === 'YYC') {
+    return Math.round(normalizedAmount);
+  }
+  return Math.round(normalizedAmount * rate);
+};
+
+const convertQuotaInputValueUnit = (value, fromUnit, toUnit, currencyIndex) => {
+  const normalizedAmount = Number(value ?? 0);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    return '0';
+  }
+  const storedYYC = quotaInputToStoredValueByUnit(normalizedAmount, fromUnit, currencyIndex);
+  if (!Number.isFinite(storedYYC) || storedYYC < 0) {
+    return '0';
+  }
+  return quotaToInputValueByUnit(storedYYC, toUnit, currencyIndex);
+};
+
+const buildQuotaUnitOptions = (currencyIndex) => {
+  const seen = new Set();
+  return Object.values(currencyIndex || {})
+    .filter((item) => item && item.code)
+    .sort((a, b) => {
+      if (a.code === 'USD') return -1;
+      if (b.code === 'USD') return 1;
+      if (a.code === 'YYC') return -1;
+      if (b.code === 'YYC') return 1;
+      return `${a.code}`.localeCompare(`${b.code}`);
+    })
+    .reduce((items, item) => {
+      const code = (item.code || '').toString().trim().toUpperCase();
+      if (!code || seen.has(code)) {
+        return items;
+      }
+      seen.add(code);
+      items.push({
+        key: code,
+        value: code,
+        text: (item?.symbol || '').toString().trim() || code,
+      });
+      return items;
+    }, []);
+};
+
+const resolveQuotaInputStep = (unit, currencyIndex) => {
+  const normalizedUnit = (unit || '').toString().trim().toUpperCase();
+  if (normalizedUnit === 'YYC') {
+    return '1';
+  }
+  const minorUnit = Number(currencyIndex?.[normalizedUnit]?.minor_unit);
+  if (!Number.isInteger(minorUnit) || minorUnit <= 0) {
+    return '0.01';
+  }
+  return (1 / 10 ** Math.min(minorUnit, 8)).toFixed(Math.min(minorUnit, 8));
+};
 
 const PackagesManager = () => {
   const { t } = useTranslation();
@@ -94,6 +283,10 @@ const PackagesManager = () => {
   const [groupLoading, setGroupLoading] = useState(false);
   const [userOptions, setUserOptions] = useState([]);
   const [userLoading, setUserLoading] = useState(false);
+  const [displayUnit, setDisplayUnit] = useState('USD');
+  const [currencyIndex, setCurrencyIndex] = useState(
+    buildDisplayCurrencyIndex([])
+  );
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -101,14 +294,35 @@ const PackagesManager = () => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
 
-  const [form, setForm] = useState(createEmptyForm());
+  const [form, setForm] = useState(createEmptyForm('USD'));
   const [activeRow, setActiveRow] = useState(null);
   const [assignRow, setAssignRow] = useState(null);
   const [assignForm, setAssignForm] = useState(createEmptyAssignForm());
 
-  const quotaDisplayInCurrency = isQuotaDisplayedInCurrency();
-  const quotaFieldStep = quotaInputStep();
-  const quotaFieldSuffix = quotaDisplayInCurrency ? ' (USD)' : '';
+  const displayUnitOptions = useMemo(() => {
+    const items = [
+      {
+        value: 'YYC',
+        label: YYC_SYMBOL,
+      },
+    ];
+    Object.values(currencyIndex)
+      .filter((item) => item && item.code && item.code !== 'YYC')
+      .sort((a, b) => `${a.code}`.localeCompare(`${b.code}`))
+      .forEach((item) => {
+        const symbol = (item?.symbol || '').toString().trim();
+        items.push({
+          value: item.code,
+          label: symbol || item.code,
+        });
+      });
+    return items;
+  }, [currencyIndex]);
+
+  const quotaUnitOptions = useMemo(
+    () => buildQuotaUnitOptions(currencyIndex),
+    [currencyIndex]
+  );
 
   const normalizedKeyword = useMemo(
     () => (typeof searchKeyword === 'string' ? searchKeyword.trim() : ''),
@@ -215,9 +429,64 @@ const PackagesManager = () => {
     [t]
   );
 
+  const loadDisplayUnits = useCallback(async () => {
+    try {
+      const res = await API.get('/api/v1/admin/billing/currencies');
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        showError(message);
+        return;
+      }
+      const next = buildDisplayCurrencyIndex(Array.isArray(data) ? data : []);
+      setCurrencyIndex(next);
+      setDisplayUnit((current) => {
+        const normalizedCurrent = (current || '').toString().trim().toUpperCase();
+        if (normalizedCurrent && next[normalizedCurrent]) {
+          return normalizedCurrent;
+        }
+        if (next.USD) {
+          return 'USD';
+        }
+        const fallbackUnit = Object.keys(next)
+          .filter((code) => code)
+          .sort((a, b) => a.localeCompare(b))[0];
+        return fallbackUnit || 'YYC';
+      });
+    } catch (error) {
+      showError(error?.message || error);
+    }
+  }, []);
+
   useEffect(() => {
     loadGroups().then();
   }, [loadGroups]);
+
+  useEffect(() => {
+    loadDisplayUnits().then();
+  }, [loadDisplayUnits]);
+
+  useEffect(() => {
+    const defaultQuotaUnit = resolveDefaultQuotaUnit(currencyIndex);
+    setForm((current) => {
+      if ((current?.id || '').toString().trim() !== '') {
+        return current;
+      }
+      const nextDailyUnit = current?.daily_quota_limit_unit || defaultQuotaUnit;
+      const nextEmergencyUnit =
+        current?.monthly_emergency_quota_limit_unit || defaultQuotaUnit;
+      if (
+        nextDailyUnit === current?.daily_quota_limit_unit &&
+        nextEmergencyUnit === current?.monthly_emergency_quota_limit_unit
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        daily_quota_limit_unit: nextDailyUnit,
+        monthly_emergency_quota_limit_unit: nextEmergencyUnit,
+      };
+    });
+  }, [currencyIndex]);
 
   useEffect(() => {
     loadPackages(activePage, normalizedKeyword).then();
@@ -230,7 +499,7 @@ const PackagesManager = () => {
   }, [activePage, totalPages]);
 
   const resetForm = () => {
-    setForm(createEmptyForm());
+    setForm(createEmptyForm(resolveDefaultQuotaUnit(currencyIndex)));
   };
 
   const closeAllModals = () => {
@@ -273,25 +542,54 @@ const PackagesManager = () => {
     }
   };
 
-  const openEditModal = (row) => {
+  const openEditModal = async (row) => {
     if (!row || submitting) return;
-    setActiveRow(row);
-    setForm({
-      id: row.id || '',
-      name: row.name || '',
-      description: row.description || '',
-      group_id: row.group_id || '',
-      daily_quota_limit: quotaToInputValue(Number(row?.yyc_daily_limit ?? row?.daily_quota_limit ?? 0)),
-      monthly_emergency_quota_limit: quotaToInputValue(
-        Number(row?.yyc_monthly_emergency_limit ?? row?.monthly_emergency_quota_limit ?? 0)
-      ),
-      duration_days: Number(row?.duration_days || 30),
-      quota_reset_timezone: row?.quota_reset_timezone || 'Asia/Shanghai',
-      enabled: Boolean(row?.enabled),
-      sort_order: Number(row?.sort_order || 0),
-      source: row?.source || 'manual',
-    });
-    setEditOpen(true);
+    const id = (row.id || '').toString().trim();
+    if (!id) {
+      return;
+    }
+    try {
+      const res = await API.get(`/api/v1/admin/package/${encodeURIComponent(id)}`);
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        showError(message || t('package_manage.messages.load_failed'));
+        return;
+      }
+      const detail = data || row;
+      const resolvedGroupID = (detail?.group_id || row?.group_id || '').toString().trim();
+      const resolvedGroupName = (detail?.group_name || row?.group_name || '').toString().trim();
+      const defaultQuotaUnit = resolveDefaultQuotaUnit(currencyIndex);
+      setGroupOptions((current) =>
+        appendGroupOptionIfMissing(current, resolvedGroupID, resolvedGroupName)
+      );
+      setActiveRow(detail);
+      setForm({
+        id: detail.id || '',
+        name: detail.name || '',
+        description: detail.description || '',
+        group_id: resolvedGroupID,
+        daily_quota_limit: quotaToInputValueByUnit(
+          Number(detail?.yyc_daily_limit ?? detail?.daily_quota_limit ?? 0),
+          defaultQuotaUnit,
+          currencyIndex
+        ),
+        daily_quota_limit_unit: defaultQuotaUnit,
+        monthly_emergency_quota_limit: quotaToInputValueByUnit(
+          Number(detail?.yyc_monthly_emergency_limit ?? detail?.monthly_emergency_quota_limit ?? 0),
+          defaultQuotaUnit,
+          currencyIndex
+        ),
+        monthly_emergency_quota_limit_unit: defaultQuotaUnit,
+        duration_days: Number(detail?.duration_days || 30),
+        quota_reset_timezone: detail?.quota_reset_timezone || 'Asia/Shanghai',
+        enabled: Boolean(detail?.enabled),
+        sort_order: Number(detail?.sort_order || 0),
+        source: detail?.source || 'manual',
+      });
+      setEditOpen(true);
+    } catch (error) {
+      showError(error?.message || error);
+    }
   };
 
   const openDeleteModal = (row) => {
@@ -322,9 +620,15 @@ const PackagesManager = () => {
       showInfo(t('package_manage.messages.group_required'));
       return null;
     }
-    const dailyStored = quotaInputToStoredValue(form.daily_quota_limit ?? 0);
-    const emergencyStored = quotaInputToStoredValue(
-      form.monthly_emergency_quota_limit ?? 0
+    const dailyStored = quotaInputToStoredValueByUnit(
+      form.daily_quota_limit ?? 0,
+      form.daily_quota_limit_unit,
+      currencyIndex
+    );
+    const emergencyStored = quotaInputToStoredValueByUnit(
+      form.monthly_emergency_quota_limit ?? 0,
+      form.monthly_emergency_quota_limit_unit,
+      currencyIndex
     );
     if (
       !Number.isFinite(dailyStored) ||
@@ -511,9 +815,47 @@ const PackagesManager = () => {
           <Table.Row>
             <Table.HeaderCell>{t('package_manage.table.name')}</Table.HeaderCell>
             <Table.HeaderCell>{t('package_manage.table.group')}</Table.HeaderCell>
-            <Table.HeaderCell>{t('package_manage.table.daily_quota_limit')}</Table.HeaderCell>
-            <Table.HeaderCell>
-              {t('package_manage.table.monthly_emergency_quota_limit')}
+            <Table.HeaderCell className='router-redemption-face-value-header'>
+              <div className='router-table-header-with-control'>
+                <span>{t('package_manage.table.daily_quota_limit')}</span>
+                <select
+                  className='router-table-header-select'
+                  value={displayUnit}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onChange={(e) => {
+                    setDisplayUnit(e.target.value);
+                  }}
+                >
+                  {displayUnitOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </Table.HeaderCell>
+            <Table.HeaderCell className='router-redemption-face-value-header'>
+              <div className='router-table-header-with-control'>
+                <span>{t('package_manage.table.monthly_emergency_quota_limit')}</span>
+                <select
+                  className='router-table-header-select'
+                  value={displayUnit}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onChange={(e) => {
+                    setDisplayUnit(e.target.value);
+                  }}
+                >
+                  {displayUnitOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </Table.HeaderCell>
             <Table.HeaderCell>{t('package_manage.table.duration_days')}</Table.HeaderCell>
             <Table.HeaderCell>{t('package_manage.table.status')}</Table.HeaderCell>
@@ -542,9 +884,21 @@ const PackagesManager = () => {
               >
                 <Table.Cell>{row.name || '-'}</Table.Cell>
                 <Table.Cell>{row.group_name || row.group_id || '-'}</Table.Cell>
-                <Table.Cell>{renderQuota(row.daily_quota_limit || 0, t, 6)}</Table.Cell>
                 <Table.Cell>
-                  {renderQuota(row.monthly_emergency_quota_limit || 0, t, 6)}
+                  {renderPackageQuotaValue(
+                    row?.yyc_daily_limit ?? row?.daily_quota_limit ?? 0,
+                    displayUnit,
+                    currencyIndex
+                  )}
+                </Table.Cell>
+                <Table.Cell>
+                  {renderPackageQuotaValue(
+                    row?.yyc_monthly_emergency_limit ??
+                      row?.monthly_emergency_quota_limit ??
+                      0,
+                    displayUnit,
+                    currencyIndex
+                  )}
                 </Table.Cell>
                 <Table.Cell>{Number(row.duration_days || 0) || '-'}</Table.Cell>
                 <Table.Cell>{statusLabel(Boolean(row.enabled), t)}</Table.Cell>
@@ -640,31 +994,90 @@ const PackagesManager = () => {
       />
 
       <Form.Group widths='equal'>
-        <Form.Input
-          className='router-section-input'
-          label={`${t('package_manage.form.daily_quota_limit')}${quotaFieldSuffix}`}
-          value={form.daily_quota_limit}
-          step={quotaFieldStep}
-          min={0}
-          type='number'
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, daily_quota_limit: e.target.value || '0' }))
-          }
-        />
-        <Form.Input
-          className='router-section-input'
-          label={`${t('package_manage.form.monthly_emergency_quota_limit')}${quotaFieldSuffix}`}
-          value={form.monthly_emergency_quota_limit}
-          step={quotaFieldStep}
-          min={0}
-          type='number'
-          onChange={(e) =>
-            setForm((prev) => ({
-              ...prev,
-              monthly_emergency_quota_limit: e.target.value || '0',
-            }))
-          }
-        />
+        <Form.Field>
+          <label>{t('package_manage.form.daily_quota_limit')}</label>
+          <div className='router-section-input-with-unit'>
+            <Form.Input
+              className='router-section-input router-section-input-with-unit-field'
+              value={form.daily_quota_limit}
+              step={resolveQuotaInputStep(form.daily_quota_limit_unit, currencyIndex)}
+              min={0}
+              type='number'
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, daily_quota_limit: e.target.value || '0' }))
+              }
+            />
+            <select
+              className='router-section-input-unit-native'
+              value={form.daily_quota_limit_unit}
+              onChange={(e) => {
+                const nextUnit = (e.target.value || 'YYC').toString().trim().toUpperCase();
+                setForm((prev) => ({
+                  ...prev,
+                  daily_quota_limit: convertQuotaInputValueUnit(
+                    prev.daily_quota_limit,
+                    prev.daily_quota_limit_unit,
+                    nextUnit,
+                    currencyIndex
+                  ),
+                  daily_quota_limit_unit: nextUnit,
+                }));
+              }}
+              aria-label={t('package_manage.form.daily_quota_limit')}
+            >
+              {quotaUnitOptions.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.text}
+                </option>
+              ))}
+            </select>
+          </div>
+        </Form.Field>
+        <Form.Field>
+          <label>{t('package_manage.form.monthly_emergency_quota_limit')}</label>
+          <div className='router-section-input-with-unit'>
+            <Form.Input
+              className='router-section-input router-section-input-with-unit-field'
+              value={form.monthly_emergency_quota_limit}
+              step={resolveQuotaInputStep(
+                form.monthly_emergency_quota_limit_unit,
+                currencyIndex
+              )}
+              min={0}
+              type='number'
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  monthly_emergency_quota_limit: e.target.value || '0',
+                }))
+              }
+            />
+            <select
+              className='router-section-input-unit-native'
+              value={form.monthly_emergency_quota_limit_unit}
+              onChange={(e) => {
+                const nextUnit = (e.target.value || 'YYC').toString().trim().toUpperCase();
+                setForm((prev) => ({
+                  ...prev,
+                  monthly_emergency_quota_limit: convertQuotaInputValueUnit(
+                    prev.monthly_emergency_quota_limit,
+                    prev.monthly_emergency_quota_limit_unit,
+                    nextUnit,
+                    currencyIndex
+                  ),
+                  monthly_emergency_quota_limit_unit: nextUnit,
+                }));
+              }}
+              aria-label={t('package_manage.form.monthly_emergency_quota_limit')}
+            >
+              {quotaUnitOptions.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.text}
+                </option>
+              ))}
+            </select>
+          </div>
+        </Form.Field>
       </Form.Group>
 
       <Form.Group widths='equal'>

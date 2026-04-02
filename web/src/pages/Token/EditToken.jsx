@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Breadcrumb,
   Button,
   Card,
   Checkbox,
   Form,
+  Header,
   Label,
   Message,
   Table,
@@ -13,7 +15,6 @@ import {
   useLocation,
   useNavigate,
   useParams,
-  useSearchParams,
 } from 'react-router-dom';
 import {
   API,
@@ -29,11 +30,9 @@ const EditToken = () => {
   const { t } = useTranslation();
   const location = useLocation();
   const params = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
   const tokenId = params.id;
   const isCreateMode = tokenId === undefined;
   const isDetailMode = !isCreateMode;
-  const isEditing = isCreateMode || searchParams.get('edit') === '1';
   const returnPath = (() => {
     const from = location.state?.from;
     if (typeof from !== 'string') {
@@ -46,6 +45,7 @@ const EditToken = () => {
   const [modelOptions, setModelOptions] = useState([]);
   const [allModelsSelected, setAllModelsSelected] = useState(isCreateMode);
   const [modelKeyword, setModelKeyword] = useState('');
+  const [detailEditingSection, setDetailEditingSection] = useState('');
   const originInputs = {
     name: '',
     remain_quota: isDetailMode ? 0 : 500000,
@@ -66,6 +66,9 @@ const EditToken = () => {
   const filteredModelOptions = modelOptions.filter((option) =>
     option.value.toLowerCase().includes(modelKeyword.trim().toLowerCase())
   );
+  const basicReadonly = isDetailMode && detailEditingSection !== 'basic';
+  const modelsReadonly = isDetailMode && detailEditingSection !== 'models';
+  const limitsReadonly = isDetailMode && detailEditingSection !== 'limits';
   const isEveryModelSelected = modelOptions.length > 0 && (
     allModelsSelected || inputs.models.length === modelOptions.length
   );
@@ -149,22 +152,26 @@ const EditToken = () => {
     setPersistedInputs(normalizedData);
   }, []);
 
-  const setEditMode = useCallback(
-    (nextEditing) => {
-      const nextSearchParams = new URLSearchParams(searchParams.toString());
-      if (nextEditing) {
-        nextSearchParams.set('edit', '1');
-      } else {
-        nextSearchParams.delete('edit');
-      }
-      setSearchParams(nextSearchParams, { replace: true });
-    },
-    [searchParams, setSearchParams]
-  );
-
   const handleInputChange = (e, { name, value }) => {
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   };
+
+  const startDetailSectionEdit = useCallback((section) => {
+    if (!isDetailMode) {
+      return;
+    }
+    setDetailEditingSection(section);
+  }, [isDetailMode]);
+
+  const cancelDetailSectionEdit = useCallback(() => {
+    setInputs(persistedInputs);
+    setAllModelsSelected(
+      Array.isArray(persistedInputs.models)
+        ? persistedInputs.models.length === 0
+        : true
+    );
+    setDetailEditingSection('');
+  }, [persistedInputs]);
 
   const handleCopyToken = async () => {
     const raw = typeof inputs.key === 'string' ? inputs.key.trim() : '';
@@ -184,14 +191,8 @@ const EditToken = () => {
       navigate('/token');
       return;
     }
-    if (isEditing) {
-      setInputs(persistedInputs);
-      setAllModelsSelected(
-        Array.isArray(persistedInputs.models)
-          ? persistedInputs.models.length === 0
-          : true
-      );
-      setEditMode(false);
+    if (detailEditingSection !== '') {
+      cancelDetailSectionEdit();
       return;
     }
     if (returnPath !== '') {
@@ -321,7 +322,7 @@ const EditToken = () => {
           models: localInputs.models,
           expired_time: localInputs.expired_time,
         });
-        setEditMode(false);
+        setDetailEditingSection('');
       } else {
         showSuccess(t('token.edit.messages.create_success'));
         setInputs(originInputs);
@@ -366,263 +367,503 @@ const EditToken = () => {
     <div className='dashboard-container'>
       <Card fluid className='chart-card'>
         <Card.Content>
-          <Card.Header className='header router-page-title'>
-            {isCreateMode
-              ? t('token.edit.title_create')
-              : t('token.detail.title')}
-          </Card.Header>
-          <div className='router-toolbar router-block-gap-sm'>
-            <div className='router-toolbar-start'>
-              {isDetailMode && isEditing ? (
-                <>
-                  <Button className='router-page-button' onClick={handleCancel}>
-                    {t('token.edit.buttons.cancel')}
-                  </Button>
-                  <Button className='router-page-button' positive onClick={submit}>
-                    {t('token.edit.buttons.submit')}
-                  </Button>
-                </>
-              ) : (
-                <>
+          {isCreateMode ? (
+            <>
+              <Card.Header className='header router-page-title'>
+                {t('token.edit.title_create')}
+              </Card.Header>
+              <div className='router-toolbar router-block-gap-sm'>
+                <div className='router-toolbar-start'>
                   <Button
                     className='router-page-button'
-                    onClick={isCreateMode ? handleCancel : handleBack}
+                    onClick={handleCancel}
                   >
-                    {isCreateMode
-                      ? t('token.edit.buttons.cancel')
-                      : t('token.detail.buttons.back')}
+                    {t('token.edit.buttons.cancel')}
                   </Button>
-                  {isDetailMode ? (
-                    <Button
-                      className='router-page-button'
-                      positive
-                      onClick={() => setEditMode(true)}
-                    >
-                      {t('token.buttons.edit')}
-                    </Button>
-                  ) : null}
-                </>
-              )}
-            </div>
-            <div className='router-toolbar-end'>
-              <div className='router-action-group'>
-                {isDetailMode ? renderStatus(Number(inputs.status || 0)) : null}
-                {isCreateMode && isEditing && (
+                </div>
+                <div className='router-toolbar-end'>
                   <Button className='router-page-button' positive onClick={submit}>
                     {t('token.edit.buttons.submit')}
                   </Button>
-                )}
+                </div>
               </div>
-            </div>
-          </div>
-          <Form loading={loading} autoComplete='new-password' className='router-block-top-sm'>
-            <Form.Field>
-              <Form.Input
-                className='router-section-input'
-                label={t('token.edit.name')}
-                name='name'
-                placeholder={t('token.edit.name_placeholder')}
-                onChange={handleInputChange}
-                value={name}
-                autoComplete='new-password'
-                required={isCreateMode}
-                readOnly={!isEditing}
-              />
-            </Form.Field>
-            {isDetailMode && (
-              <Form.Group widths='equal'>
+              <Form loading={loading} autoComplete='new-password' className='router-block-top-sm'>
                 <Form.Field>
-                  <label>{t('token.table.token')}</label>
                   <Form.Input
                     className='router-section-input'
-                    value={renderShortToken(inputs.key)}
-                    readOnly
-                    action={(
-                      <Button
-                        type='button'
-                        icon='copy outline'
-                        className='router-page-button'
-                        onClick={handleCopyToken}
-                        disabled={!inputs.key}
-                        aria-label={t('token.buttons.copy')}
-                      />
-                    )}
+                    label={t('token.edit.name')}
+                    name='name'
+                    placeholder={t('token.edit.name_placeholder')}
+                    onChange={handleInputChange}
+                    value={name}
+                    autoComplete='new-password'
+                    required={isCreateMode}
+                    readOnly={false}
                   />
                 </Form.Field>
-                <Form.Input
-                  className='router-section-input'
-                  label={t('token.table.created_time')}
-                  value={
-                    inputs.created_time
-                      ? timestamp2string(inputs.created_time)
-                      : ''
-                  }
-                  readOnly
-                />
-              </Form.Group>
-            )}
-            <Form.Field>
-              <label>{t('token.edit.models')}</label>
-              <Message className='router-section-message'>
-                {t('token.edit.models_table_notice')}
-              </Message>
-              <Form.Input
-                className='router-section-input router-token-model-search'
-                placeholder={t('token.edit.models_search_placeholder')}
-                value={modelKeyword}
-                onChange={handleModelKeywordChange}
-              />
-              <div className='router-token-model-table-wrap'>
-                <Table basic='very' compact className='router-list-table router-token-model-table'>
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.HeaderCell collapsing>
-                        <Checkbox
-                          checked={isEveryModelSelected}
-                          label={t('token.edit.models_select_all')}
-                          onChange={toggleAllModels}
-                          disabled={!isEditing}
-                        />
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>{t('token.edit.models_table_name')}</Table.HeaderCell>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    {modelOptions.length === 0 ? (
-                      <Table.Row>
-                        <Table.Cell colSpan='2' className='router-empty-cell'>
-                          {t('token.edit.models_table_empty')}
-                        </Table.Cell>
-                      </Table.Row>
-                    ) : filteredModelOptions.length === 0 ? (
-                      <Table.Row>
-                        <Table.Cell colSpan='2' className='router-empty-cell'>
-                          {t('token.edit.models_search_empty')}
-                        </Table.Cell>
-                      </Table.Row>
-                    ) : (
-                      filteredModelOptions.map((option) => (
-                        <Table.Row key={option.value}>
-                          <Table.Cell collapsing>
+                <Form.Field>
+                  <label>{t('token.edit.models')}</label>
+                  <Message className='router-section-message'>
+                    {t('token.edit.models_table_notice')}
+                  </Message>
+                  <Form.Input
+                    className='router-section-input router-token-model-search'
+                    placeholder={t('token.edit.models_search_placeholder')}
+                    value={modelKeyword}
+                    onChange={handleModelKeywordChange}
+                  />
+                  <div className='router-token-model-table-wrap'>
+                    <Table basic='very' compact className='router-list-table router-token-model-table'>
+                      <Table.Header>
+                        <Table.Row>
+                          <Table.HeaderCell collapsing>
                             <Checkbox
-                              checked={selectedModels.includes(option.value)}
-                              onChange={(_, data) => toggleModel(option.value, !!data.checked)}
-                              disabled={!isEditing}
+                              checked={isEveryModelSelected}
+                              label={t('token.edit.models_select_all')}
+                              onChange={toggleAllModels}
                             />
-                          </Table.Cell>
-                          <Table.Cell>{option.text}</Table.Cell>
+                          </Table.HeaderCell>
+                          <Table.HeaderCell>{t('token.edit.models_table_name')}</Table.HeaderCell>
                         </Table.Row>
-                      ))
+                      </Table.Header>
+                      <Table.Body>
+                        {modelOptions.length === 0 ? (
+                          <Table.Row>
+                            <Table.Cell colSpan='2' className='router-empty-cell'>
+                              {t('token.edit.models_table_empty')}
+                            </Table.Cell>
+                          </Table.Row>
+                        ) : filteredModelOptions.length === 0 ? (
+                          <Table.Row>
+                            <Table.Cell colSpan='2' className='router-empty-cell'>
+                              {t('token.edit.models_search_empty')}
+                            </Table.Cell>
+                          </Table.Row>
+                        ) : (
+                          filteredModelOptions.map((option) => (
+                            <Table.Row key={option.value}>
+                              <Table.Cell collapsing>
+                                <Checkbox
+                                  checked={selectedModels.includes(option.value)}
+                                  onChange={(_, data) => toggleModel(option.value, !!data.checked)}
+                                />
+                              </Table.Cell>
+                              <Table.Cell>{option.text}</Table.Cell>
+                            </Table.Row>
+                          ))
+                        )}
+                      </Table.Body>
+                    </Table>
+                  </div>
+                </Form.Field>
+                <Form.Field>
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('token.edit.ip_limit')}
+                    name='subnet'
+                    placeholder={t('token.edit.ip_limit_placeholder')}
+                    onChange={handleInputChange}
+                    value={inputs.subnet}
+                    autoComplete='new-password'
+                    readOnly={false}
+                  />
+                </Form.Field>
+                <Form.Field>
+                  <Form.Input
+                    className='router-section-input'
+                    label={t('token.edit.expire_time')}
+                    name='expired_time'
+                    placeholder={t('token.edit.expire_time_placeholder')}
+                    onChange={handleInputChange}
+                    value={expired_time}
+                    autoComplete='new-password'
+                    type='datetime-local'
+                    readOnly={false}
+                  />
+                </Form.Field>
+                <div className='router-token-expire-actions'>
+                  <Button
+                    className='router-inline-button'
+                    type='button'
+                    onClick={() => {
+                      setExpiredTime(0, 0, 0, 0);
+                    }}
+                  >
+                    {t('token.edit.buttons.never_expire')}
+                  </Button>
+                  <Button
+                    className='router-inline-button'
+                    type='button'
+                    onClick={() => {
+                      setExpiredTime(1, 0, 0, 0);
+                    }}
+                  >
+                    {t('token.edit.buttons.expire_1_month')}
+                  </Button>
+                  <Button
+                    className='router-inline-button'
+                    type='button'
+                    onClick={() => {
+                      setExpiredTime(0, 1, 0, 0);
+                    }}
+                  >
+                    {t('token.edit.buttons.expire_1_day')}
+                  </Button>
+                  <Button
+                    className='router-inline-button'
+                    type='button'
+                    onClick={() => {
+                      setExpiredTime(0, 0, 1, 0);
+                    }}
+                  >
+                    {t('token.edit.buttons.expire_1_hour')}
+                  </Button>
+                  <Button
+                    className='router-inline-button'
+                    type='button'
+                    onClick={() => {
+                      setExpiredTime(0, 0, 0, 1);
+                    }}
+                  >
+                    {t('token.edit.buttons.expire_1_minute')}
+                  </Button>
+                </div>
+                <Message className='router-section-message'>{t('token.edit.quota_notice')}</Message>
+                <Form.Field>
+                  <Form.Input
+                    className='router-section-input'
+                    label={`${t('token.edit.quota')}${renderQuotaWithPrompt(
+                      remain_quota,
+                      t
+                    )}`}
+                    name='remain_quota'
+                    placeholder={t('token.edit.quota_placeholder')}
+                    onChange={handleInputChange}
+                    value={remain_quota}
+                    autoComplete='new-password'
+                    type='number'
+                    disabled={unlimited_quota}
+                  />
+                </Form.Field>
+                <Button
+                  className='router-inline-button'
+                  type='button'
+                  onClick={() => {
+                    setUnlimitedQuota();
+                  }}
+                >
+                  {unlimited_quota
+                    ? t('token.edit.buttons.cancel_unlimited')
+                    : t('token.edit.buttons.unlimited_quota')}
+                </Button>
+              </Form>
+            </>
+          ) : (
+            <div className='router-entity-detail-page'>
+              <div className='router-entity-detail-breadcrumb'>
+                <Breadcrumb size='small'>
+                  <Breadcrumb.Section link onClick={handleBack}>
+                    {t('header.token')}
+                  </Breadcrumb.Section>
+                  <Breadcrumb.Divider icon='right chevron' />
+                  <Breadcrumb.Section active>
+                    {inputs.name || renderShortToken(inputs.key) || tokenId}
+                  </Breadcrumb.Section>
+                </Breadcrumb>
+              </div>
+              <section className='router-entity-detail-section'>
+                <div className='router-entity-detail-section-header'>
+                  <Header as='h3' className='router-entity-detail-section-title'>
+                    {t('common.basic_info')}
+                  </Header>
+                  <div className='router-toolbar-start'>
+                    {renderStatus(Number(inputs.status || 0))}
+                    {detailEditingSection === 'basic' ? (
+                      <>
+                        <Button className='router-page-button' onClick={cancelDetailSectionEdit}>
+                          {t('token.edit.buttons.cancel')}
+                        </Button>
+                        <Button className='router-page-button' positive onClick={submit}>
+                          {t('token.edit.buttons.submit')}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        className='router-page-button'
+                        positive
+                        onClick={() => startDetailSectionEdit('basic')}
+                        disabled={detailEditingSection !== ''}
+                      >
+                        {t('token.buttons.edit')}
+                      </Button>
                     )}
-                  </Table.Body>
-                </Table>
-              </div>
-            </Form.Field>
-            <Form.Field>
-              <Form.Input
-                className='router-section-input'
-                label={t('token.edit.ip_limit')}
-                name='subnet'
-                placeholder={t('token.edit.ip_limit_placeholder')}
-                onChange={handleInputChange}
-                value={inputs.subnet}
-                autoComplete='new-password'
-                readOnly={!isEditing}
-              />
-            </Form.Field>
-            <Form.Field>
-              <Form.Input
-                className='router-section-input'
-                label={t('token.edit.expire_time')}
-                name='expired_time'
-                placeholder={t('token.edit.expire_time_placeholder')}
-                onChange={handleInputChange}
-                value={expired_time}
-                autoComplete='new-password'
-                type='datetime-local'
-                readOnly={!isEditing}
-              />
-            </Form.Field>
-            {isEditing && (
-              <div className='router-token-expire-actions'>
-                <Button
-                  className='router-inline-button'
-                  type={'button'}
-                  onClick={() => {
-                    setExpiredTime(0, 0, 0, 0);
-                  }}
-                >
-                  {t('token.edit.buttons.never_expire')}
-                </Button>
-                <Button
-                  className='router-inline-button'
-                  type={'button'}
-                  onClick={() => {
-                    setExpiredTime(1, 0, 0, 0);
-                  }}
-                >
-                  {t('token.edit.buttons.expire_1_month')}
-                </Button>
-                <Button
-                  className='router-inline-button'
-                  type={'button'}
-                  onClick={() => {
-                    setExpiredTime(0, 1, 0, 0);
-                  }}
-                >
-                  {t('token.edit.buttons.expire_1_day')}
-                </Button>
-                <Button
-                  className='router-inline-button'
-                  type={'button'}
-                  onClick={() => {
-                    setExpiredTime(0, 0, 1, 0);
-                  }}
-                >
-                  {t('token.edit.buttons.expire_1_hour')}
-                </Button>
-                <Button
-                  className='router-inline-button'
-                  type={'button'}
-                  onClick={() => {
-                    setExpiredTime(0, 0, 0, 1);
-                  }}
-                >
-                  {t('token.edit.buttons.expire_1_minute')}
-                </Button>
-              </div>
-            )}
-            <Message className='router-section-message'>{t('token.edit.quota_notice')}</Message>
-            <Form.Field>
-              <Form.Input
-                className='router-section-input'
-                label={`${t('token.edit.quota')}${renderQuotaWithPrompt(
-                  remain_quota,
-                  t
-                )}`}
-                name='remain_quota'
-                placeholder={t('token.edit.quota_placeholder')}
-                onChange={handleInputChange}
-                value={remain_quota}
-                autoComplete='new-password'
-                type='number'
-                disabled={unlimited_quota || !isEditing}
-              />
-            </Form.Field>
-            {isEditing && (
-              <Button
-                className='router-inline-button'
-                type={'button'}
-                onClick={() => {
-                  setUnlimitedQuota();
-                }}
-              >
-                {unlimited_quota
-                  ? t('token.edit.buttons.cancel_unlimited')
-                  : t('token.edit.buttons.unlimited_quota')}
-              </Button>
-            )}
-          </Form>
+                  </div>
+                </div>
+                <Form loading={loading} autoComplete='new-password'>
+                  <Form.Field>
+                    <Form.Input
+                      className='router-section-input'
+                      label={t('token.edit.name')}
+                      name='name'
+                      placeholder={t('token.edit.name_placeholder')}
+                      onChange={handleInputChange}
+                      value={name}
+                      autoComplete='new-password'
+                      readOnly={basicReadonly}
+                    />
+                  </Form.Field>
+                  <Form.Group widths='equal'>
+                    <Form.Field>
+                      <label>{t('token.table.token')}</label>
+                      <Form.Input
+                        className='router-section-input'
+                        value={renderShortToken(inputs.key)}
+                        readOnly
+                        action={(
+                          <Button
+                            type='button'
+                            icon='copy outline'
+                            className='router-page-button'
+                            onClick={handleCopyToken}
+                            disabled={!inputs.key}
+                            aria-label={t('token.buttons.copy')}
+                          />
+                        )}
+                      />
+                    </Form.Field>
+                    <Form.Input
+                      className='router-section-input'
+                      label={t('token.table.created_time')}
+                      value={
+                        inputs.created_time
+                          ? timestamp2string(inputs.created_time)
+                          : ''
+                      }
+                      readOnly
+                    />
+                  </Form.Group>
+                </Form>
+              </section>
+              <section className='router-entity-detail-section'>
+                <div className='router-entity-detail-section-header'>
+                  <Header as='h3' className='router-entity-detail-section-title'>
+                    {t('token.detail.sections.models')}
+                  </Header>
+                  <div className='router-toolbar-start'>
+                    {detailEditingSection === 'models' ? (
+                      <>
+                        <Button className='router-page-button' onClick={cancelDetailSectionEdit}>
+                          {t('token.edit.buttons.cancel')}
+                        </Button>
+                        <Button className='router-page-button' positive onClick={submit}>
+                          {t('token.edit.buttons.submit')}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        className='router-page-button'
+                        positive
+                        onClick={() => startDetailSectionEdit('models')}
+                        disabled={detailEditingSection !== ''}
+                      >
+                        {t('token.buttons.edit')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <Form loading={loading}>
+                  <Message className='router-section-message'>
+                    {t('token.edit.models_table_notice')}
+                  </Message>
+                  <Form.Input
+                    className='router-section-input router-token-model-search'
+                    placeholder={t('token.edit.models_search_placeholder')}
+                    value={modelKeyword}
+                    onChange={handleModelKeywordChange}
+                  />
+                  <div className='router-token-model-table-wrap'>
+                    <Table basic='very' compact className='router-list-table router-token-model-table'>
+                      <Table.Header>
+                        <Table.Row>
+                          <Table.HeaderCell collapsing>
+                            <Checkbox
+                              checked={isEveryModelSelected}
+                              label={t('token.edit.models_select_all')}
+                              onChange={toggleAllModels}
+                              disabled={modelsReadonly}
+                            />
+                          </Table.HeaderCell>
+                          <Table.HeaderCell>{t('token.edit.models_table_name')}</Table.HeaderCell>
+                        </Table.Row>
+                      </Table.Header>
+                      <Table.Body>
+                        {modelOptions.length === 0 ? (
+                          <Table.Row>
+                            <Table.Cell colSpan='2' className='router-empty-cell'>
+                              {t('token.edit.models_table_empty')}
+                            </Table.Cell>
+                          </Table.Row>
+                        ) : filteredModelOptions.length === 0 ? (
+                          <Table.Row>
+                            <Table.Cell colSpan='2' className='router-empty-cell'>
+                              {t('token.edit.models_search_empty')}
+                            </Table.Cell>
+                          </Table.Row>
+                        ) : (
+                          filteredModelOptions.map((option) => (
+                            <Table.Row key={option.value}>
+                              <Table.Cell collapsing>
+                                <Checkbox
+                                  checked={selectedModels.includes(option.value)}
+                                  onChange={(_, data) => toggleModel(option.value, !!data.checked)}
+                                  disabled={modelsReadonly}
+                                />
+                              </Table.Cell>
+                              <Table.Cell>{option.text}</Table.Cell>
+                            </Table.Row>
+                          ))
+                        )}
+                      </Table.Body>
+                    </Table>
+                  </div>
+                </Form>
+              </section>
+              <section className='router-entity-detail-section'>
+                <div className='router-entity-detail-section-header'>
+                  <Header as='h3' className='router-entity-detail-section-title'>
+                    {t('token.detail.sections.limits')}
+                  </Header>
+                  <div className='router-toolbar-start'>
+                    {detailEditingSection === 'limits' ? (
+                      <>
+                        <Button className='router-page-button' onClick={cancelDetailSectionEdit}>
+                          {t('token.edit.buttons.cancel')}
+                        </Button>
+                        <Button className='router-page-button' positive onClick={submit}>
+                          {t('token.edit.buttons.submit')}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        className='router-page-button'
+                        positive
+                        onClick={() => startDetailSectionEdit('limits')}
+                        disabled={detailEditingSection !== ''}
+                      >
+                        {t('token.buttons.edit')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <Form loading={loading} autoComplete='new-password'>
+                  <Form.Field>
+                    <Form.Input
+                      className='router-section-input'
+                      label={t('token.edit.ip_limit')}
+                      name='subnet'
+                      placeholder={t('token.edit.ip_limit_placeholder')}
+                      onChange={handleInputChange}
+                      value={inputs.subnet}
+                      autoComplete='new-password'
+                      readOnly={limitsReadonly}
+                    />
+                  </Form.Field>
+                  <Form.Field>
+                    <Form.Input
+                      className='router-section-input'
+                      label={t('token.edit.expire_time')}
+                      name='expired_time'
+                      placeholder={t('token.edit.expire_time_placeholder')}
+                      onChange={handleInputChange}
+                      value={expired_time}
+                      autoComplete='new-password'
+                      type='datetime-local'
+                      readOnly={limitsReadonly}
+                    />
+                  </Form.Field>
+                  {detailEditingSection === 'limits' ? (
+                    <div className='router-token-expire-actions'>
+                      <Button
+                        className='router-inline-button'
+                        type='button'
+                        onClick={() => {
+                          setExpiredTime(0, 0, 0, 0);
+                        }}
+                      >
+                        {t('token.edit.buttons.never_expire')}
+                      </Button>
+                      <Button
+                        className='router-inline-button'
+                        type='button'
+                        onClick={() => {
+                          setExpiredTime(1, 0, 0, 0);
+                        }}
+                      >
+                        {t('token.edit.buttons.expire_1_month')}
+                      </Button>
+                      <Button
+                        className='router-inline-button'
+                        type='button'
+                        onClick={() => {
+                          setExpiredTime(0, 1, 0, 0);
+                        }}
+                      >
+                        {t('token.edit.buttons.expire_1_day')}
+                      </Button>
+                      <Button
+                        className='router-inline-button'
+                        type='button'
+                        onClick={() => {
+                          setExpiredTime(0, 0, 1, 0);
+                        }}
+                      >
+                        {t('token.edit.buttons.expire_1_hour')}
+                      </Button>
+                      <Button
+                        className='router-inline-button'
+                        type='button'
+                        onClick={() => {
+                          setExpiredTime(0, 0, 0, 1);
+                        }}
+                      >
+                        {t('token.edit.buttons.expire_1_minute')}
+                      </Button>
+                    </div>
+                  ) : null}
+                  <Message className='router-section-message'>{t('token.edit.quota_notice')}</Message>
+                  <Form.Field>
+                    <Form.Input
+                      className='router-section-input'
+                      label={`${t('token.edit.quota')}${renderQuotaWithPrompt(
+                        remain_quota,
+                        t
+                      )}`}
+                      name='remain_quota'
+                      placeholder={t('token.edit.quota_placeholder')}
+                      onChange={handleInputChange}
+                      value={remain_quota}
+                      autoComplete='new-password'
+                      type='number'
+                      disabled={unlimited_quota || limitsReadonly}
+                    />
+                  </Form.Field>
+                  {detailEditingSection === 'limits' ? (
+                    <Button
+                      className='router-inline-button'
+                      type='button'
+                      onClick={() => {
+                        setUnlimitedQuota();
+                      }}
+                    >
+                      {unlimited_quota
+                        ? t('token.edit.buttons.cancel_unlimited')
+                        : t('token.edit.buttons.unlimited_quota')}
+                    </Button>
+                  ) : null}
+                </Form>
+              </section>
+            </div>
+          )}
         </Card.Content>
       </Card>
     </div>

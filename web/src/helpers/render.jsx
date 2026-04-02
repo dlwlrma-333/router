@@ -2,6 +2,8 @@ import { Label, Message, Popup } from 'semantic-ui-react';
 import { getChannelProtocolOption } from './helper';
 import React from 'react';
 
+export const YYC_SYMBOL = 'Ɏ';
+
 export function renderText(text, limit) {
   if (text.length > limit) {
     return text.slice(0, limit - 3) + '...';
@@ -125,12 +127,33 @@ export function formatQuotaEquivalentAmount(quota, precision = 6) {
 export function formatYYCValue(quota, compact = false) {
   const normalized = Number(quota || 0);
   if (!Number.isFinite(normalized)) {
-    return '0 YYC';
+    return `${YYC_SYMBOL} 0`;
   }
   const display = compact
     ? formatCompactNumber(normalized)
     : normalized.toLocaleString();
-  return `${display} YYC`;
+  return `${YYC_SYMBOL} ${display}`;
+}
+
+export function formatDecimalNumber(value, maximumFractionDigits = 8) {
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized)) {
+    return '0';
+  }
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  }).format(normalized);
+}
+
+export function formatAmountWithUnit(amount, unit, maximumFractionDigits = 8) {
+  const normalizedUnit = (unit || '').toString().trim().toUpperCase();
+  const normalizedAmount = Number(amount);
+  if (normalizedUnit === 'YYC') {
+    return formatYYCValue(normalizedAmount, false);
+  }
+  const display = formatDecimalNumber(normalizedAmount, maximumFractionDigits);
+  return normalizedUnit ? `${display} ${normalizedUnit}` : display;
 }
 
 export function renderYYC(quota, t, compact = true, amountPrecision = 6) {

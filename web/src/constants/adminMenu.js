@@ -14,7 +14,7 @@ export const ADMIN_MENU_GROUPS = [
   {
     key: 'resource',
     name: 'header.resource',
-    icon: 'sitemap',
+    icon: 'cube',
     items: [
       {
         name: 'header.providers',
