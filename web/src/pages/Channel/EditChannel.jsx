@@ -1133,7 +1133,9 @@ const EditChannel = () => {
   const [modelTestTargetModels, setModelTestTargetModels] = useState([]);
   const [detailModelMutating, setDetailModelMutating] = useState(false);
   const [detailBasicEditing, setDetailBasicEditing] = useState(false);
-  const [detailModelsEditing, setDetailModelsEditing] = useState(false);
+  const [detailEditingModelKey, setDetailEditingModelKey] = useState('');
+  const [detailEditingModelSnapshot, setDetailEditingModelSnapshot] =
+    useState(null);
   const [detailBasicSaving, setDetailBasicSaving] = useState(false);
   const [detailAdvancedEditing, setDetailAdvancedEditing] = useState(false);
   const [detailAdvancedSaving, setDetailAdvancedSaving] = useState(false);
@@ -1260,7 +1262,8 @@ const EditChannel = () => {
     requiresConnectionVerification && inputs.models.length === 0;
   const fetchModelsButtonText = t('channel.edit.buttons.fetch_models');
   const detailBasicReadonly = isDetailMode && !detailBasicEditing;
-  const detailModelsReadonly = isDetailMode && !detailModelsEditing;
+  const detailModelsEditing =
+    isDetailMode && detailEditingModelKey.toString().trim() !== '';
   const detailAdvancedReadonly = isDetailMode && !detailAdvancedEditing;
   const isAnyDetailSectionEditing =
     detailBasicEditing || detailModelsEditing || detailAdvancedEditing;
@@ -1270,7 +1273,6 @@ const EditChannel = () => {
     (detailModelsEditing || detailAdvancedEditing);
   const detailModelsEditLocked =
     isDetailMode &&
-    !detailModelsEditing &&
     (detailBasicEditing || detailAdvancedEditing);
   const detailAdvancedEditLocked =
     isDetailMode &&
@@ -1282,6 +1284,16 @@ const EditChannel = () => {
     () => normalizeChannelModelConfigs(inputs.model_configs),
     [inputs.model_configs],
   );
+  const detailEditingModelRow = useMemo(() => {
+    if (!detailModelsEditing) {
+      return null;
+    }
+    return (
+      visibleModelConfigs.find(
+        (row) => row.upstream_model === detailEditingModelKey,
+      ) || null
+    );
+  }, [detailEditingModelKey, detailModelsEditing, visibleModelConfigs]);
   const modelTestResultsByKey = useMemo(() => {
     const index = new Map();
     normalizeModelTestResults(modelTestResults).forEach((item) => {
@@ -2038,13 +2050,36 @@ const EditChannel = () => {
     }
   }, [persistDetailChannel, t]);
 
+  const startDetailModelEdit = useCallback(
+    (upstreamModel) => {
+      const targetModel = (upstreamModel || '').toString().trim();
+      if (targetModel === '') {
+        return;
+      }
+      const currentRow =
+        visibleModelConfigs.find(
+          (row) => row.upstream_model === targetModel,
+        ) || null;
+      if (!currentRow) {
+        return;
+      }
+      setDetailEditingModelKey(targetModel);
+      setDetailEditingModelSnapshot({ ...currentRow });
+    },
+    [visibleModelConfigs],
+  );
+
   const saveDetailModelsConfig = useCallback(async () => {
+    if (!detailModelsEditing) {
+      return;
+    }
     const ok = await persistDetailModelConfigs(visibleModelConfigs);
     if (ok) {
-      setDetailModelsEditing(false);
+      setDetailEditingModelKey('');
+      setDetailEditingModelSnapshot(null);
       showSuccess(t('channel.edit.messages.update_success'));
     }
-  }, [persistDetailModelConfigs, t, visibleModelConfigs]);
+  }, [detailModelsEditing, persistDetailModelConfigs, t, visibleModelConfigs]);
 
   const saveDetailAdvancedConfig = useCallback(async () => {
     const ok = await persistDetailChannel({
@@ -2417,15 +2452,32 @@ const EditChannel = () => {
     await loadChannelById(channelId, false, false);
   }, [channelId, isDetailMode, loadChannelById]);
 
-  const cancelDetailModelsEdit = useCallback(async () => {
-    if (!isDetailMode || !channelId) {
-      setDetailModelsEditing(false);
+  const cancelDetailModelsEdit = useCallback(() => {
+    if (!detailModelsEditing) {
+      setDetailEditingModelKey('');
+      setDetailEditingModelSnapshot(null);
       return;
     }
-    setLoading(true);
-    setDetailModelsEditing(false);
-    await loadChannelById(channelId, false, false);
-  }, [channelId, isDetailMode, loadChannelById]);
+    if (detailEditingModelSnapshot) {
+      setInputs((prev) =>
+        buildNextInputsWithModelConfigs(
+          prev,
+          visibleModelConfigs.map((row) =>
+            row.upstream_model === detailEditingModelKey
+              ? { ...detailEditingModelSnapshot }
+              : row,
+          ),
+        ),
+      );
+    }
+    setDetailEditingModelKey('');
+    setDetailEditingModelSnapshot(null);
+  }, [
+    detailEditingModelKey,
+    detailEditingModelSnapshot,
+    detailModelsEditing,
+    visibleModelConfigs,
+  ]);
 
   const cancelDetailAdvancedEdit = useCallback(async () => {
     if (!isDetailMode || !channelId) {
@@ -2937,7 +2989,10 @@ const EditChannel = () => {
           : row,
       );
       if (isDetailMode) {
-        if (detailModelsEditing) {
+        if (
+          detailModelsEditing &&
+          detailEditingModelKey === (upstreamModel || '').toString().trim()
+        ) {
           setInputs((prev) => buildNextInputsWithModelConfigs(prev, nextConfigs));
           return;
         }
@@ -2947,6 +3002,7 @@ const EditChannel = () => {
     },
     [
       canSelectChannelModel,
+      detailEditingModelKey,
       detailModelsEditing,
       isDetailMode,
       visibleModelConfigs,
@@ -2955,11 +3011,18 @@ const EditChannel = () => {
 
   const updateModelConfigField = useCallback(
     (upstreamModel, field, value) => {
+      const targetModel = (upstreamModel || '').toString().trim();
+      if (
+        isDetailMode &&
+        (!detailModelsEditing || detailEditingModelKey !== targetModel)
+      ) {
+        return;
+      }
       setInputs((prev) =>
         buildNextInputsWithModelConfigs(
           prev,
           visibleModelConfigs.map((row) => {
-            if (row.upstream_model !== upstreamModel) {
+            if (row.upstream_model !== targetModel) {
               return row;
             }
             if (field === 'model') {
@@ -2967,7 +3030,7 @@ const EditChannel = () => {
               const targetAlias = alias || row.upstream_model;
               const duplicated = visibleModelConfigs.some(
                 (item) =>
-                  item.upstream_model !== upstreamModel &&
+                  item.upstream_model !== targetModel &&
                   item.model === targetAlias,
               );
               if (duplicated) {
@@ -2992,7 +3055,7 @@ const EditChannel = () => {
         ),
       );
     },
-    [visibleModelConfigs],
+    [detailEditingModelKey, detailModelsEditing, isDetailMode, visibleModelConfigs],
   );
 
   const selectAllModels = useCallback(() => {
@@ -3001,15 +3064,11 @@ const EditChannel = () => {
       selected: canSelectChannelModel(row),
     }));
     if (isDetailMode) {
-      if (detailModelsEditing) {
-        setInputs((prev) => buildNextInputsWithModelConfigs(prev, nextConfigs));
-      }
       return;
     }
     setInputs((prev) => buildNextInputsWithModelConfigs(prev, nextConfigs));
   }, [
     canSelectChannelModel,
-    detailModelsEditing,
     isDetailMode,
     visibleModelConfigs,
   ]);
@@ -3020,13 +3079,10 @@ const EditChannel = () => {
       selected: false,
     }));
     if (isDetailMode) {
-      if (detailModelsEditing) {
-        setInputs((prev) => buildNextInputsWithModelConfigs(prev, nextConfigs));
-      }
       return;
     }
     setInputs((prev) => buildNextInputsWithModelConfigs(prev, nextConfigs));
-  }, [detailModelsEditing, isDetailMode, visibleModelConfigs]);
+  }, [isDetailMode, visibleModelConfigs]);
 
   useEffect(() => {
     const selectedModels = visibleModelConfigs
@@ -3054,7 +3110,8 @@ const EditChannel = () => {
   useEffect(() => {
     if (!isDetailMode) {
       setDetailBasicEditing(false);
-      setDetailModelsEditing(false);
+      setDetailEditingModelKey('');
+      setDetailEditingModelSnapshot(null);
       setDetailAdvancedEditing(false);
     }
   }, [isDetailMode]);
@@ -3403,6 +3460,200 @@ const EditChannel = () => {
 
   return (
     <div className='dashboard-container'>
+      <Modal
+        size='small'
+        open={detailModelsEditing}
+        onClose={cancelDetailModelsEdit}
+        closeOnDimmerClick={!detailModelMutating}
+        closeOnEscape={!detailModelMutating}
+      >
+        <Modal.Header>
+          {`${t('common.edit')} · ${
+            detailEditingModelRow?.upstream_model || '-'
+          }`}
+        </Modal.Header>
+        <Modal.Content>
+          {detailEditingModelRow ? (
+            <Form>
+              <Form.Group widths='equal'>
+                <Form.Input
+                  className='router-modal-input'
+                  label={t('channel.edit.model_selector.table.name')}
+                  value={detailEditingModelRow.upstream_model || '-'}
+                  readOnly
+                />
+                <Form.Input
+                  className='router-modal-input'
+                  label={t('channel.edit.model_selector.table.type')}
+                  value={t(
+                    `channel.model_types.${normalizeChannelModelType(
+                      detailEditingModelRow.type,
+                    )}`,
+                  )}
+                  readOnly
+                />
+              </Form.Group>
+              <Form.Field>
+                <label>{t('channel.edit.model_selector.table.providers')}</label>
+                <div className='router-inline-actions'>
+                  {getProviderOwnersForModel(detailEditingModelRow).length > 0
+                    ? getProviderOwnersForModel(detailEditingModelRow).map(
+                        (providerId) => (
+                          <Label
+                            key={`${detailEditingModelRow.upstream_model}-${providerId}`}
+                            basic
+                            className='router-tag'
+                          >
+                            {providerId}
+                          </Label>
+                        ),
+                      )
+                    : '-'}
+                  {getProviderOwnersForModel(detailEditingModelRow).length ===
+                    0 && !providerCatalogLoading ? (
+                    <Button
+                      type='button'
+                      className='router-inline-button'
+                      basic
+                      onClick={() => openAppendProviderModal(detailEditingModelRow)}
+                    >
+                      {t('channel.edit.model_selector.provider_add')}
+                    </Button>
+                  ) : null}
+                </div>
+              </Form.Field>
+              <Form.Field>
+                <Checkbox
+                  label={t('channel.edit.model_selector.table.selected')}
+                  checked={!!detailEditingModelRow.selected}
+                  disabled={
+                    detailModelMutating ||
+                    providerCatalogLoading ||
+                    (!canSelectChannelModel(detailEditingModelRow) &&
+                      !detailEditingModelRow.selected)
+                  }
+                  onChange={(e, { checked }) =>
+                    toggleModelSelection(
+                      detailEditingModelRow.upstream_model,
+                      checked,
+                    )
+                  }
+                />
+              </Form.Field>
+              <Form.Group widths='equal'>
+                <Form.Input
+                  className='router-modal-input'
+                  label={t('channel.edit.model_selector.table.alias')}
+                  value={detailEditingModelRow.model || ''}
+                  onChange={(e, { value }) =>
+                    updateModelConfigField(
+                      detailEditingModelRow.upstream_model,
+                      'model',
+                      value || detailEditingModelRow.upstream_model,
+                    )
+                  }
+                />
+                <Form.Input
+                  className='router-modal-input'
+                  label={t('channel.edit.model_selector.table.price_unit')}
+                  value={detailEditingModelRow.price_unit || '-'}
+                  readOnly
+                />
+              </Form.Group>
+              <Form.Group widths='equal'>
+                <Form.Field>
+                  <label>{t('channel.edit.model_selector.table.input_price')}</label>
+                  {getComplexPricingDetailsForModel(detailEditingModelRow).some(
+                    (detail) =>
+                      (detail.price_components || []).some(
+                        (component) => Number(component.input_price || 0) > 0,
+                      ),
+                  ) ? (
+                    <Button
+                      type='button'
+                      basic
+                      className='router-inline-button'
+                      onClick={() => openComplexPricingModal(detailEditingModelRow)}
+                    >
+                      {t('channel.edit.model_selector.pricing_detail_button')}
+                    </Button>
+                  ) : (
+                    <Form.Input
+                      className='router-modal-input'
+                      type='number'
+                      min='0'
+                      step='0.01'
+                      placeholder='-'
+                      value={detailEditingModelRow.input_price ?? ''}
+                      onChange={(e, { value }) =>
+                        updateModelConfigField(
+                          detailEditingModelRow.upstream_model,
+                          'input_price',
+                          value,
+                        )
+                      }
+                    />
+                  )}
+                </Form.Field>
+                <Form.Field>
+                  <label>{t('channel.edit.model_selector.table.output_price')}</label>
+                  {getComplexPricingDetailsForModel(detailEditingModelRow).some(
+                    (detail) =>
+                      (detail.price_components || []).some(
+                        (component) => Number(component.output_price || 0) > 0,
+                      ),
+                  ) ? (
+                    <Button
+                      type='button'
+                      basic
+                      className='router-inline-button'
+                      onClick={() => openComplexPricingModal(detailEditingModelRow)}
+                    >
+                      {t('channel.edit.model_selector.pricing_detail_button')}
+                    </Button>
+                  ) : (
+                    <Form.Input
+                      className='router-modal-input'
+                      type='number'
+                      min='0'
+                      step='0.01'
+                      placeholder='-'
+                      value={detailEditingModelRow.output_price ?? ''}
+                      onChange={(e, { value }) =>
+                        updateModelConfigField(
+                          detailEditingModelRow.upstream_model,
+                          'output_price',
+                          value,
+                        )
+                      }
+                    />
+                  )}
+                </Form.Field>
+              </Form.Group>
+            </Form>
+          ) : null}
+        </Modal.Content>
+        <Modal.Actions>
+          <Button
+            type='button'
+            className='router-modal-button'
+            onClick={cancelDetailModelsEdit}
+            disabled={detailModelMutating}
+          >
+            {t('channel.edit.buttons.cancel')}
+          </Button>
+          <Button
+            type='button'
+            className='router-modal-button'
+            color='blue'
+            loading={detailModelMutating}
+            disabled={detailModelMutating}
+            onClick={saveDetailModelsConfig}
+          >
+            {t('channel.edit.buttons.save')}
+          </Button>
+        </Modal.Actions>
+      </Modal>
       <Modal
         size='large'
         open={complexPricingModalOpen}
@@ -3807,18 +4058,18 @@ const EditChannel = () => {
                       )}
                     </div>
                   </div>
-                  <Form.Input
-                    className='router-section-input'
-                    label={t('channel.edit.identifier')}
-                    name='name'
-                    placeholder={t('channel.edit.identifier_placeholder')}
-                    onChange={handleInputChange}
-                    value={inputs.name}
-                    required
-                    maxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
-                    readOnly={detailBasicReadonly}
-                  />
                   <Form.Group widths='equal'>
+                    <Form.Input
+                      className='router-section-input'
+                      label={t('channel.edit.identifier')}
+                      name='name'
+                      placeholder={t('channel.edit.identifier_placeholder')}
+                      onChange={handleInputChange}
+                      value={inputs.name}
+                      required
+                      maxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
+                      readOnly={detailBasicReadonly}
+                    />
                     <Form.Field>
                       {detailBasicReadonly ? (
                         <Form.Input
@@ -4054,18 +4305,18 @@ const EditChannel = () => {
                 </section>
               ) : (
                 <>
-                  <Form.Input
-                    className='router-section-input'
-                    label={t('channel.edit.identifier')}
-                    name='name'
-                    placeholder={t('channel.edit.identifier_placeholder')}
-                    onChange={handleInputChange}
-                    value={inputs.name}
-                    required
-                    maxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
-                    readOnly={detailBasicReadonly}
-                  />
                   <Form.Group widths='equal'>
+                    <Form.Input
+                      className='router-section-input'
+                      label={t('channel.edit.identifier')}
+                      name='name'
+                      placeholder={t('channel.edit.identifier_placeholder')}
+                      onChange={handleInputChange}
+                      value={inputs.name}
+                      required
+                      maxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
+                      readOnly={detailBasicReadonly}
+                    />
                     <Form.Field>
                       {detailBasicReadonly ? (
                         <Form.Input
@@ -4305,139 +4556,77 @@ const EditChannel = () => {
                 {isDetailMode && (
                   <section className='router-entity-detail-section'>
                     <div className='router-entity-detail-section-header'>
-                      <div className='router-toolbar-start'>
+                      <div className='router-toolbar-start router-block-gap-sm'>
                         <span className='router-entity-detail-section-title'>
                           {t('channel.edit.detail_models_title')}
                         </span>
+                        <span className='router-toolbar-meta'>
+                          ({modelSectionMetaText})
+                        </span>
                       </div>
-                      <div className='router-toolbar-end'>
-                        {detailModelsEditing ? (
-                          <>
-                            <Button
-                              type='button'
-                              className='router-page-button'
-                              onClick={cancelDetailModelsEdit}
-                              disabled={detailModelMutating}
-                            >
-                              {t('channel.edit.buttons.cancel')}
-                            </Button>
-                            <Button
-                              type='button'
-                              className='router-page-button'
-                              color='blue'
-                              loading={detailModelMutating}
-                              disabled={detailModelMutating}
-                              onClick={saveDetailModelsConfig}
-                            >
-                              {t('channel.edit.buttons.save')}
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            type='button'
-                            className='router-page-button'
-                            color='blue'
-                            disabled={detailModelsEditLocked}
-                            onClick={() => setDetailModelsEditing(true)}
-                          >
-                            {t('common.edit')}
-                          </Button>
-                        )}
+                      <div className='router-toolbar-end router-block-gap-sm'>
+                        <Dropdown
+                          selection
+                          className='router-section-dropdown router-dropdown-min-170 router-detail-filter-dropdown'
+                          compact
+                          disabled={detailModelsEditing}
+                          options={[
+                            {
+                              key: 'all',
+                              value: 'all',
+                              text: t('channel.edit.model_selector.filters.all'),
+                            },
+                            {
+                              key: 'enabled',
+                              value: 'enabled',
+                              text: t(
+                                'channel.edit.model_selector.filters.enabled',
+                              ),
+                            },
+                            {
+                              key: 'disabled',
+                              value: 'disabled',
+                              text: t(
+                                'channel.edit.model_selector.filters.disabled',
+                              ),
+                            },
+                          ]}
+                          value={detailModelFilter}
+                          onChange={(e, { value }) =>
+                            setDetailModelFilter((value || 'all').toString())
+                          }
+                        />
+                        <Form.Input
+                          className='router-section-input router-search-form-sm'
+                          icon='search'
+                          iconPosition='left'
+                          disabled={detailModelsEditing}
+                          placeholder={t(
+                            'channel.edit.model_selector.search_placeholder',
+                          )}
+                          value={modelSearchKeyword}
+                          onChange={(e, { value }) =>
+                            setModelSearchKeyword(value || '')
+                          }
+                        />
+                        <Button
+                          type='button'
+                          className='router-page-button'
+                          color='green'
+                          loading={fetchModelsLoading || !!activeRefreshModelsTask}
+                          disabled={
+                            detailModelsEditing ||
+                            fetchModelsLoading ||
+                            !!activeRefreshModelsTask ||
+                            detailModelMutating
+                          }
+                          onClick={() => handleFetchModels({ silent: false })}
+                        >
+                          {t('channel.edit.buttons.sync_models')}
+                        </Button>
                       </div>
                     </div>
                     <Form.Field>
-                      <div className='router-toolbar router-block-gap-xs'>
-                        <div className='router-toolbar-start router-block-gap-sm'>
-                          <span className='router-toolbar-meta'>
-                            ({modelSectionMetaText})
-                          </span>
-                          <Button
-                            type='button'
-                            className='router-page-button'
-                            onClick={selectAllModels}
-                            disabled={
-                              detailModelsReadonly ||
-                              detailModelMutating ||
-                              visibleModelConfigs.length === 0
-                            }
-                          >
-                            {t('channel.edit.buttons.select_all')}
-                          </Button>
-                          <Button
-                            type='button'
-                            className='router-page-button'
-                            onClick={clearSelectedModels}
-                            disabled={
-                              detailModelsReadonly ||
-                              detailModelMutating ||
-                              inputs.models.length === 0
-                            }
-                          >
-                            {t('channel.edit.buttons.clear')}
-                          </Button>
-                          <Dropdown
-                            selection
-                            className='router-section-dropdown router-dropdown-min-170 router-detail-filter-dropdown'
-                            compact
-                            options={[
-                              {
-                                key: 'all',
-                                value: 'all',
-                                text: t('channel.edit.model_selector.filters.all'),
-                              },
-                              {
-                                key: 'enabled',
-                                value: 'enabled',
-                                text: t(
-                                  'channel.edit.model_selector.filters.enabled',
-                                ),
-                              },
-                              {
-                                key: 'disabled',
-                                value: 'disabled',
-                                text: t(
-                                  'channel.edit.model_selector.filters.disabled',
-                                ),
-                              },
-                            ]}
-                            value={detailModelFilter}
-                            onChange={(e, { value }) =>
-                              setDetailModelFilter((value || 'all').toString())
-                            }
-                          />
-                        </div>
-                        <div className='router-toolbar-end router-block-gap-sm'>
-                          <Form.Input
-                            className='router-section-input router-search-form-sm'
-                            icon='search'
-                            iconPosition='left'
-                            placeholder={t(
-                              'channel.edit.model_selector.search_placeholder',
-                            )}
-                            value={modelSearchKeyword}
-                            onChange={(e, { value }) =>
-                              setModelSearchKeyword(value || '')
-                            }
-                          />
-                          <Button
-                            type='button'
-                            className='router-page-button'
-                            color='green'
-                            loading={
-                              fetchModelsLoading || !!activeRefreshModelsTask
-                            }
-                            disabled={
-                              detailModelsReadonly ||
-                              fetchModelsLoading ||
-                              !!activeRefreshModelsTask ||
-                              detailModelMutating
-                            }
-                            onClick={() => handleFetchModels({ silent: false })}
-                          >
-                            {t('channel.edit.buttons.sync_models')}
-                          </Button>
-                        </div>
-                      </div>
                       <Table
                         celled
                         stackable
@@ -4471,6 +4660,9 @@ const EditChannel = () => {
                             <Table.HeaderCell width={2}>
                               {t('channel.edit.model_selector.table.output_price')}
                             </Table.HeaderCell>
+                            <Table.HeaderCell width={3}>
+                              {t('channel.table.actions')}
+                            </Table.HeaderCell>
                           </Table.Row>
                         </Table.Header>
                         <Table.Body>
@@ -4478,7 +4670,7 @@ const EditChannel = () => {
                             <Table.Row>
                               <Table.Cell
                                 className='router-empty-cell'
-                                colSpan={8}
+                                colSpan={9}
                               >
                                 {modelSearchKeyword.trim() !== ''
                                   ? t('channel.edit.model_selector.empty_search')
@@ -4507,7 +4699,10 @@ const EditChannel = () => {
                                   ),
                                 );
                               const isUnassigned = providerOwners.length === 0;
-                              const canSelectRow = providerOwners.length > 0;
+                              const rowEditDisabled =
+                                detailModelsEditLocked ||
+                                detailModelMutating ||
+                                detailModelsEditing;
                               return (
                                 <Table.Row
                                   key={`${row.upstream_model}-${row.model}`}
@@ -4518,18 +4713,7 @@ const EditChannel = () => {
                                   >
                                     <Checkbox
                                       checked={!!row.selected}
-                                      disabled={
-                                        detailModelsReadonly ||
-                                        detailModelMutating ||
-                                        providerCatalogLoading ||
-                                        (!canSelectRow && !row.selected)
-                                      }
-                                      onChange={(e, { checked }) =>
-                                        toggleModelSelection(
-                                          row.upstream_model,
-                                          checked,
-                                        )
-                                      }
+                                      disabled
                                     />
                                   </Table.Cell>
                                   <Table.Cell
@@ -4573,45 +4757,17 @@ const EditChannel = () => {
                                           'channel.edit.model_selector.provider_loading',
                                         )}
                                       </Label>
-                                    ) : isUnassigned && detailModelsReadonly ? (
+                                    ) : isUnassigned ? (
                                       '-'
                                     ) : (
-                                      <Button
-                                        type='button'
-                                        className='router-inline-button'
-                                        basic
-                                        disabled={
-                                          detailModelsReadonly ||
-                                          providerCatalogLoading
-                                        }
-                                        onClick={() => openAppendProviderModal(row)}
-                                      >
-                                        {t(
-                                          'channel.edit.model_selector.provider_add',
-                                        )}
-                                      </Button>
+                                      '-'
                                     )}
                                   </Table.Cell>
                                   <Table.Cell
                                     title={row.model}
                                     className='router-cell-truncate'
                                   >
-                                    {detailModelsReadonly ? (
-                                      row.model
-                                    ) : (
-                                      <Form.Input
-                                        className='router-inline-input router-inline-input-wide'
-                                        transparent
-                                        value={row.model}
-                                        onChange={(e, { value }) =>
-                                          updateModelConfigField(
-                                            row.upstream_model,
-                                            'model',
-                                            value || row.upstream_model,
-                                          )
-                                        }
-                                      />
-                                    )}
+                                    {row.model}
                                   </Table.Cell>
                                   <Table.Cell>
                                     <span className='router-nowrap'>
@@ -4630,28 +4786,10 @@ const EditChannel = () => {
                                           'channel.edit.model_selector.pricing_detail_button',
                                         )}
                                       </Button>
-                                    ) : detailModelsReadonly ? (
+                                    ) : (
                                       <span className='router-nowrap'>
                                         {row.input_price ?? '-'}
                                       </span>
-                                    ) : (
-                                      <Form.Input
-                                        className='router-inline-input'
-                                        type='number'
-                                        min='0'
-                                        step='0.01'
-                                        transparent
-                                        placeholder='-'
-                                        disabled={detailModelMutating}
-                                        value={row.input_price ?? ''}
-                                        onChange={(e, { value }) =>
-                                          updateModelConfigField(
-                                            row.upstream_model,
-                                            'input_price',
-                                            value,
-                                          )
-                                        }
-                                      />
                                     )}
                                   </Table.Cell>
                                   <Table.Cell>
@@ -4666,29 +4804,40 @@ const EditChannel = () => {
                                           'channel.edit.model_selector.pricing_detail_button',
                                         )}
                                       </Button>
-                                    ) : detailModelsReadonly ? (
+                                    ) : (
                                       <span className='router-nowrap'>
                                         {row.output_price ?? '-'}
                                       </span>
-                                    ) : (
-                                      <Form.Input
-                                        className='router-inline-input'
-                                        type='number'
-                                        min='0'
-                                        step='0.01'
-                                        transparent
-                                        placeholder='-'
-                                        disabled={detailModelMutating}
-                                        value={row.output_price ?? ''}
-                                        onChange={(e, { value }) =>
-                                          updateModelConfigField(
+                                    )}
+                                  </Table.Cell>
+                                  <Table.Cell collapsing className='router-nowrap'>
+                                    <div className='router-inline-actions'>
+                                      <Button
+                                        type='button'
+                                        className='router-inline-button'
+                                        disabled={rowEditDisabled}
+                                        onClick={() =>
+                                          startDetailModelEdit(
                                             row.upstream_model,
-                                            'output_price',
-                                            value,
                                           )
                                         }
-                                      />
-                                    )}
+                                      >
+                                        {t('common.edit')}
+                                      </Button>
+                                      {isUnassigned && !providerCatalogLoading ? (
+                                        <Button
+                                          type='button'
+                                          className='router-inline-button'
+                                          basic
+                                          disabled={rowEditDisabled}
+                                          onClick={() => openAppendProviderModal(row)}
+                                        >
+                                          {t(
+                                            'channel.edit.model_selector.provider_add',
+                                          )}
+                                        </Button>
+                                      ) : null}
+                                    </div>
                                   </Table.Cell>
                                 </Table.Row>
                               );
