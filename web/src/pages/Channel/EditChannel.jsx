@@ -1415,26 +1415,83 @@ const EditChannel = () => {
   );
   const getProviderSelectOptionsForModel = useCallback(
     (row) => {
+      const selectedProvider = normalizeChannelModelProviderValue(
+        row?.provider,
+      );
       const providerOptionById = new Map(
         (Array.isArray(providerOptions) ? providerOptions : []).map((option) => [
           normalizeProviderIdentifier(option?.value || ''),
           option,
         ]),
       );
-      return getProviderOwnersForModel(row).map((providerId) => {
-        const normalizedProviderId = normalizeProviderIdentifier(providerId);
-        const matchedOption = providerOptionById.get(normalizedProviderId);
-        if (matchedOption) {
-          return matchedOption;
-        }
-        return {
-          key: normalizedProviderId,
-          value: normalizedProviderId,
-          text: normalizedProviderId || '-',
-        };
-      });
+      const allOptions = Array.from(providerOptionById.values());
+      if (selectedProvider === '') {
+        return allOptions;
+      }
+      const normalizedSelectedProvider =
+        normalizeProviderIdentifier(selectedProvider);
+      const matchedOption = providerOptionById.get(normalizedSelectedProvider);
+      if (!matchedOption) {
+        return [
+          {
+            key: normalizedSelectedProvider,
+            value: selectedProvider,
+            text: selectedProvider || '-',
+          },
+          ...allOptions,
+        ];
+      }
+      return [
+        matchedOption,
+        ...allOptions.filter(
+          (option) =>
+            normalizeProviderIdentifier(option?.value || '') !==
+            normalizedSelectedProvider,
+        ),
+      ];
+    },
+    [providerOptions],
+  );
+  const resolvePreferredProviderForModel = useCallback(
+    (row) => {
+      const selectedProvider = normalizeChannelModelProviderValue(
+        row?.provider,
+      );
+      if (selectedProvider !== '') {
+        return selectedProvider;
+      }
+      const providerOwners = getProviderOwnersForModel(row);
+      if (providerOwners.length === 1) {
+        return providerOwners[0];
+      }
+      return inferAssignableProviderForRowWithOptions(row, providerOptions);
     },
     [getProviderOwnersForModel, providerOptions],
+  );
+  const getSelectedProviderDisplayItems = useCallback(
+    (row) => {
+      const selectedProvider = resolvePreferredProviderForModel(row);
+      if (selectedProvider === '') {
+        return [];
+      }
+      const providerOptionById = new Map(
+        (Array.isArray(providerOptions) ? providerOptions : []).map((option) => [
+          normalizeProviderIdentifier(option?.value || ''),
+          option,
+        ]),
+      );
+      const normalizedSelectedProvider =
+        normalizeProviderIdentifier(selectedProvider);
+      const matchedOption = providerOptionById.get(normalizedSelectedProvider);
+      return [
+        {
+          key: normalizedSelectedProvider || selectedProvider,
+          value: selectedProvider,
+          text: matchedOption?.text || selectedProvider,
+        },
+      ];
+    },
+    [providerOptions, resolvePreferredProviderForModel],
   );
   const getComplexPricingDetailsForModel = useCallback(
     (row) => {
@@ -1537,11 +1594,15 @@ const EditChannel = () => {
     }
     return detailFilteredModelConfigs.filter((row) => {
       const providerOwners = getProviderOwnersForModel(row).join(' ');
+      const selectedProviderText = getSelectedProviderDisplayItems(row)
+        .map((item) => item.text || item.value || '')
+        .join(' ');
       const candidates = [
         row?.upstream_model,
         row?.model,
         row?.type,
         providerOwners,
+        selectedProviderText,
       ].map(normalizeSearchKeyword);
       return candidates.some((candidate) => candidate.includes(keyword));
     });
@@ -1549,6 +1610,7 @@ const EditChannel = () => {
     deferredModelSearchKeyword,
     detailFilteredModelConfigs,
     getProviderOwnersForModel,
+    getSelectedProviderDisplayItems,
   ]);
   const detailModelTotalPages = useMemo(() => {
     return Math.max(
@@ -2091,25 +2153,6 @@ const EditChannel = () => {
       setDetailBasicEditing(false);
     }
   }, [persistDetailChannel, t]);
-
-  const startDetailModelEdit = useCallback(
-    (upstreamModel) => {
-      const targetModel = (upstreamModel || '').toString().trim();
-      if (targetModel === '') {
-        return;
-      }
-      const currentRow =
-        visibleModelConfigs.find(
-          (row) => row.upstream_model === targetModel,
-        ) || null;
-      if (!currentRow) {
-        return;
-      }
-      setDetailEditingModelKey(targetModel);
-      setDetailEditingModelSnapshot({ ...currentRow });
-    },
-    [visibleModelConfigs],
-  );
 
   const saveDetailModelsConfig = useCallback(async () => {
     if (!detailModelsEditing) {
@@ -2709,6 +2752,55 @@ const EditChannel = () => {
       providerModelOwners,
       providerOptions,
       t,
+    ],
+  );
+
+  const startDetailModelEdit = useCallback(
+    (upstreamModel) => {
+      const targetModel = (upstreamModel || '').toString().trim();
+      if (targetModel === '') {
+        return;
+      }
+      const currentRow =
+        visibleModelConfigs.find(
+          (row) => row.upstream_model === targetModel,
+        ) || null;
+      if (!currentRow) {
+        return;
+      }
+      if (
+        providerOptions.length === 0 &&
+        !providerCatalogLoaded &&
+        !providerCatalogLoading
+      ) {
+        loadProviderCatalogIndex({ silent: true }).then();
+      }
+      const preferredProvider = resolvePreferredProviderForModel(currentRow);
+      if (
+        normalizeChannelModelProviderValue(currentRow.provider) === '' &&
+        preferredProvider !== ''
+      ) {
+        setInputs((prev) =>
+          buildNextInputsWithModelConfigs(
+            prev,
+            visibleModelConfigs.map((row) =>
+              row.upstream_model === targetModel
+                ? { ...row, provider: preferredProvider }
+                : row,
+            ),
+          ),
+        );
+      }
+      setDetailEditingModelKey(targetModel);
+      setDetailEditingModelSnapshot({ ...currentRow });
+    },
+    [
+      loadProviderCatalogIndex,
+      providerCatalogLoaded,
+      providerCatalogLoading,
+      providerOptions.length,
+      resolvePreferredProviderForModel,
+      visibleModelConfigs,
     ],
   );
 
@@ -3581,7 +3673,9 @@ const EditChannel = () => {
                       options={getProviderSelectOptionsForModel(
                         detailEditingModelRow,
                       )}
-                      value={detailEditingModelRow.provider || ''}
+                      value={resolvePreferredProviderForModel(
+                        detailEditingModelRow,
+                      )}
                       disabled={
                         providerCatalogLoading ||
                         getProviderSelectOptionsForModel(detailEditingModelRow)
@@ -4741,7 +4835,7 @@ const EditChannel = () => {
                             <Table.HeaderCell width={1}>
                               {t('channel.edit.model_selector.table.type')}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
+                            <Table.HeaderCell width={3}>
                               {t('channel.edit.model_selector.table.providers')}
                             </Table.HeaderCell>
                             <Table.HeaderCell width={3}>
@@ -4756,7 +4850,7 @@ const EditChannel = () => {
                             <Table.HeaderCell width={2}>
                               {t('channel.edit.model_selector.table.output_price')}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={3}>
+                            <Table.HeaderCell width={2}>
                               {t('channel.table.actions')}
                             </Table.HeaderCell>
                           </Table.Row>
@@ -4776,8 +4870,10 @@ const EditChannel = () => {
                               </Table.Cell>
                             </Table.Row>
                           ) : (
-                            renderedModelConfigs.map((row) => {
+                          renderedModelConfigs.map((row) => {
                               const providerOwners = getProviderOwnersForModel(row);
+                              const selectedProviderItems =
+                                getSelectedProviderDisplayItems(row);
                               const complexPricingDetails =
                                 getComplexPricingDetailsForModel(row);
                               const hasComplexInputPricing =
@@ -4849,11 +4945,19 @@ const EditChannel = () => {
                                     )}
                                   </Table.Cell>
                                   <Table.Cell>
-                                    {providerOwners.length > 0 ? (
-                                      (row.provider
-                                        ? [normalizeChannelModelProviderValue(row.provider)]
-                                        : providerOwners
-                                      ).map((providerId) => (
+                                    {selectedProviderItems.length > 0 ? (
+                                      selectedProviderItems.map((provider) => (
+                                        <Label
+                                          key={`${row.upstream_model}-${provider.key}`}
+                                          basic
+                                          className='router-tag'
+                                          title={provider.text}
+                                        >
+                                          {provider.text}
+                                        </Label>
+                                      ))
+                                    ) : providerOwners.length > 0 ? (
+                                      providerOwners.map((providerId) => (
                                         <Label
                                           key={`${row.upstream_model}-${providerId}`}
                                           basic
@@ -5080,6 +5184,8 @@ const EditChannel = () => {
                           renderedModelConfigs.map((row) => {
                             const providerOwners =
                               getProviderOwnersForModel(row);
+                            const selectedProviderItems =
+                              getSelectedProviderDisplayItems(row);
                             const complexPricingDetails =
                               getComplexPricingDetailsForModel(row);
                             const hasComplexInputPricing =
@@ -5135,11 +5241,19 @@ const EditChannel = () => {
                                   )}
                                 </Table.Cell>
                                 <Table.Cell>
-                                  {providerOwners.length > 0 ? (
-                                    (row.provider
-                                      ? [normalizeChannelModelProviderValue(row.provider)]
-                                      : providerOwners
-                                    ).map((providerId) => (
+                                  {selectedProviderItems.length > 0 ? (
+                                    selectedProviderItems.map((provider) => (
+                                      <Label
+                                        key={`${row.upstream_model}-${provider.key}`}
+                                        basic
+                                        className='router-tag'
+                                        title={provider.text}
+                                      >
+                                        {provider.text}
+                                      </Label>
+                                    ))
+                                  ) : providerOwners.length > 0 ? (
+                                    providerOwners.map((providerId) => (
                                       <Label
                                         key={`${row.upstream_model}-${providerId}`}
                                         basic
