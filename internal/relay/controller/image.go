@@ -280,6 +280,7 @@ func RelayImageHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 				ModelName:          imageRequest.Model,
 				TokenName:          tokenName,
 				Quota:              int(quota),
+				BillingSource:      model.ResolveConsumeLogBillingSource(billingPlan.ChargeUserBalance()),
 				UserDailyQuota:     int(userQuotaUsage.DailyQuotaUsed),
 				UserEmergencyQuota: int(userQuotaUsage.EmergencyQuotaUsed),
 				Content:            billing.FormatPricingLog(pricing, groupRatio),

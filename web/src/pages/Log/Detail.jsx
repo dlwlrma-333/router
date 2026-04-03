@@ -61,6 +61,17 @@ function renderText(value) {
   return normalized || '-';
 }
 
+function renderBillingSource(value, t) {
+  const normalized = (value || '').toString().trim().toLowerCase();
+  if (normalized === 'package') {
+    return t('log.detail.billing_sources.package');
+  }
+  if (normalized === 'balance') {
+    return t('log.detail.billing_sources.balance');
+  }
+  return renderText(value);
+}
+
 function formatNumber(value, maximumFractionDigits = 6) {
   if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) {
     return '-';
@@ -290,6 +301,14 @@ const LogDetail = () => {
                         ? renderDisplayAmount(log.yycAmount, t, 6)
                         : '-'}
                     </div>
+                  </div>
+                  <div className='router-detail-item'>
+                    <div className='router-detail-label'>
+                      {t('log.detail.fields.billing_source')}
+                    </div>
+                    <pre className='router-detail-value'>
+                      {renderBillingSource(log?.billing_source, t)}
+                    </pre>
                   </div>
                   <div className='router-detail-item'>
                     <div className='router-detail-label'>

@@ -312,6 +312,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				).Error
 			},
 		},
+		{
+			Version:     "202604031500_log_billing_source",
+			Description: "add billing source field to consume logs",
+			Up: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&Log{})
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }
@@ -342,6 +349,13 @@ func runLogVersionedMigrations(db *gorm.DB) error {
 		{
 			Version:     "202603311900_log_billing_snapshots",
 			Description: "add billing snapshot fields to consume logs",
+			Up: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&Log{})
+			},
+		},
+		{
+			Version:     "202604031500_log_billing_source",
+			Description: "add billing source field to consume logs",
 			Up: func(tx *gorm.DB) error {
 				return tx.AutoMigrate(&Log{})
 			},

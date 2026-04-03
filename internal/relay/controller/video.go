@@ -471,6 +471,7 @@ func RelayVideoHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 			ModelName:          videoRequest.Model,
 			TokenName:          tokenName,
 			Quota:              int(quota),
+			BillingSource:      adminmodel.ResolveConsumeLogBillingSource(billingPlan.ChargeUserBalance()),
 			UserDailyQuota:     int(userQuotaUsage.DailyQuotaUsed),
 			UserEmergencyQuota: int(userQuotaUsage.EmergencyQuotaUsed),
 			Content:            appendVideoSummaryToLogContent(billing.FormatPricingLog(pricing, groupRatio), responseSummary),

@@ -189,7 +189,7 @@ func ReserveUserQuotaWithDB(db *gorm.DB, userID string, quota int64) (UserQuotaR
 			}
 			if emergencyRemaining < remainingNeed {
 				allowed = false
-				denyMessage = "当前用户今日额度已达上限，且本月应急额度已用尽"
+				denyMessage = "当前用户今日额度已达上限，且套餐应急额度已用尽"
 				return nil
 			}
 			reservation.EmergencyReservedQuota = remainingNeed

@@ -936,8 +936,9 @@
         "prompt_tokens": "Prompt Tokens",
         "completion_tokens": "Completion Tokens",
         "quota": "Settled Amount",
+        "billing_source": "Billing Source",
         "user_daily_quota": "User Base Amount",
-        "user_emergency_quota": "User Emergency Amount",
+        "user_emergency_quota": "Package Emergency Amount",
         "billing_price_unit": "Price Unit",
         "billing_currency": "Billing Currency",
         "billing_group_ratio": "Business Ratio",
@@ -951,6 +952,10 @@
         "elapsed_time": "Elapsed Time",
         "is_stream": "Stream Output",
         "system_prompt_reset": "System Prompt Reset"
+      },
+      "billing_sources": {
+        "package": "Package",
+        "balance": "Balance"
       }
     }
   },

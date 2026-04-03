@@ -82,6 +82,7 @@ func PostConsumeQuota(ctx context.Context, tokenId string, quotaDelta int64, tot
 			ModelName:          modelName,
 			TokenName:          tokenName,
 			Quota:              int(totalQuota),
+			BillingSource:      model.ResolveConsumeLogBillingSource(chargeUserBalance),
 			UserDailyQuota:     int(userQuotaUsage.DailyQuotaUsed),
 			UserEmergencyQuota: int(userQuotaUsage.EmergencyQuotaUsed),
 			Content:            FormatPricingLog(pricing, groupRatio),

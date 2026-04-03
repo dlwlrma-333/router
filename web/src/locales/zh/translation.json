@@ -936,8 +936,9 @@
         "prompt_tokens": "提示词消耗",
         "completion_tokens": "补全消耗",
         "quota": "结算金额",
+        "billing_source": "扣费来源",
         "user_daily_quota": "用户基础金额",
-        "user_emergency_quota": "用户应急金额",
+        "user_emergency_quota": "套餐应急金额",
         "billing_price_unit": "计价单位",
         "billing_currency": "计费币种",
         "billing_group_ratio": "业务倍率",
@@ -951,6 +952,10 @@
         "elapsed_time": "耗时",
         "is_stream": "流式输出",
         "system_prompt_reset": "重置系统提示词"
+      },
+      "billing_sources": {
+        "package": "套餐",
+        "balance": "余额"
       }
     }
   },
