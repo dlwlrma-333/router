@@ -1,13 +1,23 @@
 export const ADMIN_MENU_GROUPS = [
   {
     key: 'dashboard',
-    name: 'header.dashboard',
+    name: 'header.system_overview',
     icon: 'chart bar',
     items: [
       {
-        name: 'header.dashboard',
-        to: '/admin/dashboard',
-        icon: 'chart bar',
+        name: 'dashboard.admin.nav.overview',
+        to: '/admin/dashboard?section=overview',
+        icon: 'chart pie',
+      },
+      {
+        name: 'dashboard.admin.sections.trend',
+        to: '/admin/dashboard?section=trend',
+        icon: 'chart line',
+      },
+      {
+        name: 'dashboard.admin.sections.channels',
+        to: '/admin/dashboard?section=health',
+        icon: 'heartbeat',
       },
     ],
   },
@@ -83,8 +93,13 @@ export const ADMIN_MENU_GROUPS = [
     icon: 'setting',
     items: [
       {
+        name: 'setting.tabs.currency',
+        to: '/admin/setting?tab=currency&section=catalog',
+        icon: 'money bill alternate outline',
+      },
+      {
         name: 'setting.tabs.exchange',
-        to: '/admin/setting?tab=exchange&section=sync',
+        to: '/admin/setting?tab=exchange&section=rates',
         icon: 'exchange',
       },
       {
@@ -123,6 +138,16 @@ export const isAdminRouteActive = (location, to) => {
       .trim()
       .toLowerCase();
     if (currentTab !== targetTab) {
+      return false;
+    }
+    return true;
+  }
+  const targetSection = (targetParams.get('section') || '').trim().toLowerCase();
+  if (path === '/admin/dashboard' && targetSection !== '') {
+    const currentSection = (currentParams.get('section') || 'overview')
+      .trim()
+      .toLowerCase();
+    if (currentSection !== targetSection) {
       return false;
     }
     return true;

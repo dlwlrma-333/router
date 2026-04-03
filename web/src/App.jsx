@@ -362,6 +362,15 @@ function App() {
         }
       >
         <Route path='/admin/channel' element={<Channel />} />
+        <Route path='/admin/channel/tasks' element={<Task />} />
+        <Route
+          path='/admin/channel/tasks/:id'
+          element={
+            <Suspense fallback={<Loading />}>
+              <TaskDetail />
+            </Suspense>
+          }
+        />
         <Route
           path='/admin/channel/edit/:id'
           element={

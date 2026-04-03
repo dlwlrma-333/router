@@ -1121,7 +1121,7 @@ const EditChannel = () => {
         }
       });
       const search = query.toString();
-      navigate(`/admin/task${search ? `?${search}` : ''}`);
+      navigate(`/admin/channel/tasks${search ? `?${search}` : ''}`);
     },
     [channelId, creatingChannelId, navigate],
   );
