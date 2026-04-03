@@ -421,6 +421,20 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     }
   }, [fetchGroupModelConfigPayload]);
 
+  const applySavedDetailModelState = useCallback((items, channels, selectedChannelIDs) => {
+    const nextItems = sortGroupModelConfigRows(Array.isArray(items) ? items : []);
+    const nextChannels = Array.isArray(channels) ? channels : [];
+    const normalizedSelectedChannelIDs = Array.isArray(selectedChannelIDs)
+      ? selectedChannelIDs
+      : toBoundChannelIDs(nextChannels);
+    setDetailModelRows(nextItems);
+    setDetailChannelRows(toBoundChannelRows(nextChannels));
+    setFormModelChannels(nextChannels);
+    setFormChannelOptions(toChannelOptions(nextChannels));
+    setFormChannelIDs(normalizedSelectedChannelIDs);
+    setFormModelConfigs(nextItems);
+  }, []);
+
   const loadGroupDetail = useCallback(
     async (groupID) => {
       const normalizedGroupID = (groupID || '').toString().trim();
@@ -721,7 +735,16 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     submitting,
   ]);
 
-  const saveDetailModelConfigs = useCallback(async (items, selectedChannelIDs) => {
+  const refreshGroupDetailState = useCallback(async (groupID) => {
+    const normalizedGroupID = (groupID || '').toString().trim();
+    if (normalizedGroupID === '') {
+      return;
+    }
+    await loadCatalog();
+    await loadGroupDetail(normalizedGroupID);
+  }, [loadCatalog, loadGroupDetail]);
+
+  const saveDetailModelConfigs = useCallback(async (items, selectedChannelIDs, channels = []) => {
     const id = (activeGroup?.id || '').toString().trim();
     if (id === '') {
       return false;
@@ -744,8 +767,8 @@ const GroupsManager = ({ detailGroupId = '' }) => {
         showError(message || t('group_manage.messages.update_failed'));
         return false;
       }
+      applySavedDetailModelState(items, channels, selectedChannelIDs);
       showSuccess(t('group_manage.messages.update_success'));
-      await refreshGroupDetailState(id);
       return true;
     } catch (error) {
       showError(error);
@@ -753,7 +776,7 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     } finally {
       setSubmitting(false);
     }
-  }, [activeGroup, normalizeModelConfigsPayload, refreshGroupDetailState, t]);
+  }, [activeGroup, applySavedDetailModelState, normalizeModelConfigsPayload, t]);
 
   const closeDetailModelModal = useCallback(() => {
     if (submitting) {
@@ -772,15 +795,6 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     closeDetailModelModal();
     resetFormState();
   }, [closeDetailModelModal, submitting]);
-
-  const refreshGroupDetailState = useCallback(async (groupID) => {
-    const normalizedGroupID = (groupID || '').toString().trim();
-    if (normalizedGroupID === '') {
-      return;
-    }
-    await loadCatalog();
-    await loadGroupDetail(normalizedGroupID);
-  }, [loadCatalog, loadGroupDetail]);
 
   const submitDetailBasic = useCallback(async () => {
     const id = (activeGroup?.id || '').toString().trim();
@@ -1400,7 +1414,11 @@ const GroupsManager = ({ detailGroupId = '' }) => {
           : item
       )
     );
-    await saveDetailModelConfigs(nextItems, editorState.selectedChannelIDs);
+    await saveDetailModelConfigs(
+      nextItems,
+      editorState.selectedChannelIDs,
+      editorState.channels,
+    );
   }, [loadDetailModelEditorState, saveDetailModelConfigs]);
 
   const submitDetailModelDraft = useCallback(async () => {
@@ -1435,7 +1453,8 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     }));
     const saved = await saveDetailModelConfigs(
       sortGroupModelConfigRows([...baseRows, ...nextRows]),
-      selectedChannelIDs
+      selectedChannelIDs,
+      formModelChannels,
     );
     if (saved) {
       closeDetailModelModal();
