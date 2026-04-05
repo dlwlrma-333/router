@@ -8,6 +8,7 @@
     "account": "Account",
     "redemption": "Redemption Codes",
     "topup": "Top Up",
+    "service": "Service",
     "mine": "Mine",
     "records": "Records",
     "user": "User",
@@ -81,6 +82,24 @@
       "request_failed": "Failed to create top-up order",
       "popup_blocked": "The browser blocked the new window. Please allow pop-ups and try again.",
       "no_link": "Admin has not set up the top-up link!"
+    },
+    "pricing": {
+      "title": "Pricing",
+      "subtitle": "You can buy a package directly, or top up balance first and use the service on demand.",
+      "package_mode_title": "Package Plans",
+      "package_hint": "Best for stable usage. You get a daily allowance plus emergency capacity with clearer cost boundaries.",
+      "balance_mode_title": "Balance Usage",
+      "balance_hint": "Best for quick trials or elastic usage. Top up first, then pay as you go.",
+      "selected": "Selected",
+      "select": "Select"
+    },
+    "package_status": {
+      "view_pricing": "View Pricing",
+      "empty_description": "There is no active package right now. You can buy a package from the pricing page or top up balance to try the service first.",
+      "daily_title": "Today's Package Quota",
+      "emergency_title": "Monthly Emergency Quota",
+      "period": "Period",
+      "reserved": "Reserved"
     },
     "external_topup_orders": {
       "title": "External Top-up Orders",

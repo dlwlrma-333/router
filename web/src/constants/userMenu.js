@@ -22,9 +22,22 @@ export const isUserRouteActive = (location, to) => {
 export const buildUserWorkspaceMenuItems = ({ includeChat = false } = {}) => {
   const items = [
     {
-      name: 'header.dashboard',
-      to: '/workspace/dashboard',
-      icon: 'chart bar',
+      key: 'service',
+      type: 'group',
+      name: 'header.service',
+      icon: 'grid layout',
+      items: [
+        {
+          name: 'header.dashboard',
+          to: '/workspace/dashboard',
+          icon: 'chart bar',
+        },
+        {
+          name: 'topup.pricing.title',
+          to: '/workspace/service/pricing',
+          icon: 'tags',
+        },
+      ],
     },
   ];
 
