@@ -48,6 +48,7 @@ type TopupOrder struct {
 	Quota           int64   `json:"quota" gorm:"type:bigint;default:0"`
 	PackageID       string  `json:"package_id" gorm:"type:char(36);default:'';index"`
 	PackageName     string  `json:"package_name" gorm:"type:varchar(255);default:''"`
+	ClientType      string  `json:"client_type" gorm:"-"`
 	CallbackURL     string  `json:"callback_url" gorm:"type:text;default:''"`
 	ReturnURL       string  `json:"return_url" gorm:"type:text;default:''"`
 	StatusMessage   string  `json:"status_message" gorm:"type:text;default:''"`
@@ -112,6 +113,7 @@ func normalizeTopupOrderRow(row *TopupOrder) {
 	row.Quota = normalizeTopupOrderQuota(row.Quota)
 	row.PackageID = strings.TrimSpace(row.PackageID)
 	row.PackageName = strings.TrimSpace(row.PackageName)
+	row.ClientType = strings.TrimSpace(strings.ToLower(row.ClientType))
 	row.CallbackURL = strings.TrimSpace(row.CallbackURL)
 	row.ReturnURL = strings.TrimSpace(row.ReturnURL)
 	row.StatusMessage = strings.TrimSpace(row.StatusMessage)
@@ -236,7 +238,7 @@ func buildTopupOrderRedirectURL(baseLink string, order TopupOrder) (string, erro
 		return "", fmt.Errorf("充值链接配置无效")
 	}
 	payload := map[string]string{
-		"merchant_app":   "router",
+		"merchant_app":   config.TopUpMerchantAppValue(),
 		"order_id":       strings.TrimSpace(order.Id),
 		"transaction_id": strings.TrimSpace(order.TransactionID),
 		"user_id":        strings.TrimSpace(order.UserID),
@@ -249,6 +251,9 @@ func buildTopupOrderRedirectURL(baseLink string, order TopupOrder) (string, erro
 		"return_url":     strings.TrimSpace(order.ReturnURL),
 		"timestamp":      strconv.FormatInt(helper.GetTimestamp(), 10),
 		"nonce":          random.GetUUID(),
+	}
+	if normalizedClientType := normalizeTopupOrderClientType(order.ClientType); normalizedClientType != "" {
+		payload["client_type"] = normalizedClientType
 	}
 	if order.Quota > 0 {
 		payload["quota"] = strconv.FormatInt(order.Quota, 10)
@@ -323,6 +328,7 @@ func CreateTopupOrderWithDB(db *gorm.DB, userID string, username string, input C
 		Currency:      currency,
 		Quota:         normalizeTopupOrderQuota(input.Quota),
 		PackageID:     strings.TrimSpace(input.PackageID),
+		ClientType:    strings.TrimSpace(input.ClientType),
 		CallbackURL:   topupOrderCallbackURL(),
 		ReturnURL:     strings.TrimSpace(input.ReturnURL),
 	}

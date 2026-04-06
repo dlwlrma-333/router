@@ -9,9 +9,12 @@ import (
 
 func TestBuildTopupOrderRedirectURL(t *testing.T) {
 	previousSecret := config.TopUpSignSecret
+	previousMerchantApp := config.TopUpMerchantApp
 	config.TopUpSignSecret = "test-sign-secret"
+	config.TopUpMerchantApp = ""
 	t.Cleanup(func() {
 		config.TopUpSignSecret = previousSecret
+		config.TopUpMerchantApp = previousMerchantApp
 	})
 	redirectURL, err := buildTopupOrderRedirectURL(
 		"https://pay.example.com/checkout?source=router",
@@ -53,11 +56,49 @@ func TestBuildTopupOrderRedirectURL(t *testing.T) {
 	}
 }
 
-func TestBuildTopupOrderRedirectURLRejectsInvalidBaseLink(t *testing.T) {
+func TestBuildTopupOrderRedirectURLUsesConfiguredMerchantAppAndClientType(t *testing.T) {
 	previousSecret := config.TopUpSignSecret
+	previousMerchantApp := config.TopUpMerchantApp
 	config.TopUpSignSecret = "test-sign-secret"
+	config.TopUpMerchantApp = "router-pay"
 	t.Cleanup(func() {
 		config.TopUpSignSecret = previousSecret
+		config.TopUpMerchantApp = previousMerchantApp
+	})
+	redirectURL, err := buildTopupOrderRedirectURL(
+		"https://pay.example.com/checkout",
+		TopupOrder{
+			Id:            "order_1",
+			UserID:        "user_1",
+			Username:      "alice",
+			TransactionID: "txn_1",
+			ClientType:    "mobile",
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	parsed, err := url.Parse(redirectURL)
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	query := parsed.Query()
+	if got := query.Get("merchant_app"); got != "router-pay" {
+		t.Fatalf("expected merchant_app=router-pay, got %q", got)
+	}
+	if got := query.Get("client_type"); got != "mobile" {
+		t.Fatalf("expected client_type=mobile, got %q", got)
+	}
+}
+
+func TestBuildTopupOrderRedirectURLRejectsInvalidBaseLink(t *testing.T) {
+	previousSecret := config.TopUpSignSecret
+	previousMerchantApp := config.TopUpMerchantApp
+	config.TopUpSignSecret = "test-sign-secret"
+	config.TopUpMerchantApp = ""
+	t.Cleanup(func() {
+		config.TopUpSignSecret = previousSecret
+		config.TopUpMerchantApp = previousMerchantApp
 	})
 	if _, err := buildTopupOrderRedirectURL("://broken", TopupOrder{
 		Id:            "order_1",
