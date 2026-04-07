@@ -75,11 +75,11 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	if quotaErr != nil {
 		return quotaErr
 	}
-	groupReservation := billingPlan.GroupReservation
+	packageReservation := billingPlan.PackageReservation
 	groupQuotaSettled := false
 	defer func() {
 		if !groupQuotaSettled {
-			releaseGroupDailyQuotaReservation(ctx, groupReservation)
+			releasePackageQuotaReservation(ctx, packageReservation)
 		}
 	}()
 	preConsumedQuota, bizErr := preConsumeQuota(ctx, textRequest, promptTokens, pricing, groupRatio, meta, billingPlan.ChargeUserBalance())
@@ -126,7 +126,7 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 		return respErr
 	}
 	// post-consume quota
-	go postConsumeQuota(ctx, usage, meta, upstreamRequest, pricing, preConsumedQuota, groupRatio, systemPromptReset, billingPlan.ChargeUserBalance(), groupReservation)
+	go postConsumeQuota(ctx, usage, meta, upstreamRequest, pricing, preConsumedQuota, groupRatio, systemPromptReset, billingPlan.ChargeUserBalance(), packageReservation)
 	groupQuotaSettled = true
 	return nil
 }

@@ -38,7 +38,7 @@ func ReturnPreConsumedQuota(ctx context.Context, preConsumedQuota int64, tokenId
 	}(ctx)
 }
 
-func PostConsumeQuota(ctx context.Context, tokenId string, quotaDelta int64, totalQuota int64, userId string, groupID string, channelId string, pricing model.ResolvedModelPricing, groupRatio float64, modelName string, tokenName string, chargeUserBalance bool, groupReservation model.GroupDailyQuotaReservation, snapshot BillingSnapshot) {
+func PostConsumeQuota(ctx context.Context, tokenId string, quotaDelta int64, totalQuota int64, userId string, groupID string, channelId string, pricing model.ResolvedModelPricing, groupRatio float64, modelName string, tokenName string, chargeUserBalance bool, packageReservation model.PackageQuotaReservation, snapshot BillingSnapshot) {
 	// quotaDelta is remaining quota to be consumed
 	var err error
 	if strings.TrimSpace(tokenId) != "" {
@@ -66,27 +66,37 @@ func PostConsumeQuota(ctx context.Context, tokenId string, quotaDelta int64, tot
 			logger.SysError("error update user quota cache: " + err.Error())
 		}
 	}
+	userDailyQuota := 0
+	userEmergencyQuota := 0
+	if !chargeUserBalance {
+		dailyConsumed, emergencyConsumed, settleErr := model.SettlePackageQuotaReservation(packageReservation, totalQuota)
+		if settleErr != nil {
+			logger.Error(ctx, "settle package quota reservation failed: "+settleErr.Error())
+		} else {
+			userDailyQuota = int(dailyConsumed)
+			userEmergencyQuota = int(emergencyConsumed)
+		}
+	}
 	// totalQuota is total quota consumed
 	if totalQuota != 0 {
 		snapshot.YYCAmount = totalQuota
 		entry := &model.Log{
-			UserId:           userId,
-			GroupId:          groupID,
-			ChannelId:        channelId,
-			PromptTokens:     int(totalQuota),
-			CompletionTokens: 0,
-			ModelName:        modelName,
-			TokenName:        tokenName,
-			Quota:            int(totalQuota),
-			BillingSource:    model.ResolveConsumeLogBillingSource(chargeUserBalance),
-			Content:          FormatPricingLog(pricing, groupRatio),
+			UserId:             userId,
+			GroupId:            groupID,
+			ChannelId:          channelId,
+			PromptTokens:       int(totalQuota),
+			CompletionTokens:   0,
+			ModelName:          modelName,
+			TokenName:          tokenName,
+			Quota:              int(totalQuota),
+			BillingSource:      model.ResolveConsumeLogBillingSource(chargeUserBalance),
+			UserDailyQuota:     userDailyQuota,
+			UserEmergencyQuota: userEmergencyQuota,
+			Content:            FormatPricingLog(pricing, groupRatio),
 		}
 		snapshot.ApplyToLog(entry)
 		model.RecordConsumeLog(ctx, entry)
 		model.UpdateUserUsedQuotaAndRequestCount(userId, totalQuota)
 		model.UpdateChannelUsedQuota(channelId, totalQuota)
-	}
-	if err := model.SettleGroupDailyQuotaReservation(groupReservation, totalQuota); err != nil {
-		logger.Error(ctx, "settle group daily quota reservation failed: "+err.Error())
 	}
 }

@@ -138,10 +138,10 @@ func preConsumeQuota(ctx context.Context, textRequest *relaymodel.GeneralOpenAIR
 	return preConsumedQuota, nil
 }
 
-func postConsumeQuota(ctx context.Context, usage *relaymodel.Usage, meta *meta.Meta, textRequest *relaymodel.GeneralOpenAIRequest, pricing model.ResolvedModelPricing, preConsumedQuota int64, groupRatio float64, systemPromptReset bool, chargeUserBalance bool, groupReservation model.GroupDailyQuotaReservation) {
+func postConsumeQuota(ctx context.Context, usage *relaymodel.Usage, meta *meta.Meta, textRequest *relaymodel.GeneralOpenAIRequest, pricing model.ResolvedModelPricing, preConsumedQuota int64, groupRatio float64, systemPromptReset bool, chargeUserBalance bool, packageReservation model.PackageQuotaReservation) {
 	if usage == nil {
 		logger.Error(ctx, "usage is nil, which is unexpected")
-		releaseGroupDailyQuotaReservation(ctx, groupReservation)
+		releasePackageQuotaReservation(ctx, packageReservation)
 		return
 	}
 	promptTokens := usage.PromptTokens
@@ -187,27 +187,35 @@ func postConsumeQuota(ctx context.Context, usage *relaymodel.Usage, meta *meta.M
 			logger.Error(ctx, "error update user quota cache: "+err.Error())
 		}
 	}
+	userDailyQuota := 0
+	userEmergencyQuota := 0
+	if !chargeUserBalance {
+		dailyConsumed, emergencyConsumed := settlePackageQuotaReservation(ctx, packageReservation, quota)
+		userDailyQuota = int(dailyConsumed)
+		userEmergencyQuota = int(emergencyConsumed)
+	}
 	billingSnapshot.YYCAmount = quota
 	entry := &model.Log{
-		UserId:            meta.UserId,
-		GroupId:           meta.Group,
-		ChannelId:         meta.ChannelId,
-		PromptTokens:      promptTokens,
-		CompletionTokens:  completionTokens,
-		ModelName:         textRequest.Model,
-		TokenName:         meta.TokenName,
-		Quota:             int(quota),
-		BillingSource:     model.ResolveConsumeLogBillingSource(chargeUserBalance),
-		Content:           billing.FormatPricingLog(pricing, groupRatio),
-		IsStream:          meta.IsStream,
-		ElapsedTime:       helper.CalcElapsedTime(meta.StartTime),
-		SystemPromptReset: systemPromptReset,
+		UserId:             meta.UserId,
+		GroupId:            meta.Group,
+		ChannelId:          meta.ChannelId,
+		PromptTokens:       promptTokens,
+		CompletionTokens:   completionTokens,
+		ModelName:          textRequest.Model,
+		TokenName:          meta.TokenName,
+		Quota:              int(quota),
+		BillingSource:      model.ResolveConsumeLogBillingSource(chargeUserBalance),
+		UserDailyQuota:     userDailyQuota,
+		UserEmergencyQuota: userEmergencyQuota,
+		Content:            billing.FormatPricingLog(pricing, groupRatio),
+		IsStream:           meta.IsStream,
+		ElapsedTime:        helper.CalcElapsedTime(meta.StartTime),
+		SystemPromptReset:  systemPromptReset,
 	}
 	billingSnapshot.ApplyToLog(entry)
 	model.RecordConsumeLog(ctx, entry)
 	model.UpdateUserUsedQuotaAndRequestCount(meta.UserId, quota)
 	model.UpdateChannelUsedQuota(meta.ChannelId, quota)
-	settleGroupDailyQuotaReservation(ctx, groupReservation, quota)
 }
 
 func getMappedModelName(modelName string, mapping map[string]string) (string, bool) {

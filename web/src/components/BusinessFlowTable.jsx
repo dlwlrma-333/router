@@ -427,36 +427,38 @@ const BusinessFlowTable = ({ kind }) => {
         </div>
       </div>
 
-      <Table basic='very' compact className='router-hover-table router-list-table'>
-        <Table.Header>
-          <Table.Row>
-            {config.columns.map((column) => (
-              <Table.HeaderCell key={column.key} collapsing={column.collapsing === true}>
-                {column.label}
-              </Table.HeaderCell>
-            ))}
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {items.length === 0 ? (
+      <div className='router-table-scroll-x'>
+        <Table basic='very' compact className='router-hover-table router-list-table'>
+          <Table.Header>
             <Table.Row>
-              <Table.Cell colSpan={config.columns.length} className='router-table-empty-cell'>
-                {config.emptyText}
-              </Table.Cell>
+              {config.columns.map((column) => (
+                <Table.HeaderCell key={column.key} collapsing={column.collapsing === true}>
+                  {column.label}
+                </Table.HeaderCell>
+              ))}
             </Table.Row>
-          ) : (
-            items.map((row) => (
-              <Table.Row key={row.id || row.transaction_id || row.package_id}>
-                {config.columns.map((column) => (
-                  <Table.Cell key={column.key} collapsing={column.collapsing === true}>
-                    {column.render(row)}
-                  </Table.Cell>
-                ))}
+          </Table.Header>
+          <Table.Body>
+            {items.length === 0 ? (
+              <Table.Row>
+                <Table.Cell colSpan={config.columns.length} className='router-table-empty-cell'>
+                  {config.emptyText}
+                </Table.Cell>
               </Table.Row>
-            ))
-          )}
-        </Table.Body>
-      </Table>
+            ) : (
+              items.map((row) => (
+                <Table.Row key={row.id || row.transaction_id || row.package_id}>
+                  {config.columns.map((column) => (
+                    <Table.Cell key={column.key} collapsing={column.collapsing === true}>
+                      {column.render(row)}
+                    </Table.Cell>
+                  ))}
+                </Table.Row>
+              ))
+            )}
+          </Table.Body>
+        </Table>
+      </div>
 
       <div className='table-footer'>
         <Pagination

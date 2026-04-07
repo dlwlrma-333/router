@@ -8,6 +8,7 @@ import (
 
 	"github.com/yeying-community/router/common/helper"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const GroupQuotaCountersTableName = "group_quota_counters"
@@ -47,6 +48,26 @@ func (reservation GroupDailyQuotaReservation) Active() bool {
 		strings.TrimSpace(reservation.UserID) != "" &&
 		strings.TrimSpace(reservation.BizDate) != "" &&
 		reservation.ReservedQuota > 0
+}
+
+func ensureGroupQuotaCounterWithDB(tx *gorm.DB, groupID string, userID string, counterType string, periodKey string) error {
+	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&GroupQuotaCounter{
+		GroupID:     groupID,
+		UserID:      userID,
+		CounterType: counterType,
+		PeriodKey:   periodKey,
+	}).Error
+}
+
+func loadGroupQuotaCounterForUpdateWithDB(tx *gorm.DB, groupID string, userID string, counterType string, periodKey string) (GroupQuotaCounter, error) {
+	if err := ensureGroupQuotaCounterWithDB(tx, groupID, userID, counterType, periodKey); err != nil {
+		return GroupQuotaCounter{}, err
+	}
+	counter := GroupQuotaCounter{}
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("group_id = ? AND user_id = ? AND counter_type = ? AND period_key = ?", groupID, userID, counterType, periodKey).
+		Take(&counter).Error
+	return counter, err
 }
 
 func businessDateByTimezone(now time.Time, timezone string) string {

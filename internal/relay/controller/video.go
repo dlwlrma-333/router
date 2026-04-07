@@ -375,11 +375,11 @@ func RelayVideoHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 	if quotaErr != nil {
 		return quotaErr
 	}
-	groupReservation := billingPlan.GroupReservation
+	packageReservation := billingPlan.PackageReservation
 	groupQuotaSettled := false
 	defer func() {
 		if !groupQuotaSettled {
-			releaseGroupDailyQuotaReservation(ctx, groupReservation)
+			releasePackageQuotaReservation(ctx, packageReservation)
 		}
 	}()
 	if billingPlan.ChargeUserBalance() {
@@ -430,8 +430,15 @@ func RelayVideoHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 
 	defer func(ctx context.Context) {
 		if quota == 0 {
-			settleGroupDailyQuotaReservation(ctx, groupReservation, 0)
+			settlePackageQuotaReservation(ctx, packageReservation, 0)
 			return
+		}
+		userDailyQuota := 0
+		userEmergencyQuota := 0
+		if !billingPlan.ChargeUserBalance() {
+			dailyConsumed, emergencyConsumed := settlePackageQuotaReservation(ctx, packageReservation, quota)
+			userDailyQuota = int(dailyConsumed)
+			userEmergencyQuota = int(emergencyConsumed)
 		}
 		if strings.TrimSpace(meta.TokenId) != "" {
 			var err error
@@ -456,22 +463,23 @@ func RelayVideoHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 		tokenName := c.GetString(ctxkey.TokenName)
 		billingSnapshot.YYCAmount = quota
 		entry := &model.Log{
-			UserId:           meta.UserId,
-			GroupId:          meta.Group,
-			ChannelId:        meta.ChannelId,
-			PromptTokens:     0,
-			CompletionTokens: 0,
-			ModelName:        videoRequest.Model,
-			TokenName:        tokenName,
-			Quota:            int(quota),
-			BillingSource:    adminmodel.ResolveConsumeLogBillingSource(billingPlan.ChargeUserBalance()),
-			Content:          appendVideoSummaryToLogContent(billing.FormatPricingLog(pricing, groupRatio), responseSummary),
+			UserId:             meta.UserId,
+			GroupId:            meta.Group,
+			ChannelId:          meta.ChannelId,
+			PromptTokens:       0,
+			CompletionTokens:   0,
+			ModelName:          videoRequest.Model,
+			TokenName:          tokenName,
+			Quota:              int(quota),
+			BillingSource:      adminmodel.ResolveConsumeLogBillingSource(billingPlan.ChargeUserBalance()),
+			UserDailyQuota:     userDailyQuota,
+			UserEmergencyQuota: userEmergencyQuota,
+			Content:            appendVideoSummaryToLogContent(billing.FormatPricingLog(pricing, groupRatio), responseSummary),
 		}
 		billingSnapshot.ApplyToLog(entry)
 		model.RecordConsumeLog(ctx, entry)
 		model.UpdateUserUsedQuotaAndRequestCount(meta.UserId, quota)
 		model.UpdateChannelUsedQuota(meta.ChannelId, quota)
-		settleGroupDailyQuotaReservation(ctx, groupReservation, quota)
 	}(c.Request.Context())
 	groupQuotaSettled = true
 

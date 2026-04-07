@@ -22,8 +22,8 @@ const (
 )
 
 type relayBillingPlan struct {
-	Source           relayBillingSource
-	GroupReservation model.GroupDailyQuotaReservation
+	Source             relayBillingSource
+	PackageReservation model.PackageQuotaReservation
 }
 
 func (plan relayBillingPlan) ChargeUserBalance() bool {
@@ -60,11 +60,11 @@ func reserveRelayQuota(ctx context.Context, groupID string, userID string, quota
 		return relayBillingPlan{}, openai.ErrorWrapper(err, "resolve_billing_source_failed", http.StatusInternalServerError)
 	}
 	if packageActive {
-		groupReservation, groupQuotaErr := reserveGroupDailyQuota(ctx, groupID, userID, quota)
+		packageReservation, groupQuotaErr := reservePackageQuota(ctx, groupID, userID, quota)
 		if groupQuotaErr == nil {
 			return relayBillingPlan{
-				Source:           relayBillingSourcePackage,
-				GroupReservation: groupReservation,
+				Source:             relayBillingSourcePackage,
+				PackageReservation: packageReservation,
 			}, nil
 		}
 		if !IsGroupDailyQuotaExceededError(groupQuotaErr) {
