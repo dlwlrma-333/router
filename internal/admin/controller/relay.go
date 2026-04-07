@@ -23,8 +23,6 @@ import (
 	"github.com/yeying-community/router/internal/transport/http/middleware"
 )
 
-const relayRetryLimit = 0
-
 // https://platform.openai.com/docs/api-reference/chat
 
 func relayHelper(c *gin.Context, relayMode int) *model.ErrorWithStatusCode {
@@ -81,7 +79,7 @@ func Relay(c *gin.Context) {
 	}
 	go processChannelRelayError(ctx, userId, channelId, channelName, originalModel, requestPath, *bizErr)
 	traceID := c.GetString(helper.TraceIDKey)
-	retryTimes := relayRetryLimit
+	retryTimes := config.RelayRetryLimit
 	retryCount := 0
 	retryable := shouldRetry(c, bizErr)
 	if !retryable {

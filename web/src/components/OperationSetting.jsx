@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Divider, Form, Grid, Header } from 'semantic-ui-react';
+import { Divider, Form, Grid, Header, Message } from 'semantic-ui-react';
 import {
   API,
   showError,
@@ -50,6 +50,7 @@ const OperationSetting = ({ section = '' }) => {
     AutomaticEnableChannelEnabled: '',
     ChannelDisableThreshold: 0,
     LogConsumeEnabled: '',
+    RelayRetryLimit: 0,
   });
   const [originInputs, setOriginInputs] = useState({});
   const [groupOptions, setGroupOptions] = useState([]);
@@ -75,10 +76,11 @@ const OperationSetting = ({ section = '' }) => {
   const sectionVisible = {
     balance: showBalanceSection,
     monitor: showAllSections || normalizedSection === 'monitor',
+    retry: showAllSections || normalizedSection === 'retry',
     log: showAllSections || normalizedSection === 'log',
     general: showAllSections || showConfigSection || normalizedSection === 'general',
   };
-  const sectionOrder = ['balance', 'monitor', 'log', 'general'];
+  const sectionOrder = ['balance', 'monitor', 'retry', 'log', 'general'];
   const shouldRenderDividerAfter = (key) => {
     if (!showAllSections) {
       return false;
@@ -362,6 +364,20 @@ const OperationSetting = ({ section = '' }) => {
           }
         }
         break;
+      case 'retry':
+        {
+          const retryLimit = Math.max(
+            0,
+            Math.trunc(Number(inputs.RelayRetryLimit || 0))
+          );
+          if (
+            normalizeOptionValue(originInputs.RelayRetryLimit, '0') !==
+            `${retryLimit}`
+          ) {
+            await updateOption('RelayRetryLimit', `${retryLimit}`);
+          }
+        }
+        break;
       default:
         break;
     }
@@ -568,6 +584,45 @@ const OperationSetting = ({ section = '' }) => {
                 {t('setting.operation.monitor.buttons.save')}
               </Form.Button>
               {shouldRenderDividerAfter('monitor') ? <Divider /> : null}
+            </>
+          ) : null}
+
+          {sectionVisible.retry ? (
+            <>
+              <Header as='h3' className='router-section-title'>
+                {t('setting.operation.retry.title')}
+              </Header>
+              <Message info className='router-section-message'>
+                <Message.Header>
+                  {t('setting.operation.retry.description_title')}
+                </Message.Header>
+                <p>{t('setting.operation.retry.description')}</p>
+                <p>{t('setting.operation.retry.description_effective')}</p>
+                <p>{t('setting.operation.retry.description_disabled')}</p>
+              </Message>
+              <Form.Group widths={2}>
+                <Form.Input
+                  className='router-section-input'
+                  label={t('setting.operation.retry.limit')}
+                  name='RelayRetryLimit'
+                  type='number'
+                  step='1'
+                  min='0'
+                  onChange={handleInputChange}
+                  autoComplete='new-password'
+                  value={inputs.RelayRetryLimit}
+                  placeholder={t('setting.operation.retry.limit_placeholder')}
+                />
+              </Form.Group>
+              <Form.Button
+                className='router-section-button'
+                onClick={() => {
+                  saveSectionConfig('retry').then();
+                }}
+              >
+                {t('setting.operation.retry.buttons.save')}
+              </Form.Button>
+              {shouldRenderDividerAfter('retry') ? <Divider /> : null}
             </>
           ) : null}
 

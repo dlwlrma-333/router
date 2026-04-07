@@ -1728,6 +1728,18 @@
           "save": "保存监控设置"
         }
       },
+      "retry": {
+        "title": "重试配置",
+        "description_title": "请求内切换说明",
+        "description": "该配置控制同一个请求在首次上游失败后，Router 最多还能切换多少次其他渠道继续尝试。",
+        "description_effective": "只有在错误可重试、没有指定具体渠道、并且当前分组下该模型还有其他候选渠道时才会生效。",
+        "description_disabled": "设置为 0 表示关闭请求内切换。设置为 1 表示最多再切换 1 次，以此类推。候选渠道耗尽时会提前结束。",
+        "limit": "请求内切换次数",
+        "limit_placeholder": "0 表示关闭；建议从 1 或 2 开始",
+        "buttons": {
+          "save": "保存重试配置"
+        }
+      },
       "general": {
         "title": "通用设置",
         "topup_link": "充值链接",

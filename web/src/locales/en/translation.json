@@ -1730,6 +1730,18 @@
           "save": "Save Monitor Settings"
         }
       },
+      "retry": {
+        "title": "Retry Settings",
+        "description_title": "In-request switch behavior",
+        "description": "This setting controls how many times Router may switch to another channel within the same request after the first upstream failure.",
+        "description_effective": "It only takes effect when the error is retryable, no specific channel is pinned, and there are still other candidate channels for the current group and model.",
+        "description_disabled": "Set to 0 to disable in-request switching. Set to 1 to allow one additional switch, and so on. Router stops early when candidates are exhausted.",
+        "limit": "In-request switch limit",
+        "limit_placeholder": "0 disables it; start with 1 or 2",
+        "buttons": {
+          "save": "Save Retry Settings"
+        }
+      },
       "general": {
         "title": "General Settings",
         "topup_link": "Top-up Link",

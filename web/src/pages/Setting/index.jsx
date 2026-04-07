@@ -77,6 +77,7 @@ const Setting = () => {
       label: t('setting.system.runtime.title'),
       sections: [
         { key: 'monitor', label: t('setting.operation.monitor.title') },
+        { key: 'retry', label: t('setting.operation.retry.title') },
         { key: 'log', label: t('setting.operation.log.title') },
       ],
     });
@@ -103,6 +104,8 @@ const Setting = () => {
           ? 'runtime'
           : rawRequestedSection === 'log'
             ? 'runtime'
+            : rawRequestedSection === 'retry'
+              ? 'runtime'
             : 'operation'
         : rawRequestedTab === 'other'
           ? 'content'
@@ -113,6 +116,7 @@ const Setting = () => {
             : rawRequestedTab === 'notice'
               ? 'content'
               : rawRequestedTab === 'monitor' ||
+                  rawRequestedTab === 'retry' ||
                   rawRequestedTab === 'log_setting'
                 ? 'runtime'
                 : rawRequestedTab;
