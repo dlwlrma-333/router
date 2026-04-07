@@ -142,6 +142,24 @@ func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralO
 	if meta.UpstreamMode != 0 {
 		upstreamMode = meta.UpstreamMode
 	}
+	if meta.Mode == relaymode.Messages && upstreamMode == relaymode.Messages {
+		rawBody, err := common.GetRequestBody(c)
+		if err != nil {
+			return nil, err
+		}
+		jsonData, err := normalizeMessagesRequestBody(rawBody, meta.ActualModelName)
+		if err != nil {
+			return nil, err
+		}
+		logger.Debugf(
+			c.Request.Context(),
+			"[messages_body] len=%d model=%s stream=%t",
+			len(jsonData),
+			strings.TrimSpace(meta.ActualModelName),
+			meta.IsStream,
+		)
+		return bytes.NewBuffer(jsonData), nil
+	}
 	if meta.Mode == relaymode.Responses && upstreamMode == relaymode.Responses {
 		rawBody, err := common.GetRequestBody(c)
 		if err != nil {

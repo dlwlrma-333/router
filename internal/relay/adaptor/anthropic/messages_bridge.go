@@ -84,9 +84,7 @@ func convertAnthropicToolsToOpenAITools(tools []Tool) []relaymodel.Tool {
 		if tool.InputSchema.Properties != nil {
 			parameters["properties"] = tool.InputSchema.Properties
 		}
-		if tool.InputSchema.Required != nil {
-			parameters["required"] = tool.InputSchema.Required
-		}
+		parameters["required"] = normalizeToolRequired(tool.InputSchema.Required)
 		converted = append(converted, relaymodel.Tool{
 			Type: "function",
 			Function: relaymodel.Function{
@@ -100,6 +98,35 @@ func convertAnthropicToolsToOpenAITools(tools []Tool) []relaymodel.Tool {
 		return nil
 	}
 	return converted
+}
+
+func normalizeToolRequired(value any) []string {
+	switch typed := value.(type) {
+	case nil:
+		return []string{}
+	case []string:
+		result := make([]string, 0, len(typed))
+		for _, item := range typed {
+			name := strings.TrimSpace(item)
+			if name == "" {
+				continue
+			}
+			result = append(result, name)
+		}
+		return result
+	case []any:
+		result := make([]string, 0, len(typed))
+		for _, item := range typed {
+			name := strings.TrimSpace(fmt.Sprint(item))
+			if name == "" {
+				continue
+			}
+			result = append(result, name)
+		}
+		return result
+	default:
+		return []string{}
+	}
 }
 
 func convertAnthropicToolChoiceToOpenAI(choice any) any {

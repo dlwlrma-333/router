@@ -32,6 +32,27 @@ func TestResolveChannelTextUpstreamPrefersSelectedModelEndpoint(t *testing.T) {
 	}
 }
 
+func TestResolveChannelTextUpstreamPrefersSelectedMessagesEndpoint(t *testing.T) {
+	meta := &meta.Meta{
+		Mode: relaymode.Messages,
+		ChannelModelConfigs: []adminmodel.ChannelModel{{
+			Model:     "claude-sonnet-4-6",
+			Type:      adminmodel.ProviderModelTypeText,
+			Selected:  true,
+			Endpoint:  adminmodel.ChannelModelEndpointMessages,
+			SortOrder: 1,
+		}},
+	}
+
+	mode, path, err := resolveChannelTextUpstream(meta, "claude-sonnet-4-6", "claude-sonnet-4-6")
+	if err != nil {
+		t.Fatalf("resolveChannelTextUpstream returned error: %v", err)
+	}
+	if mode != relaymode.Messages || path != adminmodel.ChannelModelEndpointMessages {
+		t.Fatalf("resolveChannelTextUpstream selected messages = (%d, %q), want (%d, %q)", mode, path, relaymode.Messages, adminmodel.ChannelModelEndpointMessages)
+	}
+}
+
 func TestResolveChannelTextUpstreamFallsBackToSelectedModels(t *testing.T) {
 	meta := &meta.Meta{
 		Mode: relaymode.ChatCompletions,
@@ -69,7 +90,7 @@ func TestResolveChannelTextUpstreamRejectsResponsesWhenChannelOnlySupportsChat(t
 	}
 }
 
-func TestResolveChannelTextUpstreamAnthropicForcesChatUpstream(t *testing.T) {
+func TestResolveChannelTextUpstreamAnthropicForcesMessagesUpstream(t *testing.T) {
 	meta := &meta.Meta{
 		Mode:    relaymode.Messages,
 		APIType: apitype.Anthropic,
@@ -85,8 +106,8 @@ func TestResolveChannelTextUpstreamAnthropicForcesChatUpstream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveChannelTextUpstream returned error: %v", err)
 	}
-	if mode != relaymode.ChatCompletions || path != adminmodel.ChannelModelEndpointChat {
-		t.Fatalf("resolveChannelTextUpstream anthropic selected = (%d, %q), want (%d, %q)", mode, path, relaymode.ChatCompletions, adminmodel.ChannelModelEndpointChat)
+	if mode != relaymode.Messages || path != adminmodel.ChannelModelEndpointMessages {
+		t.Fatalf("resolveChannelTextUpstream anthropic selected = (%d, %q), want (%d, %q)", mode, path, relaymode.Messages, adminmodel.ChannelModelEndpointMessages)
 	}
 }
 
@@ -173,5 +194,24 @@ func TestNormalizeResponsesRequestBodyPreservesUnknownFields(t *testing.T) {
 	}
 	if first["role"] != "user" || first["content"] != "hello" {
 		t.Fatalf("payload.input[0] = %#v, want user message", first)
+	}
+}
+
+func TestNormalizeMessagesRequestBodyUpdatesModel(t *testing.T) {
+	raw := []byte(`{"model":"claude-old","messages":[{"role":"user","content":"hello"}],"stream":true}`)
+	normalized, err := normalizeMessagesRequestBody(raw, "claude-sonnet-4-6")
+	if err != nil {
+		t.Fatalf("normalizeMessagesRequestBody returned error: %v", err)
+	}
+
+	payload := map[string]any{}
+	if err := json.Unmarshal(normalized, &payload); err != nil {
+		t.Fatalf("json.Unmarshal normalized body returned error: %v", err)
+	}
+	if payload["model"] != "claude-sonnet-4-6" {
+		t.Fatalf("payload.model = %#v, want %q", payload["model"], "claude-sonnet-4-6")
+	}
+	if payload["stream"] != true {
+		t.Fatalf("payload.stream = %#v, want true", payload["stream"])
 	}
 }

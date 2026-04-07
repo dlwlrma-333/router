@@ -73,6 +73,10 @@ func TestParseMessagesRequestToGeneralOpenAIRequestBasic(t *testing.T) {
 	if params["type"] != "object" {
 		t.Fatalf("params[type] = %#v, want %q", params["type"], "object")
 	}
+	required, ok := params["required"].([]string)
+	if !ok || len(required) != 1 || required[0] != "city" {
+		t.Fatalf("params[required] = %#v, want [city]", params["required"])
+	}
 	stop, ok := request.Stop.([]string)
 	if !ok || len(stop) != 1 || stop[0] != "\n\nHuman:" {
 		t.Fatalf("request.Stop = %#v, want stop_sequences", request.Stop)
@@ -87,6 +91,53 @@ func TestParseMessagesRequestToGeneralOpenAIRequestBasic(t *testing.T) {
 	function, ok := toolChoice["function"].(map[string]any)
 	if !ok || function["name"] != "get_weather" {
 		t.Fatalf("toolChoice[function] = %#v, want get_weather", toolChoice["function"])
+	}
+}
+
+func TestParseMessagesRequestToGeneralOpenAIRequestRequiredDefaultsToEmptyArray(t *testing.T) {
+	raw := []byte(`{
+		"model":"claude-sonnet-4-6",
+		"messages":[{"role":"user","content":"hello"}],
+		"tools":[
+			{
+				"name":"no_required",
+				"description":"tool without required",
+				"input_schema":{
+					"type":"object",
+					"properties":{"q":{"type":"string"}}
+				}
+			},
+			{
+				"name":"null_required",
+				"description":"tool with null required",
+				"input_schema":{
+					"type":"object",
+					"properties":{"q":{"type":"string"}},
+					"required":null
+				}
+			}
+		]
+	}`)
+
+	request, err := ParseMessagesRequestToGeneralOpenAIRequest(raw)
+	if err != nil {
+		t.Fatalf("ParseMessagesRequestToGeneralOpenAIRequest returned error: %v", err)
+	}
+	if len(request.Tools) != 2 {
+		t.Fatalf("len(request.Tools) = %d, want 2", len(request.Tools))
+	}
+	for i, tool := range request.Tools {
+		params, ok := tool.Function.Parameters.(map[string]any)
+		if !ok {
+			t.Fatalf("request.Tools[%d].Function.Parameters = %#v, want map", i, tool.Function.Parameters)
+		}
+		required, ok := params["required"].([]string)
+		if !ok {
+			t.Fatalf("request.Tools[%d].Function.Parameters.required = %#v, want []string{}", i, params["required"])
+		}
+		if len(required) != 0 {
+			t.Fatalf("request.Tools[%d].Function.Parameters.required = %#v, want empty array", i, required)
+		}
 	}
 }
 
