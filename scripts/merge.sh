@@ -18,8 +18,8 @@ INTERACTIVE="${INTERACTIVE:-true}"
 # 非交互模式下，是否自动使用最近提交信息填充 PR 标题和描述
 AUTO_FILL_PR="${AUTO_FILL_PR:-true}"
 
-# 若设置为 true，检测到 GH_TOKEN 时优先使用 gh auth login 的本地凭据
-PREFER_GH_AUTH_LOGIN="${PREFER_GH_AUTH_LOGIN:-true}"
+# 若设置为 true，检测到 GH_TOKEN 时仍优先使用 gh auth login 的本地凭据
+PREFER_GH_AUTH_LOGIN="${PREFER_GH_AUTH_LOGIN:-false}"
 
 # =============================================
 
@@ -266,14 +266,18 @@ if ! command -v gh >/dev/null 2>&1; then
   install_gh
 fi
 
-if [ "$PREFER_GH_AUTH_LOGIN" = "true" ] && [ -n "${GH_TOKEN:-}" ]; then
-  info "检测到 GH_TOKEN。为避免 token 权限不足，默认忽略 GH_TOKEN，改用 gh auth login 凭据。"
-  unset GH_TOKEN
-fi
+if [ -n "${GH_TOKEN:-}" ] && [ "$PREFER_GH_AUTH_LOGIN" != "true" ]; then
+  info "检测到 GH_TOKEN，将优先使用 GH_TOKEN 调用 gh。"
+else
+  if [ "$PREFER_GH_AUTH_LOGIN" = "true" ] && [ -n "${GH_TOKEN:-}" ]; then
+    info "检测到 GH_TOKEN，但已配置优先使用 gh auth login 本地凭据。"
+    unset GH_TOKEN
+  fi
 
-if ! gh auth status -h github.com >/dev/null 2>&1; then
-  info "未检测到 gh 登录状态，请先执行：gh auth login -h github.com -s repo"
-  exit 1
+  if ! gh auth status -h github.com >/dev/null 2>&1; then
+    info "未检测到 gh 登录状态，请先执行：gh auth login -h github.com -s repo"
+    exit 1
+  fi
 fi
 
 # 3. 当前分支 & 工作区状态检查
