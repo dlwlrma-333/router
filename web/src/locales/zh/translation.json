@@ -497,7 +497,7 @@
       },
       "model_tester": {
         "title": "模型测试",
-        "hint": "展示第二步中已选模型，并为每个模型配置实际测试端点。文本模型默认测试 /v1/responses，也可以切换为 /v1/chat/completions；其他类型使用固定端点。支持单条测试，也支持勾选多条批量测试。",
+        "hint": "展示第二步中已选模型，并为每个模型配置实际测试端点。文本模型默认测试 /v1/responses，也可以切换为 /v1/chat/completions 或 /v1/messages；其他类型使用固定端点。支持单条测试，也支持勾选多条批量测试。",
         "button": "测试选中模型",
         "single": "测试",
         "task_created": "已提交 {{count}} 个测试任务，其中复用 {{reused}} 个运行中任务。",

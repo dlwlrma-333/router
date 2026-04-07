@@ -183,7 +183,9 @@ func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralO
 		meta.APIType == apitype.OpenAI &&
 		meta.OriginModelName == meta.ActualModelName &&
 		meta.ChannelProtocol != relaychannel.Baichuan &&
-		meta.ForcedSystemPrompt == "" {
+		meta.ForcedSystemPrompt == "" &&
+		meta.Mode == upstreamMode &&
+		meta.Mode != relaymode.Messages {
 		// no need to convert request for openai
 		return c.Request.Body, nil
 	}

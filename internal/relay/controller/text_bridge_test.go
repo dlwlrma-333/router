@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	adminmodel "github.com/yeying-community/router/internal/admin/model"
+	"github.com/yeying-community/router/internal/relay/apitype"
 	"github.com/yeying-community/router/internal/relay/meta"
 	relaymodel "github.com/yeying-community/router/internal/relay/model"
 	"github.com/yeying-community/router/internal/relay/relaymode"
@@ -65,6 +66,39 @@ func TestResolveChannelTextUpstreamRejectsResponsesWhenChannelOnlySupportsChat(t
 	_, _, err := resolveChannelTextUpstream(meta, "gpt-4.1", "gpt-4.1")
 	if err == nil {
 		t.Fatalf("resolveChannelTextUpstream returned nil error, want unsupported responses endpoint")
+	}
+}
+
+func TestResolveChannelTextUpstreamAnthropicForcesChatUpstream(t *testing.T) {
+	meta := &meta.Meta{
+		Mode:    relaymode.Messages,
+		APIType: apitype.Anthropic,
+		ChannelModelConfigs: []adminmodel.ChannelModel{{
+			Model:    "claude-sonnet-4-6",
+			Type:     adminmodel.ProviderModelTypeText,
+			Selected: true,
+			Endpoint: adminmodel.ChannelModelEndpointResponses,
+		}},
+	}
+
+	mode, path, err := resolveChannelTextUpstream(meta, "claude-sonnet-4-6", "claude-sonnet-4-6")
+	if err != nil {
+		t.Fatalf("resolveChannelTextUpstream returned error: %v", err)
+	}
+	if mode != relaymode.ChatCompletions || path != adminmodel.ChannelModelEndpointChat {
+		t.Fatalf("resolveChannelTextUpstream anthropic selected = (%d, %q), want (%d, %q)", mode, path, relaymode.ChatCompletions, adminmodel.ChannelModelEndpointChat)
+	}
+}
+
+func TestResolveChannelTextUpstreamAnthropicRejectsResponsesMode(t *testing.T) {
+	meta := &meta.Meta{
+		Mode:    relaymode.Responses,
+		APIType: apitype.AwsClaude,
+	}
+
+	_, _, err := resolveChannelTextUpstream(meta, "claude-sonnet-4-6", "claude-sonnet-4-6")
+	if err == nil {
+		t.Fatalf("resolveChannelTextUpstream returned nil error for anthropic responses mode")
 	}
 }
 

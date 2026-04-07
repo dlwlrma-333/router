@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	adminmodel "github.com/yeying-community/router/internal/admin/model"
+	"github.com/yeying-community/router/internal/relay/apitype"
 	"github.com/yeying-community/router/internal/relay/meta"
 	relaymodel "github.com/yeying-community/router/internal/relay/model"
 	"github.com/yeying-community/router/internal/relay/relaymode"
@@ -193,6 +194,12 @@ func parseInputAsMessages(input any) []relaymodel.Message {
 
 func resolveChannelTextUpstream(meta *meta.Meta, originModelName string, actualModelName string) (int, string, error) {
 	if meta == nil {
+		return relaymode.ChatCompletions, adminmodel.ChannelModelEndpointChat, nil
+	}
+	if meta.APIType == apitype.Anthropic || meta.APIType == apitype.AwsClaude {
+		if meta.Mode == relaymode.Responses {
+			return 0, "", fmt.Errorf("channel does not support %s", adminmodel.ChannelModelEndpointResponses)
+		}
 		return relaymode.ChatCompletions, adminmodel.ChannelModelEndpointChat, nil
 	}
 	if row, ok := adminmodel.FindSelectedChannelModelConfig(meta.ChannelModelConfigs, originModelName, actualModelName); ok {

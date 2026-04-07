@@ -15,6 +15,7 @@ import (
 	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/common/logger"
 	"github.com/yeying-community/router/internal/admin/model"
+	"github.com/yeying-community/router/internal/relay/adaptor/anthropic"
 	"github.com/yeying-community/router/internal/relay/adaptor/openai"
 	"github.com/yeying-community/router/internal/relay/billing"
 	relaychannel "github.com/yeying-community/router/internal/relay/channel"
@@ -25,10 +26,25 @@ import (
 )
 
 func getAndValidateTextRequest(c *gin.Context, relayMode int) (*relaymodel.GeneralOpenAIRequest, error) {
-	textRequest := &relaymodel.GeneralOpenAIRequest{}
-	err := common.UnmarshalBodyReusable(c, textRequest)
-	if err != nil {
-		return nil, err
+	var (
+		textRequest *relaymodel.GeneralOpenAIRequest
+		err         error
+	)
+	if relayMode == relaymode.Messages {
+		requestBody, getErr := common.GetRequestBody(c)
+		if getErr != nil {
+			return nil, getErr
+		}
+		textRequest, err = anthropic.ParseMessagesRequestToGeneralOpenAIRequest(requestBody)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		textRequest = &relaymodel.GeneralOpenAIRequest{}
+		err = common.UnmarshalBodyReusable(c, textRequest)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if relayMode == relaymode.Moderations && textRequest.Model == "" {
 		textRequest.Model = "text-moderation-latest"
@@ -46,6 +62,8 @@ func getAndValidateTextRequest(c *gin.Context, relayMode int) (*relaymodel.Gener
 func getPromptTokens(textRequest *relaymodel.GeneralOpenAIRequest, relayMode int) int {
 	switch relayMode {
 	case relaymode.ChatCompletions:
+		return openai.CountTokenMessages(textRequest.Messages, textRequest.Model)
+	case relaymode.Messages:
 		return openai.CountTokenMessages(textRequest.Messages, textRequest.Model)
 	case relaymode.Responses:
 		if len(textRequest.Messages) > 0 {
