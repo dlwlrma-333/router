@@ -145,6 +145,13 @@ const formatChannelDisplayName = (item) => {
   return item.name || item.id || '-';
 };
 
+const summarizeGroupChannels = (items, maxVisible = 2) => {
+  const channels = Array.isArray(items) ? items : [];
+  const visible = channels.slice(0, Math.max(0, maxVisible));
+  const hiddenCount = Math.max(0, channels.length - visible.length);
+  return { visible, hiddenCount };
+};
+
 const channelStatusColor = (status) => {
   const normalized = Number(status || 0);
   if (normalized === 1) return 'green';
@@ -967,17 +974,24 @@ const GroupsManager = ({ detailGroupId = '' }) => {
                 <Table.Cell>{row.name || '-'}</Table.Cell>
                 <Table.Cell>{row.description || '-'}</Table.Cell>
                 <Table.Cell>
-                  {Array.isArray(row.channels) && row.channels.length > 0 ? (
-                    <div className='router-tag-group'>
-                      {row.channels.map((item) => (
-                        <Label key={item.id} className='router-tag'>
-                          {formatChannelDisplayName(item)}
-                        </Label>
-                      ))}
-                    </div>
-                  ) : (
-                    '-'
-                  )}
+                  {(() => {
+                    const { visible, hiddenCount } = summarizeGroupChannels(row.channels, 2);
+                    if (visible.length === 0) {
+                      return '-';
+                    }
+                    return (
+                      <div className='router-tag-group'>
+                        {visible.map((item) => (
+                          <Label key={item.id} className='router-tag'>
+                            {formatChannelDisplayName(item)}
+                          </Label>
+                        ))}
+                        {hiddenCount > 0 ? (
+                          <Label className='router-tag'>... +{hiddenCount}</Label>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
                 </Table.Cell>
                 <Table.Cell>{Number(row.billing_ratio ?? 1).toFixed(2)}</Table.Cell>
                 <Table.Cell>{renderGroupStatus(row.enabled)}</Table.Cell>
