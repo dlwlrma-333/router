@@ -1029,6 +1029,10 @@ function protocol2secretPrompt(protocol, t) {
   }
 }
 
+function protocolSelectionHint(t) {
+  return t('channel.edit.protocol_hint');
+}
+
 const resolveProtocolFromChannelPayload = (payload) => {
   const protocol = (payload?.protocol || '').toString().trim().toLowerCase();
   if (protocol !== '') {
@@ -4301,6 +4305,19 @@ const EditChannel = () => {
                       )}
                     </Form.Field>
                   </Form.Group>
+                  {!detailBasicReadonly && (
+                    <div
+                      style={{
+                        marginTop: '-6px',
+                        marginBottom: '12px',
+                        color: 'var(--router-text-muted, rgba(0,0,0,0.45))',
+                        fontSize: '12px',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {protocolSelectionHint(t)}
+                    </div>
+                  )}
                   {baseURLField && keyField ? (
                     <Form.Group widths='equal'>
                       {baseURLField}
@@ -4560,6 +4577,19 @@ const EditChannel = () => {
                       )}
                     </Form.Field>
                   </Form.Group>
+                  {!detailBasicReadonly && (
+                    <div
+                      style={{
+                        marginTop: '-6px',
+                        marginBottom: '12px',
+                        color: 'var(--router-text-muted, rgba(0,0,0,0.45))',
+                        fontSize: '12px',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {protocolSelectionHint(t)}
+                    </div>
+                  )}
                   {baseURLField && keyField ? (
                     <Form.Group widths='equal'>
                       {baseURLField}
