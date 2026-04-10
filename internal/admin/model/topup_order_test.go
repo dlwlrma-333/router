@@ -51,6 +51,9 @@ func TestBuildTopupOrderRedirectURL(t *testing.T) {
 	if got := query.Get("merchant_app"); got != "router" {
 		t.Fatalf("expected merchant_app=router, got %q", got)
 	}
+	if got := query.Get("operation_type"); got != TopupOrderOperationTopup {
+		t.Fatalf("expected operation_type=%s, got %q", TopupOrderOperationTopup, got)
+	}
 	if got := query.Get("sign"); got == "" {
 		t.Fatal("expected sign to be set")
 	}
@@ -154,10 +157,10 @@ func TestResolveTopupOrderOperationType(t *testing.T) {
 		wantResult   string
 	}{
 		{
-			name:         "balance does not carry operation",
+			name:         "balance enforces topup operation",
 			businessType: TopupOrderBusinessBalance,
 			value:        TopupOrderOperationUpgrade,
-			wantResult:   "",
+			wantResult:   TopupOrderOperationTopup,
 		},
 		{
 			name:         "explicit renew",
@@ -184,6 +187,22 @@ func TestResolveTopupOrderOperationType(t *testing.T) {
 				t.Fatalf("expected %q, got %q", tt.wantResult, got)
 			}
 		})
+	}
+}
+
+func TestBuildTopupOrderPlanTitle(t *testing.T) {
+	plan := ResolvedTopupPlan{
+		TopupPlan: TopupPlan{
+			Name:           "基础版",
+			GroupName:      "enterprise",
+			Amount:         1,
+			AmountCurrency: BillingCurrencyCodeCNY,
+			QuotaAmount:    20,
+			QuotaCurrency:  BillingCurrencyCodeUSD,
+		},
+	}
+	if got, want := buildTopupOrderPlanTitle(plan), "1 元 / 20 USD / 基础版"; got != want {
+		t.Fatalf("unexpected title: got %q want %q", got, want)
 	}
 }
 

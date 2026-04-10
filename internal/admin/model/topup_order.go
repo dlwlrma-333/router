@@ -30,6 +30,7 @@ const (
 	TopupOrderBusinessBalance  = "balance_topup"
 	TopupOrderBusinessPackage  = "package_purchase"
 	TopupOrderCurrencyCNY      = "CNY"
+	TopupOrderOperationTopup   = "topup"
 	TopupOrderOperationNew     = "new_purchase"
 	TopupOrderOperationRenew   = "renew"
 	TopupOrderOperationUpgrade = "upgrade"
@@ -188,13 +189,19 @@ func normalizeTopupOrderOperationType(value string) string {
 }
 
 func resolveTopupOrderOperationType(businessType string, value string) string {
-	if strings.TrimSpace(businessType) != TopupOrderBusinessPackage {
+	switch strings.TrimSpace(businessType) {
+	case TopupOrderBusinessBalance:
+		// Balance top-up always carries a fixed operation type so it can be
+		// explicitly included in upstream signatures.
+		return TopupOrderOperationTopup
+	case TopupOrderBusinessPackage:
+		if normalized := normalizeTopupOrderOperationType(value); normalized != "" {
+			return normalized
+		}
+		return TopupOrderOperationNew
+	default:
 		return ""
 	}
-	if normalized := normalizeTopupOrderOperationType(value); normalized != "" {
-		return normalized
-	}
-	return TopupOrderOperationNew
 }
 
 func resolveTopupOrderBusinessType(value string, packageID string) string {
@@ -205,6 +212,35 @@ func resolveTopupOrderBusinessType(value string, packageID string) string {
 		return TopupOrderBusinessPackage
 	}
 	return TopupOrderBusinessBalance
+}
+
+func topupOrderAmountCurrencyLabel(code string) string {
+	normalized := normalizeBillingCurrencyCode(code)
+	if normalized == BillingCurrencyCodeCNY {
+		return "元"
+	}
+	return normalized
+}
+
+func buildTopupOrderPlanTitle(plan ResolvedTopupPlan) string {
+	amountPart := strings.TrimSpace(
+		formatTopupPlanNumber(plan.Amount) + " " + topupOrderAmountCurrencyLabel(plan.AmountCurrency),
+	)
+	quotaPart := strings.TrimSpace(
+		formatTopupPlanNumber(plan.QuotaAmount) + " " + normalizeBillingCurrencyCode(plan.QuotaCurrency),
+	)
+	planName := strings.TrimSpace(plan.Name)
+	parts := make([]string, 0, 3)
+	if amountPart != "" {
+		parts = append(parts, amountPart)
+	}
+	if quotaPart != "" {
+		parts = append(parts, quotaPart)
+	}
+	if planName != "" {
+		parts = append(parts, planName)
+	}
+	return strings.Join(parts, " / ")
 }
 
 func resolvePackagePurchaseOperationType(requestedOperationType string, activeSubscription *UserPackageSubscription, targetPackageID string) string {
@@ -516,14 +552,16 @@ func buildTopupOrderRedirectURL(baseLink string, order TopupOrder) (string, erro
 	if parsed.Scheme == "" || parsed.Host == "" {
 		return "", fmt.Errorf("充值链接配置无效")
 	}
+	normalizedBusinessType := resolveTopupOrderBusinessType(order.BusinessType, order.PackageID)
+	normalizedOperationType := resolveTopupOrderOperationType(normalizedBusinessType, order.OperationType)
 	payload := map[string]string{
 		"merchant_app":   config.TopUpMerchantAppValue(),
 		"order_id":       strings.TrimSpace(order.Id),
 		"transaction_id": strings.TrimSpace(order.TransactionID),
 		"user_id":        strings.TrimSpace(order.UserID),
 		"username":       strings.TrimSpace(order.Username),
-		"business_type":  strings.TrimSpace(order.BusinessType),
-		"operation_type": strings.TrimSpace(order.OperationType),
+		"business_type":  normalizedBusinessType,
+		"operation_type": normalizedOperationType,
 		"title":          strings.TrimSpace(order.Title),
 		"amount":         fmt.Sprintf("%.2f", order.Amount),
 		"currency":       strings.TrimSpace(order.Currency),
@@ -606,10 +644,7 @@ func CreateTopupOrderWithDB(db *gorm.DB, userID string, username string, input C
 			if strings.TrimSpace(input.Title) != "" {
 				order.Title = strings.TrimSpace(input.Title)
 			} else {
-				order.Title = resolvedPlan.Name + " / " + formatTopupPlanNumber(resolvedPlan.QuotaAmount) + " " + resolvedPlan.QuotaCurrency
-				if strings.TrimSpace(resolvedPlan.GroupName) != "" {
-					order.Title += " / " + strings.TrimSpace(resolvedPlan.GroupName)
-				}
+				order.Title = buildTopupOrderPlanTitle(resolvedPlan)
 			}
 		} else {
 			order.Currency = BillingCurrencyCodeCNY
