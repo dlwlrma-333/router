@@ -1,7 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Label, Modal, Pagination, Table } from 'semantic-ui-react';
+import {
+  Button,
+  Card,
+  Label,
+  Modal,
+  Pagination,
+  Popup,
+  Table,
+} from 'semantic-ui-react';
 import { API, timestamp2string, showError, showSuccess } from '../../helpers';
 import {
   formatTopupBusinessType,
@@ -434,12 +442,31 @@ const TopUpRecordsPage = ({ recordKey = 'topup' }) => {
                         {formatTopupBusinessType(order.business_type, t)}
                       </Table.Cell>
                       <Table.Cell>
-                        <div>{renderTopupOrderStatus(order.status, t)}</div>
-                        {!isPackageRecord && formatTopupOrderStatusHint(order.status, t) ? (
-                          <div className='router-text-muted' style={{ marginTop: '0.35rem' }}>
-                            {formatTopupOrderStatusHint(order.status, t)}
-                          </div>
-                        ) : null}
+                        {(() => {
+                          const statusNode = renderTopupOrderStatus(order.status, t);
+                          const statusHint =
+                            !isPackageRecord
+                              ? formatTopupOrderStatusHint(order.status, t)
+                              : '';
+                          if (!statusHint) {
+                            return statusNode;
+                          }
+                          return (
+                            <Popup
+                              content={statusHint}
+                              trigger={
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    cursor: 'help',
+                                  }}
+                                >
+                                  {statusNode}
+                                </span>
+                              }
+                            />
+                          );
+                        })()}
                       </Table.Cell>
                       <Table.Cell>
                         {order.amount > 0
