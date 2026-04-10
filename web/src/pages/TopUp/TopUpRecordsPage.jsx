@@ -318,8 +318,8 @@ const TopUpRecordsPage = ({ recordKey = 'topup' }) => {
                   <Table.HeaderCell width={2}>
                     {t('topup.redemption_records.columns.amount')}
                   </Table.HeaderCell>
-                  <Table.HeaderCell>
-                    {t('topup.redemption_records.columns.detail')}
+                  <Table.HeaderCell width={3}>
+                    {t('topup.redemption_records.columns.redemption_code')}
                   </Table.HeaderCell>
                 </Table.Row>
               </Table.Header>
@@ -350,35 +350,7 @@ const TopUpRecordsPage = ({ recordKey = 'topup' }) => {
                         )}
                       </Table.Cell>
                       <Table.Cell>
-                        {(() => {
-                          const detailTitle =
-                            log.redemptionName ||
-                            log.redemptionCode ||
-                            log.detailText ||
-                            '-';
-                          const detailParts = [];
-                          if (log.redemptionCode) {
-                            detailParts.push(log.redemptionCode);
-                          }
-                          if (log.faceValueAmount > 0) {
-                            detailParts.push(
-                              `${log.faceValueAmount} ${log.faceValueUnit || 'YYC'}`,
-                            );
-                          }
-                          if (log.groupName) {
-                            detailParts.push(log.groupName);
-                          }
-                          return (
-                            <>
-                              <div>{detailTitle}</div>
-                              {detailParts.length > 0 ? (
-                                <div className='router-text-muted'>
-                                  {detailParts.join(' / ')}
-                                </div>
-                              ) : null}
-                            </>
-                          );
-                        })()}
+                        {log.redemptionCode || '-'}
                       </Table.Cell>
                     </Table.Row>
                   ))

@@ -179,8 +179,8 @@
       "detail_title_topup": "Top-up Detail",
       "detail_title_package": "Purchase Detail",
       "detail_path": "Detail",
-      "detail_path_topup": "Top-up Detail",
-      "detail_path_package": "Purchase Detail",
+      "detail_path_topup": "Top-up",
+      "detail_path_package": "Purchase",
       "fields": {
         "title": "Order Title",
         "provider_order_id": "Provider Order ID",
@@ -211,7 +211,8 @@
       "columns": {
         "time": "Time",
         "amount": "Credited Amount",
-        "detail": "Detail"
+        "detail": "Detail",
+        "redemption_code": "Code"
       }
     },
     "redemption_result": {
