@@ -81,11 +81,6 @@ export const ADMIN_MENU_GROUPS = [
         icon: 'credit card',
       },
       {
-        name: 'flow.topup_reconcile.title',
-        to: '/admin/flow/topup-reconcile',
-        icon: 'heartbeat',
-      },
-      {
         name: 'flow.package.title',
         to: '/admin/flow/package',
         icon: 'gift',
@@ -94,6 +89,11 @@ export const ADMIN_MENU_GROUPS = [
         name: 'flow.redemption.title',
         to: '/admin/flow/redemption',
         icon: 'exchange',
+      },
+      {
+        name: 'flow.topup_reconcile.title',
+        to: '/admin/flow/topup-reconcile',
+        icon: 'heartbeat',
       },
     ],
   },

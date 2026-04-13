@@ -77,9 +77,10 @@ if (isMobile()) {
   // showNoticeOptions.transition = 'flip';
 }
 
-export function showError(error) {
+export function showError(error, options = {}) {
   if (!error) return;
   console.error(error);
+  const mergedErrorOptions = { ...showErrorOptions, ...options };
   if (error.message) {
     if (error.name === 'AxiosError') {
       switch (error.response.status) {
@@ -88,22 +89,22 @@ export function showError(error) {
           window.location.href = `/login?expired=${Date.now()}`;
           break;
         case 429:
-          toast.error('请求次数过多，请稍后再试！', showErrorOptions);
+          toast.error('请求次数过多，请稍后再试！', mergedErrorOptions);
           break;
         case 500:
-          toast.error('服务器内部错误，请联系管理员！', showErrorOptions);
+          toast.error('服务器内部错误，请联系管理员！', mergedErrorOptions);
           break;
         case 405:
           toast.info('本站仅作演示之用，无服务端！');
           break;
         default:
-          toast.error(error.message, showErrorOptions);
+          toast.error(error.message, mergedErrorOptions);
       }
       return;
     }
-    toast.error(error.message, showErrorOptions);
+    toast.error(error.message, mergedErrorOptions);
   } else {
-    toast.error(`${error}`, showErrorOptions);
+    toast.error(`${error}`, mergedErrorOptions);
   }
 }
 

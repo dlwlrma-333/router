@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { UserContext } from '../context/User';
 import { StatusContext } from '../context/Status';
 import { API, getLogo, showError } from '../helpers';
+import { toastConstants } from '../constants';
 import { loginWithWallet } from '../services/web3Auth';
 import './LoginForm.css';
 
@@ -47,7 +48,9 @@ const LoginForm = () => {
       const lastMarker = sessionStorage.getItem('last_login_expired_marker');
       if (lastMarker !== expiredMarker) {
         sessionStorage.setItem('last_login_expired_marker', expiredMarker);
-        showError(t('messages.error.login_expired'));
+        showError(t('messages.error.login_expired'), {
+          autoClose: Math.floor(toastConstants.ERROR_TIMEOUT / 2),
+        });
       }
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete('expired');
