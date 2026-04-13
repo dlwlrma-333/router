@@ -447,6 +447,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				).Error
 			},
 		},
+		{
+			Version:     "202604131130_topup_validity_balance_lots",
+			Description: "add topup plan validity and per-credit user balance lots",
+			Up: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&TopupPlan{}, &TopupOrder{}, &UserBalanceLot{})
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }

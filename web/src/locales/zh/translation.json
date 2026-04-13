@@ -134,7 +134,30 @@
         "group": "分组",
         "pay_amount": "支付金额",
         "credited_amount": "到账额度",
-        "enabled": "状态"
+        "enabled": "状态",
+        "validity_days": "有效期（天）"
+      }
+    },
+    "balance_lots": {
+      "title": "余额批次",
+      "empty": "暂无有效余额批次",
+      "columns": {
+        "source": "来源",
+        "remaining": "剩余",
+        "total": "总额",
+        "status": "状态",
+        "granted_at": "生效时间",
+        "expires_at": "到期时间"
+      },
+      "source": {
+        "topup_order": "充值",
+        "redemption": "兑换",
+        "legacy_migration": "历史迁移"
+      },
+      "status": {
+        "active": "有效",
+        "exhausted": "已用尽",
+        "expired": "已过期"
       }
     },
     "pricing": {
@@ -250,11 +273,11 @@
     },
     "topup": {
       "title": "充值",
-      "search_placeholder": "搜索用户、订单号、交易号、兑换名称...",
+      "search_placeholder": "搜索用户、订单号、交易号、状态...",
       "empty": "暂无充值记录",
       "columns": {
         "source": "来源",
-        "redemption": "关联兑换",
+        "amount": "额度",
         "order": "订单信息"
       }
     },
@@ -1018,6 +1041,8 @@
     "operation": "操作",
     "save": "保存",
     "unlimited": "不限额",
+    "day": "天",
+    "never": "永久",
     "quota": {
       "display": "等价金额：${{amount}}",
       "display_short": "${{amount}}",
@@ -1296,6 +1321,25 @@
       "package_timezone": "重置时区",
       "package_started_at": "生效时间",
       "package_expires_at": "到期时间",
+      "balance_lots": {
+        "title": "余额批次",
+        "empty": "暂无符合条件的余额批次",
+        "columns": {
+          "source": "来源",
+          "source_id": "来源ID",
+          "remaining": "剩余",
+          "total": "总额",
+          "status": "状态",
+          "granted_at": "生效时间",
+          "expires_at": "到期时间"
+        },
+        "filters": {
+          "all_source": "全部来源",
+          "all_status": "全部状态",
+          "positive_only_yes": "仅看有剩余",
+          "positive_only_no": "包含已清零"
+        }
+      },
       "package_none": "未开通套餐",
       "package_status_types": {
         "active": "生效中",

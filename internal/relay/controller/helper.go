@@ -104,6 +104,9 @@ func preConsumeQuota(ctx context.Context, textRequest *relaymodel.GeneralOpenAIR
 		}
 		return preConsumedQuota, nil
 	}
+	if _, expireErr := model.ExpireUserBalanceLots(meta.UserId); expireErr != nil {
+		logger.Error(ctx, "expire user balance lots failed: "+expireErr.Error())
+	}
 
 	userQuota, err := model.CacheGetUserQuota(ctx, meta.UserId)
 	if err != nil {
@@ -185,6 +188,14 @@ func postConsumeQuota(ctx context.Context, usage *relaymodel.Usage, meta *meta.M
 		err = model.CacheUpdateUserQuota(ctx, meta.UserId)
 		if err != nil {
 			logger.Error(ctx, "error update user quota cache: "+err.Error())
+		}
+		if quota > 0 {
+			consumedFromLots, consumeErr := model.ConsumeUserBalanceLots(meta.UserId, quota)
+			if consumeErr != nil {
+				logger.Error(ctx, "error consuming user balance lots: "+consumeErr.Error())
+			} else if consumedFromLots < quota {
+				logger.Warnf(ctx, "user balance lot coverage partial user=%s consumed=%d requested=%d", strings.TrimSpace(meta.UserId), consumedFromLots, quota)
+			}
 		}
 	}
 	userDailyQuota := 0

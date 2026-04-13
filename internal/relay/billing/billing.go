@@ -65,6 +65,14 @@ func PostConsumeQuota(ctx context.Context, tokenId string, quotaDelta int64, tot
 		if err != nil {
 			logger.SysError("error update user quota cache: " + err.Error())
 		}
+		if totalQuota > 0 {
+			consumedFromLots, consumeErr := model.ConsumeUserBalanceLots(userId, totalQuota)
+			if consumeErr != nil {
+				logger.Error(ctx, "error consuming user balance lots: "+consumeErr.Error())
+			} else if consumedFromLots < totalQuota {
+				logger.Warnf(ctx, "user balance lot coverage partial user=%s consumed=%d requested=%d", strings.TrimSpace(userId), consumedFromLots, totalQuota)
+			}
+		}
 	}
 	userDailyQuota := 0
 	userEmergencyQuota := 0

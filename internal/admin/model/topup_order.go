@@ -52,6 +52,9 @@ type TopupOrder struct {
 	Amount          float64 `json:"amount" gorm:"type:decimal(10,2);default:0"`
 	Currency        string  `json:"currency" gorm:"type:varchar(16);default:'CNY'"`
 	Quota           int64   `json:"quota" gorm:"type:bigint;default:0"`
+	TopupPlanID     string  `json:"topup_plan_id" gorm:"type:char(36);default:'';index"`
+	ValidityDays    int     `json:"validity_days" gorm:"type:int;not null;default:0"`
+	CreditExpiresAt int64   `json:"credit_expires_at" gorm:"bigint;not null;default:0;index"`
 	PackageID       string  `json:"package_id" gorm:"type:char(36);default:'';index"`
 	PackageName     string  `json:"package_name" gorm:"type:varchar(255);default:''"`
 	ClientType      string  `json:"client_type" gorm:"-"`
@@ -134,6 +137,11 @@ func normalizeTopupOrderRow(row *TopupOrder) {
 	row.Amount = normalizeTopupOrderAmount(row.Amount)
 	row.Currency = normalizeTopupOrderCurrency(row.Currency)
 	row.Quota = normalizeTopupOrderQuota(row.Quota)
+	row.TopupPlanID = strings.TrimSpace(row.TopupPlanID)
+	row.ValidityDays = normalizeTopupPlanValidityDays(row.ValidityDays)
+	if row.CreditExpiresAt < 0 {
+		row.CreditExpiresAt = 0
+	}
 	row.PackageID = strings.TrimSpace(row.PackageID)
 	row.PackageName = strings.TrimSpace(row.PackageName)
 	row.ClientType = strings.TrimSpace(strings.ToLower(row.ClientType))
@@ -668,6 +676,7 @@ func CreateTopupOrderWithDB(db *gorm.DB, userID string, username string, input C
 		Amount:        amount,
 		Currency:      currency,
 		Quota:         normalizeTopupOrderQuota(input.Quota),
+		TopupPlanID:   strings.TrimSpace(input.PlanID),
 		PackageID:     strings.TrimSpace(input.PackageID),
 		ClientType:    strings.TrimSpace(input.ClientType),
 		CallbackURL:   topupOrderCallbackURL(),
@@ -686,15 +695,18 @@ func CreateTopupOrderWithDB(db *gorm.DB, userID string, username string, input C
 			if err != nil {
 				return TopupOrder{}, err
 			}
+			order.TopupPlanID = strings.TrimSpace(resolvedPlan.Id)
 			order.Amount = normalizeTopupOrderAmount(resolvedPlan.Amount)
 			order.Currency = normalizeTopupOrderCurrency(resolvedPlan.AmountCurrency)
 			order.Quota = normalizeTopupOrderQuota(resolvedPlan.QuotaYYC)
+			order.ValidityDays = normalizeTopupPlanValidityDays(resolvedPlan.ValidityDays)
 			if strings.TrimSpace(input.Title) != "" {
 				order.Title = strings.TrimSpace(input.Title)
 			} else {
 				order.Title = buildTopupOrderPlanTitle(resolvedPlan)
 			}
 		} else {
+			order.TopupPlanID = ""
 			order.Currency = BillingCurrencyCodeCNY
 			if order.Amount <= 0 {
 				return TopupOrder{}, fmt.Errorf("充值金额必须大于 0")
@@ -711,6 +723,7 @@ func CreateTopupOrderWithDB(db *gorm.DB, userID string, username string, input C
 			} else {
 				order.Title = "账户充值"
 			}
+			order.ValidityDays = 0
 		}
 		if order.Quota <= 0 {
 			return TopupOrder{}, fmt.Errorf("充值额度不能为空")
@@ -857,6 +870,11 @@ func findReusableTopupOrderWithDB(db *gorm.DB, order TopupOrder) (TopupOrder, bo
 			Where("amount = ?", order.Amount).
 			Where("currency = ?", order.Currency).
 			Where("quota = ?", order.Quota)
+		if strings.TrimSpace(order.TopupPlanID) != "" {
+			query = query.Where("topup_plan_id = ?", strings.TrimSpace(order.TopupPlanID))
+		} else {
+			query = query.Where("COALESCE(TRIM(topup_plan_id), '') = ''")
+		}
 	default:
 		return TopupOrder{}, false, nil
 	}
@@ -1028,9 +1046,6 @@ func ApplyTopupOrderCallbackWithDB(db *gorm.DB, input TopupOrderCallbackInput) (
 	}
 	normalizedProviderName := strings.TrimSpace(input.ProviderName)
 	normalizedStatusMessage := strings.TrimSpace(input.StatusMessage)
-	normalizedRedemptionID := strings.TrimSpace(input.RedemptionID)
-	normalizedRedemptionCode := strings.TrimSpace(input.RedemptionCode)
-
 	result := TopupOrder{}
 	err := db.Transaction(func(tx *gorm.DB) error {
 		order, err := selectTopupOrderForCallbackWithDB(tx, normalizedOrderID, normalizedTransactionID, normalizedProviderOrderID)
@@ -1046,24 +1061,8 @@ func ApplyTopupOrderCallbackWithDB(db *gorm.DB, input TopupOrderCallbackInput) (
 		if normalizedStatusMessage != "" {
 			order.StatusMessage = normalizedStatusMessage
 		}
-		if normalizedRedemptionID != "" || normalizedRedemptionCode != "" {
-			redemption, err := selectRedemptionForTopupOrderWithDB(tx, normalizedRedemptionID, normalizedRedemptionCode)
-			if err != nil {
-				return err
-			}
-			if strings.TrimSpace(redemption.TopupOrderID) != "" && strings.TrimSpace(redemption.TopupOrderID) != order.Id {
-				return fmt.Errorf("兑换码已关联其他订单")
-			}
-			if strings.TrimSpace(order.RedemptionID) != "" && strings.TrimSpace(order.RedemptionID) != redemption.Id {
-				return fmt.Errorf("订单已关联其他兑换码")
-			}
-			order.RedemptionID = strings.TrimSpace(redemption.Id)
-			if err := tx.Model(&Redemption{}).
-				Where("id = ?", redemption.Id).
-				Update("topup_order_id", order.Id).Error; err != nil {
-				return err
-			}
-		}
+		// Keep topup/redemption linkage fields read-only for backward compatibility.
+		// Callback no longer writes topup_orders.redemption_id or redemptions.topup_order_id.
 		now := helper.GetTimestamp()
 		order.Status = normalizedStatus
 		switch normalizedStatus {
@@ -1099,7 +1098,7 @@ func ApplyTopupOrderCallbackWithDB(db *gorm.DB, input TopupOrderCallbackInput) (
 	return result, nil
 }
 
-func MarkTopupOrderRedeemedWithDB(tx *gorm.DB, orderID string, redemptionID string, redeemedAt int64) error {
+func MarkTopupOrderRedeemedWithDB(tx *gorm.DB, orderID string, _ string, redeemedAt int64) error {
 	if tx == nil {
 		return fmt.Errorf("database handle is nil")
 	}
@@ -1116,7 +1115,6 @@ func MarkTopupOrderRedeemedWithDB(tx *gorm.DB, orderID string, redemptionID stri
 		now = helper.GetTimestamp()
 	}
 	order.Status = TopupOrderStatusFulfilled
-	order.RedemptionID = strings.TrimSpace(redemptionID)
 	if order.PaidAt == 0 {
 		order.PaidAt = now
 	}
@@ -1154,10 +1152,33 @@ func FulfillTopupOrderWithDB(db *gorm.DB, orderID string) (TopupOrder, bool, err
 			if order.Quota <= 0 {
 				return fmt.Errorf("充值额度不能为空")
 			}
-			if err := tx.Model(&User{}).
-				Where("id = ?", order.UserID).
-				Update("quota", gorm.Expr("quota + ?", order.Quota)).Error; err != nil {
+			effectiveGrantedAt := order.PaidAt
+			if effectiveGrantedAt <= 0 {
+				effectiveGrantedAt = helper.GetTimestamp()
+			}
+			if order.CreditExpiresAt <= 0 {
+				order.CreditExpiresAt = resolveBalanceCreditExpiresAt(effectiveGrantedAt, order.ValidityDays)
+			}
+			lot, creditedNow, err := CreditUserBalanceLotWithDB(tx, UserBalanceLotCreditInput{
+				UserID:     order.UserID,
+				SourceType: UserBalanceLotSourceTopup,
+				SourceID:   order.Id,
+				TotalYYC:   order.Quota,
+				GrantedAt:  effectiveGrantedAt,
+				ExpiresAt:  order.CreditExpiresAt,
+			})
+			if err != nil {
 				return err
+			}
+			if creditedNow {
+				if err := tx.Model(&User{}).
+					Where("id = ?", order.UserID).
+					Update("quota", gorm.Expr("quota + ?", order.Quota)).Error; err != nil {
+					return err
+				}
+			}
+			if lot.ExpiresAt > 0 {
+				order.CreditExpiresAt = lot.ExpiresAt
 			}
 		case TopupOrderBusinessPackage:
 			if strings.TrimSpace(order.PackageID) == "" {
@@ -1226,26 +1247,5 @@ func selectTopupOrderForCallbackWithDB(tx *gorm.DB, orderID string, transactionI
 		return TopupOrder{}, gorm.ErrRecordNotFound
 	}
 	normalizeTopupOrderRow(&row)
-	return row, nil
-}
-
-func selectRedemptionForTopupOrderWithDB(tx *gorm.DB, redemptionID string, redemptionCode string) (Redemption, error) {
-	if tx == nil {
-		return Redemption{}, fmt.Errorf("database handle is nil")
-	}
-	row := Redemption{}
-	query := tx.Set("gorm:query_option", "FOR UPDATE")
-	switch {
-	case strings.TrimSpace(redemptionID) != "":
-		if err := query.Where("id = ?", strings.TrimSpace(redemptionID)).First(&row).Error; err != nil {
-			return Redemption{}, err
-		}
-	case strings.TrimSpace(redemptionCode) != "":
-		if err := query.Where(`"code" = ?`, strings.TrimSpace(redemptionCode)).First(&row).Error; err != nil {
-			return Redemption{}, err
-		}
-	default:
-		return Redemption{}, gorm.ErrRecordNotFound
-	}
 	return row, nil
 }

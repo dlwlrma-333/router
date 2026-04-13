@@ -1358,6 +1358,75 @@ func GetUserQuotaSummary(c *gin.Context) {
 	})
 }
 
+// GetUserTopUpBalanceLots godoc
+// @Summary List user balance lots (admin)
+// @Tags admin
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "User ID"
+// @Param page query int false "Page number"
+// @Param page_size query int false "Page size"
+// @Param source_type query string false "Source type: topup_order/redemption/legacy_migration"
+// @Param status query string false "Status: active/exhausted/expired"
+// @Param positive_only query bool false "Only lots with remaining balance, default true"
+// @Success 200 {object} docs.StandardResponse
+// @Failure 401 {object} docs.ErrorResponse
+// @Router /api/v1/admin/user/{id}/topup/balance/lots [get]
+func GetUserTopUpBalanceLots(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "id 为空",
+		})
+		return
+	}
+	targetUser, err := usersvc.GetByID(id, false)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	if !requesterCanReadUser(c, targetUser) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权获取同级或更高等级用户的信息",
+		})
+		return
+	}
+	page, pageSize, sourceType, status, positiveOnly, err := parseTopupBalanceLotPageParams(c)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	if _, expireErr := model.ExpireUserBalanceLots(id); expireErr != nil {
+		logger.Error(c.Request.Context(), "expire user balance lots failed: "+expireErr.Error())
+	}
+	items, total, err := model.ListUserBalanceLotsPageWithDB(model.DB, id, sourceType, status, page, pageSize, positiveOnly)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": topUpBalanceLotListData{
+			Items:    items,
+			Total:    total,
+			Page:     page,
+			PageSize: pageSize,
+		},
+	})
+}
+
 // UpdateUser godoc
 // @Summary Update user (admin)
 // @Tags admin
@@ -2014,6 +2083,13 @@ type topUpBalanceSummaryData struct {
 	RedeemYYCBalance int64 `json:"redeem_yyc_balance"`
 }
 
+type topUpBalanceLotListData struct {
+	Items    []model.UserBalanceLot `json:"items"`
+	Total    int64                  `json:"total"`
+	Page     int                    `json:"page"`
+	PageSize int                    `json:"page_size"`
+}
+
 type createTopUpOrderRequest struct {
 	BusinessType  string  `json:"business_type"`
 	OperationType string  `json:"operation_type"`
@@ -2054,6 +2130,51 @@ func parseTopupOrderPageParams(c *gin.Context) (int, int, string, error) {
 	}
 }
 
+func parseTopupBalanceLotPageParams(c *gin.Context) (int, int, string, string, bool, error) {
+	page, _ := strconv.Atoi(strings.TrimSpace(c.DefaultQuery("page", "1")))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(strings.TrimSpace(c.DefaultQuery("page_size", "20")))
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+	rawSourceType := strings.TrimSpace(strings.ToLower(c.Query("source_type")))
+	sourceType := ""
+	switch rawSourceType {
+	case "":
+		sourceType = ""
+	case model.UserBalanceLotSourceTopup, model.UserBalanceLotSourceRedeem, model.UserBalanceLotSourceLegacy:
+		sourceType = rawSourceType
+	default:
+		return 0, 0, "", "", false, fmt.Errorf("无效的来源类型")
+	}
+	rawStatus := strings.TrimSpace(strings.ToLower(c.Query("status")))
+	status := ""
+	switch rawStatus {
+	case "":
+		status = ""
+	case model.UserBalanceLotStatusActive, model.UserBalanceLotStatusExhaust, model.UserBalanceLotStatusExpired:
+		status = rawStatus
+	default:
+		return 0, 0, "", "", false, fmt.Errorf("无效的状态")
+	}
+	positiveOnly := true
+	rawPositiveOnly := strings.TrimSpace(strings.ToLower(c.Query("positive_only")))
+	switch rawPositiveOnly {
+	case "", "1", "true", "yes", "y":
+		positiveOnly = true
+	case "0", "false", "no", "n":
+		positiveOnly = false
+	default:
+		return 0, 0, "", "", false, fmt.Errorf("无效的 positive_only 参数")
+	}
+	return page, pageSize, sourceType, status, positiveOnly, nil
+}
+
 func minInt64(a int64, b int64) int64 {
 	if a <= b {
 		return a
@@ -2068,52 +2189,32 @@ func normalizeNonNegativeQuota(value int64) int64 {
 	return value
 }
 
-func buildTopUpBalanceSummary(totalBalance int64, topupInflow int64, redeemInflow int64) topUpBalanceSummaryData {
+func buildTopUpBalanceSummary(totalBalance int64, topupRemain int64, redeemRemain int64) topUpBalanceSummaryData {
 	normalizedTotal := normalizeNonNegativeQuota(totalBalance)
-	normalizedTopup := normalizeNonNegativeQuota(topupInflow)
-	normalizedRedeem := normalizeNonNegativeQuota(redeemInflow)
+	normalizedTopup := normalizeNonNegativeQuota(topupRemain)
+	normalizedRedeem := normalizeNonNegativeQuota(redeemRemain)
 
-	totalInflow := normalizedTopup + normalizedRedeem
-	if totalInflow <= 0 {
-		return topUpBalanceSummaryData{
-			TotalYYCBalance:  normalizedTotal,
-			TopupYYCBalance:  normalizedTotal,
-			RedeemYYCBalance: 0,
-		}
-	}
-
-	consumed := totalInflow - normalizedTotal
-	if consumed < 0 {
-		consumed = 0
-	}
-
-	consumeFromTopup := minInt64(consumed, normalizedTopup)
-	topupRemain := normalizedTopup - consumeFromTopup
-	consumed -= consumeFromTopup
-	consumeFromRedeem := minInt64(consumed, normalizedRedeem)
-	redeemRemain := normalizedRedeem - consumeFromRedeem
-
-	sumRemain := topupRemain + redeemRemain
+	sumRemain := normalizedTopup + normalizedRedeem
 	if sumRemain < normalizedTotal {
 		// For historical/manual balance adjustments without source information,
 		// attribute the residual to top-up balance so the split always matches total.
-		topupRemain += normalizedTotal - sumRemain
+		normalizedTopup += normalizedTotal - sumRemain
 		sumRemain = normalizedTotal
 	}
 	if sumRemain > normalizedTotal {
 		overflow := sumRemain - normalizedTotal
-		reduceTopup := minInt64(overflow, topupRemain)
-		topupRemain -= reduceTopup
+		reduceTopup := minInt64(overflow, normalizedTopup)
+		normalizedTopup -= reduceTopup
 		overflow -= reduceTopup
 		if overflow > 0 {
-			redeemRemain -= minInt64(overflow, redeemRemain)
+			normalizedRedeem -= minInt64(overflow, normalizedRedeem)
 		}
 	}
 
 	return topUpBalanceSummaryData{
 		TotalYYCBalance:  normalizedTotal,
-		TopupYYCBalance:  topupRemain,
-		RedeemYYCBalance: redeemRemain,
+		TopupYYCBalance:  normalizedTopup,
+		RedeemYYCBalance: normalizedRedeem,
 	}
 }
 
@@ -2134,6 +2235,9 @@ func GetCurrentUserTopUpBalanceSummary(c *gin.Context) {
 		})
 		return
 	}
+	if _, expireErr := model.ExpireUserBalanceLots(userID); expireErr != nil {
+		logger.Error(c.Request.Context(), "expire user balance lots failed: "+expireErr.Error())
+	}
 
 	user, err := usersvc.GetByID(userID, false)
 	if err != nil {
@@ -2144,16 +2248,11 @@ func GetCurrentUserTopUpBalanceSummary(c *gin.Context) {
 		return
 	}
 
-	var topupInflow int64
-	if err := model.DB.Model(&model.TopupOrder{}).
-		Select("COALESCE(SUM(quota), 0)").
-		Where(
-			"user_id = ? AND business_type = ? AND status = ?",
-			userID,
-			model.TopupOrderBusinessBalance,
-			model.TopupOrderStatusFulfilled,
-		).
-		Scan(&topupInflow).Error; err != nil {
+	var topupRemain int64
+	if err := model.DB.Model(&model.UserBalanceLot{}).
+		Select("COALESCE(SUM(remaining_yyc), 0)").
+		Where("user_id = ? AND source_type = ? AND remaining_yyc > 0", userID, model.UserBalanceLotSourceTopup).
+		Scan(&topupRemain).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -2161,15 +2260,11 @@ func GetCurrentUserTopUpBalanceSummary(c *gin.Context) {
 		return
 	}
 
-	var redeemInflow int64
-	if err := model.DB.Model(&model.Redemption{}).
-		Select("COALESCE(SUM(quota), 0)").
-		Where(
-			"redeemed_by_user_id = ? AND status = ? AND redeemed_time > 0",
-			userID,
-			model.RedemptionCodeStatusUsed,
-		).
-		Scan(&redeemInflow).Error; err != nil {
+	var redeemRemain int64
+	if err := model.DB.Model(&model.UserBalanceLot{}).
+		Select("COALESCE(SUM(remaining_yyc), 0)").
+		Where("user_id = ? AND source_type = ? AND remaining_yyc > 0", userID, model.UserBalanceLotSourceRedeem).
+		Scan(&redeemRemain).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -2180,7 +2275,60 @@ func GetCurrentUserTopUpBalanceSummary(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    buildTopUpBalanceSummary(user.Quota, topupInflow, redeemInflow),
+		"data":    buildTopUpBalanceSummary(user.Quota, topupRemain, redeemRemain),
+	})
+}
+
+// GetCurrentUserTopUpBalanceLots godoc
+// @Summary List current user balance lots
+// @Tags public
+// @Security BearerAuth
+// @Produce json
+// @Param page query int false "Page number"
+// @Param page_size query int false "Page size"
+// @Param source_type query string false "Source type: topup_order/redemption/legacy_migration"
+// @Param status query string false "Status: active/exhausted/expired"
+// @Param positive_only query bool false "Only lots with remaining balance, default true"
+// @Success 200 {object} docs.StandardResponse
+// @Failure 401 {object} docs.ErrorResponse
+// @Router /api/v1/public/user/topup/balance/lots [get]
+func GetCurrentUserTopUpBalanceLots(c *gin.Context) {
+	userID := strings.TrimSpace(c.GetString(ctxkey.Id))
+	if userID == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的 user id",
+		})
+		return
+	}
+	page, pageSize, sourceType, status, positiveOnly, err := parseTopupBalanceLotPageParams(c)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	if _, expireErr := model.ExpireUserBalanceLots(userID); expireErr != nil {
+		logger.Error(c.Request.Context(), "expire user balance lots failed: "+expireErr.Error())
+	}
+	items, total, err := model.ListUserBalanceLotsPageWithDB(model.DB, userID, sourceType, status, page, pageSize, positiveOnly)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": topUpBalanceLotListData{
+			Items:    items,
+			Total:    total,
+			Page:     page,
+			PageSize: pageSize,
+		},
 	})
 }
 

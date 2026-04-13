@@ -20,6 +20,7 @@ const createEmptyPlan = () => ({
   amount_currency: 'CNY',
   quota_amount: 0,
   quota_currency: 'USD',
+  validity_days: 0,
   enabled: true,
   sort_order: 0,
 });
@@ -142,6 +143,7 @@ const TopupPlansManager = () => {
       amount_currency: row?.amount_currency || 'CNY',
       quota_amount: Number(row?.quota_amount || 0),
       quota_currency: row?.quota_currency || 'USD',
+      validity_days: Number(row?.validity_days || 0),
       enabled: Boolean(row?.enabled),
       sort_order: Number(row?.sort_order || index + 1),
     });
@@ -159,6 +161,7 @@ const TopupPlansManager = () => {
         amount_currency: form.amount_currency || 'CNY',
         quota_amount: Number(form.quota_amount || 0),
         quota_currency: form.quota_currency || 'USD',
+        validity_days: Number(form.validity_days || 0),
         enabled: Boolean(form.enabled),
         sort_order: Number(form.sort_order || 0),
       };
@@ -248,6 +251,9 @@ const TopupPlansManager = () => {
               <Table.HeaderCell className='router-topup-plan-status-cell'>
                 {t('topup.manage.columns.enabled')}
               </Table.HeaderCell>
+              <Table.HeaderCell className='router-topup-plan-status-cell'>
+                {t('topup.manage.columns.validity_days')}
+              </Table.HeaderCell>
               <Table.HeaderCell className='router-table-action-cell router-topup-plan-action-cell'>
                 {t('common.operation')}
               </Table.HeaderCell>
@@ -262,6 +268,11 @@ const TopupPlansManager = () => {
                 <Table.Cell className='router-topup-plan-quota-cell'>{`${row.quota_amount} ${row.quota_currency}`}</Table.Cell>
                 <Table.Cell className='router-topup-plan-status-cell'>
                   {row.enabled ? t('common.enabled') : t('common.disabled')}
+                </Table.Cell>
+                <Table.Cell className='router-topup-plan-status-cell'>
+                  {Number(row.validity_days || 0) > 0
+                    ? `${Number(row.validity_days || 0)} ${t('common.day')}`
+                    : t('common.never')}
                 </Table.Cell>
                 <Table.Cell className='router-topup-plan-action-cell'>
                   <div className='router-action-group-tight'>
@@ -351,6 +362,19 @@ const TopupPlansManager = () => {
                 onChange={(_, data) => setForm((current) => ({ ...current, enabled: Boolean(data.checked) }))}
               />
             </Form.Field>
+            <Form.Input
+              label={t('topup.manage.columns.validity_days')}
+              type='number'
+              min='0'
+              step='1'
+              value={form.validity_days}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  validity_days: Number(event.target.value || 0),
+                }))
+              }
+            />
           </Form>
         </Modal.Content>
         <Modal.Actions>

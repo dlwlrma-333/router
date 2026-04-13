@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Breadcrumb, Button, Card, Dropdown, Form, Header, Icon, Label, Modal } from 'semantic-ui-react';
+import { Breadcrumb, Button, Card, Dropdown, Form, Header, Icon, Label, Modal, Table } from 'semantic-ui-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { API, copy, isRoot, showError, showSuccess } from '../../helpers';
+import { API, copy, isRoot, showError, showInfo, showSuccess } from '../../helpers';
 import {
   buildBillingCurrencyIndex,
   buildBillingUnitOptions,
@@ -121,6 +121,48 @@ const renderPackageStatusLabel = (status, t) => {
           {t('user.detail.package_status_types.unknown')}
         </Label>
       );
+  }
+};
+
+const renderBalanceLotStatusLabel = (status, t) => {
+  switch ((status || '').toString().trim()) {
+    case 'active':
+      return (
+        <Label basic color='green' className='router-tag'>
+          {t('topup.balance_lots.status.active')}
+        </Label>
+      );
+    case 'exhausted':
+      return (
+        <Label basic color='grey' className='router-tag'>
+          {t('topup.balance_lots.status.exhausted')}
+        </Label>
+      );
+    case 'expired':
+      return (
+        <Label basic color='orange' className='router-tag'>
+          {t('topup.balance_lots.status.expired')}
+        </Label>
+      );
+    default:
+      return (
+        <Label basic color='grey' className='router-tag'>
+          {readOnlyValue(status)}
+        </Label>
+      );
+  }
+};
+
+const formatBalanceLotSource = (sourceType, t) => {
+  switch ((sourceType || '').toString().trim()) {
+    case 'topup_order':
+      return t('topup.balance_lots.source.topup_order');
+    case 'redemption':
+      return t('topup.balance_lots.source.redemption');
+    case 'legacy_migration':
+      return t('topup.balance_lots.source.legacy_migration');
+    default:
+      return readOnlyValue(sourceType);
   }
 };
 
@@ -259,6 +301,13 @@ const UserDetail = () => {
   const [activePackageLoading, setActivePackageLoading] = useState(false);
   const [packageDailySnapshot, setPackageDailySnapshot] = useState(createEmptyDailySnapshot());
   const [packageQuotaSummary, setPackageQuotaSummary] = useState(createEmptyQuotaSummary());
+  const [balanceLots, setBalanceLots] = useState([]);
+  const [balanceLotsLoading, setBalanceLotsLoading] = useState(false);
+  const [balanceLotFilters, setBalanceLotFilters] = useState({
+    source_type: '',
+    status: 'active',
+    positive_only: true,
+  });
   const [packageOptions, setPackageOptions] = useState([]);
   const [packageOptionsLoading, setPackageOptionsLoading] = useState(false);
   const [assignPackageOpen, setAssignPackageOpen] = useState(false);
@@ -397,6 +446,56 @@ const UserDetail = () => {
     }
   }, [t, userId]);
 
+  const loadBalanceLots = useCallback(
+    async ({ silent = false } = {}) => {
+      const normalizedUserId = (userId || '').toString().trim();
+      if (normalizedUserId === '') {
+        setBalanceLots([]);
+        return;
+      }
+      if (!silent) {
+        setBalanceLotsLoading(true);
+      }
+      try {
+        const res = await API.get(
+          `/api/v1/admin/user/${encodeURIComponent(normalizedUserId)}/topup/balance/lots`,
+          {
+            params: {
+              page: 1,
+              page_size: 20,
+              source_type: (balanceLotFilters.source_type || '').toString().trim() || undefined,
+              status: (balanceLotFilters.status || '').toString().trim() || undefined,
+              positive_only: balanceLotFilters.positive_only !== false,
+            },
+          },
+        );
+        const { success, message, data } = res.data || {};
+        if (!success) {
+          if (!silent) {
+            showError(message || t('user.messages.operation_failed'));
+          }
+          return;
+        }
+        setBalanceLots(Array.isArray(data?.items) ? data.items : []);
+      } catch (error) {
+        if (!silent) {
+          showError(error?.message || error);
+        }
+      } finally {
+        if (!silent) {
+          setBalanceLotsLoading(false);
+        }
+      }
+    },
+    [
+      balanceLotFilters.positive_only,
+      balanceLotFilters.source_type,
+      balanceLotFilters.status,
+      t,
+      userId,
+    ],
+  );
+
   const loadPackageOptions = useCallback(async () => {
     if (packageOptions.length > 0) {
       return;
@@ -490,10 +589,79 @@ const UserDetail = () => {
   const hasActivePackage = activePackage.has_active_subscription === true && activePackage.subscription;
   const activePackageSubscription = hasActivePackage ? activePackage.subscription : null;
   const packageEmergencySnapshot = packageQuotaSummary.package_emergency;
+  const balanceLotSourceOptions = useMemo(
+    () => [
+      {
+        key: 'all',
+        value: '',
+        text: t('user.detail.balance_lots.filters.all_source'),
+      },
+      {
+        key: 'topup_order',
+        value: 'topup_order',
+        text: t('topup.balance_lots.source.topup_order'),
+      },
+      {
+        key: 'redemption',
+        value: 'redemption',
+        text: t('topup.balance_lots.source.redemption'),
+      },
+      {
+        key: 'legacy_migration',
+        value: 'legacy_migration',
+        text: t('topup.balance_lots.source.legacy_migration'),
+      },
+    ],
+    [t],
+  );
+  const balanceLotStatusOptions = useMemo(
+    () => [
+      {
+        key: 'all',
+        value: '',
+        text: t('user.detail.balance_lots.filters.all_status'),
+      },
+      {
+        key: 'active',
+        value: 'active',
+        text: t('topup.balance_lots.status.active'),
+      },
+      {
+        key: 'exhausted',
+        value: 'exhausted',
+        text: t('topup.balance_lots.status.exhausted'),
+      },
+      {
+        key: 'expired',
+        value: 'expired',
+        text: t('topup.balance_lots.status.expired'),
+      },
+    ],
+    [t],
+  );
+  const balanceLotPositiveOnlyOptions = useMemo(
+    () => [
+      {
+        key: 'positive',
+        value: '1',
+        text: t('user.detail.balance_lots.filters.positive_only_yes'),
+      },
+      {
+        key: 'all',
+        value: '0',
+        text: t('user.detail.balance_lots.filters.positive_only_no'),
+      },
+    ],
+    [t],
+  );
 
   useEffect(() => {
     loadActivePackage().then();
   }, [loadActivePackage]);
+
+  useEffect(() => {
+    loadBalanceLots({ silent: true }).then();
+  }, [loadBalanceLots]);
 
   const roleControl = useMemo(() => {
     return (
@@ -680,8 +848,8 @@ const UserDetail = () => {
   }, [inputs.wallet_address, t]);
 
   const refreshBalanceSection = useCallback(async () => {
-    await loadUser();
-  }, [loadUser]);
+    await Promise.all([loadUser(), loadBalanceLots()]);
+  }, [loadBalanceLots, loadUser]);
 
   const openAssignPackageModal = useCallback(() => {
     setAssignPackageForm({
@@ -1167,6 +1335,101 @@ const UserDetail = () => {
                     </div>
                   </Form.Field>
                 </Form.Group>
+
+                <div className='router-toolbar router-block-gap-sm' style={{ marginTop: '0.5rem' }}>
+                  <div className='router-toolbar-start'>
+                    <Header as='h4' className='router-entity-detail-section-title' style={{ margin: 0 }}>
+                      {t('user.detail.balance_lots.title')}
+                    </Header>
+                  </div>
+                  <div className='router-toolbar-end'>
+                    <Dropdown
+                      className='router-mini-dropdown'
+                      selection
+                      options={balanceLotSourceOptions}
+                      value={balanceLotFilters.source_type}
+                      disabled={loading || actionLoading !== '' || editSection !== '' || balanceLotsLoading}
+                      onChange={(e, { value }) =>
+                        setBalanceLotFilters((prev) => ({
+                          ...prev,
+                          source_type: (value || '').toString(),
+                        }))
+                      }
+                    />
+                    <Dropdown
+                      className='router-mini-dropdown'
+                      selection
+                      options={balanceLotStatusOptions}
+                      value={balanceLotFilters.status}
+                      disabled={loading || actionLoading !== '' || editSection !== '' || balanceLotsLoading}
+                      onChange={(e, { value }) =>
+                        setBalanceLotFilters((prev) => ({
+                          ...prev,
+                          status: (value || '').toString(),
+                        }))
+                      }
+                    />
+                    <Dropdown
+                      className='router-mini-dropdown'
+                      selection
+                      options={balanceLotPositiveOnlyOptions}
+                      value={balanceLotFilters.positive_only ? '1' : '0'}
+                      disabled={loading || actionLoading !== '' || editSection !== '' || balanceLotsLoading}
+                      onChange={(e, { value }) =>
+                        setBalanceLotFilters((prev) => ({
+                          ...prev,
+                          positive_only: (value || '1').toString() !== '0',
+                        }))
+                      }
+                    />
+                    <Button
+                      type='button'
+                      className='router-inline-button'
+                      loading={balanceLotsLoading}
+                      disabled={loading || actionLoading !== '' || editSection !== ''}
+                      onClick={() => loadBalanceLots()}
+                    >
+                      {t('user.buttons.refresh')}
+                    </Button>
+                  </div>
+                </div>
+
+                {balanceLots.length === 0 ? (
+                  <div className='router-empty'>{t('user.detail.balance_lots.empty')}</div>
+                ) : (
+                  <div className='router-table-scroll-x'>
+                    <Table celled className='router-table router-list-table'>
+                      <Table.Header>
+                        <Table.Row>
+                          <Table.HeaderCell>{t('user.detail.balance_lots.columns.source')}</Table.HeaderCell>
+                          <Table.HeaderCell>{t('user.detail.balance_lots.columns.source_id')}</Table.HeaderCell>
+                          <Table.HeaderCell>{t('user.detail.balance_lots.columns.remaining')}</Table.HeaderCell>
+                          <Table.HeaderCell>{t('user.detail.balance_lots.columns.total')}</Table.HeaderCell>
+                          <Table.HeaderCell>{t('user.detail.balance_lots.columns.status')}</Table.HeaderCell>
+                          <Table.HeaderCell>{t('user.detail.balance_lots.columns.granted_at')}</Table.HeaderCell>
+                          <Table.HeaderCell>{t('user.detail.balance_lots.columns.expires_at')}</Table.HeaderCell>
+                        </Table.Row>
+                      </Table.Header>
+                      <Table.Body>
+                        {balanceLots.map((lot) => (
+                          <Table.Row key={lot.id || `${lot.source_type}-${lot.source_id}`}>
+                            <Table.Cell>{formatBalanceLotSource(lot.source_type, t)}</Table.Cell>
+                            <Table.Cell>{readOnlyValue(lot.source_id)}</Table.Cell>
+                            <Table.Cell>{formatAmountBySelectedUnit(lot.remaining_yyc || 0)}</Table.Cell>
+                            <Table.Cell>{formatAmountBySelectedUnit(lot.total_yyc || 0)}</Table.Cell>
+                            <Table.Cell>{renderBalanceLotStatusLabel(lot.status, t)}</Table.Cell>
+                            <Table.Cell>{formatDateTime(lot.granted_at)}</Table.Cell>
+                            <Table.Cell>
+                              {Number(lot.expires_at || 0) > 0
+                                ? formatDateTime(lot.expires_at)
+                                : t('common.never')}
+                            </Table.Cell>
+                          </Table.Row>
+                        ))}
+                      </Table.Body>
+                    </Table>
+                  </div>
+                )}
               </section>
             </Form>
           </div>

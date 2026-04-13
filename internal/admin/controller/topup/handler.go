@@ -16,6 +16,7 @@ type upsertTopupPlanRequest struct {
 	AmountCurrency string  `json:"amount_currency"`
 	QuotaAmount    float64 `json:"quota_amount"`
 	QuotaCurrency  string  `json:"quota_currency"`
+	ValidityDays   int     `json:"validity_days"`
 	Enabled        bool    `json:"enabled"`
 	SortOrder      int     `json:"sort_order"`
 }
@@ -52,6 +53,7 @@ func CreateAdminTopupPlan(c *gin.Context) {
 		AmountCurrency: request.AmountCurrency,
 		QuotaAmount:    request.QuotaAmount,
 		QuotaCurrency:  request.QuotaCurrency,
+		ValidityDays:   request.ValidityDays,
 		Enabled:        request.Enabled,
 		SortOrder:      request.SortOrder,
 	})
@@ -86,6 +88,7 @@ func UpdateAdminTopupPlan(c *gin.Context) {
 		AmountCurrency: request.AmountCurrency,
 		QuotaAmount:    request.QuotaAmount,
 		QuotaCurrency:  request.QuotaCurrency,
+		ValidityDays:   request.ValidityDays,
 		Enabled:        request.Enabled,
 		SortOrder:      request.SortOrder,
 	})

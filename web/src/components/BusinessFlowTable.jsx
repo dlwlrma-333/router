@@ -206,20 +206,8 @@ const BusinessFlowTable = ({ kind }) => {
             ),
           },
           {
-            key: 'redemption',
-            label: t('flow.topup.columns.redemption'),
-            render: (row) => (
-              <div>
-                <div>{readOnlyText(row.redemption_name)}</div>
-                <div className='router-text-muted'>
-                  {readOnlyText(row.group_name || row.group_id)}
-                </div>
-              </div>
-            ),
-          },
-          {
             key: 'amount',
-            label: t('redemption.table.face_value'),
+            label: t('flow.topup.columns.amount'),
             render: (row) => (
               <div>
                 <div>

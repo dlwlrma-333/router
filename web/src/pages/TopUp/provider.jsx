@@ -21,6 +21,8 @@ const TopUpWorkspaceProvider = ({ children }) => {
   const [userBalanceYYC, setUserBalanceYYC] = useState(0);
   const [topupBalanceYYC, setTopupBalanceYYC] = useState(0);
   const [redeemBalanceYYC, setRedeemBalanceYYC] = useState(0);
+  const [balanceLots, setBalanceLots] = useState([]);
+  const [loadingBalanceLots, setLoadingBalanceLots] = useState(false);
   const [topupPlans, setTopupPlans] = useState([]);
   const [displayCurrencyIndex, setDisplayCurrencyIndex] = useState(
     initialCurrencyIndex,
@@ -130,6 +132,44 @@ const TopUpWorkspaceProvider = ({ children }) => {
     }
   }, [t]);
 
+  const loadBalanceLots = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) {
+        setLoadingBalanceLots(true);
+      }
+      try {
+        const res = await API.get('/api/v1/public/user/topup/balance/lots', {
+          params: {
+            page: 1,
+            page_size: 20,
+            status: 'active',
+            positive_only: true,
+          },
+        });
+        const { success, message, data } = res?.data || {};
+        if (!success) {
+          if (!silent) {
+            showError(message || t('topup.external_topup.request_failed'));
+          }
+          return false;
+        }
+        const items = Array.isArray(data?.items) ? data.items : [];
+        setBalanceLots(items);
+        return true;
+      } catch (error) {
+        if (!silent) {
+          showError(error?.message || t('topup.external_topup.request_failed'));
+        }
+        return false;
+      } finally {
+        if (!silent) {
+          setLoadingBalanceLots(false);
+        }
+      }
+    },
+    [t],
+  );
+
   useEffect(() => {
     loadBalanceSummary().then((success) => {
       if (!success) {
@@ -138,7 +178,8 @@ const TopUpWorkspaceProvider = ({ children }) => {
     });
     loadTopupPlans().then();
     loadDisplayCurrencies().then();
-  }, [loadBalanceSummary, loadDisplayCurrencies, loadTopupPlans, loadUserBalance]);
+    loadBalanceLots({ silent: true }).then();
+  }, [loadBalanceLots, loadBalanceSummary, loadDisplayCurrencies, loadTopupPlans, loadUserBalance]);
 
   const createTopupOrder = useCallback(
     async (payload) => {
@@ -202,6 +243,7 @@ const TopUpWorkspaceProvider = ({ children }) => {
           await Promise.all([
             loadUserBalance(),
             loadBalanceSummary({ silent: true }),
+            loadBalanceLots({ silent: true }),
           ]);
           showSuccess(t('topup.records.order_paid'));
           return true;
@@ -225,7 +267,7 @@ const TopUpWorkspaceProvider = ({ children }) => {
         return false;
       }
     },
-    [loadBalanceSummary, loadUserBalance, t],
+    [loadBalanceLots, loadBalanceSummary, loadUserBalance, t],
   );
 
   const previewPackagePurchase = useCallback(
@@ -279,10 +321,11 @@ const TopUpWorkspaceProvider = ({ children }) => {
       setRedeemBalanceYYC((previous) =>
         Math.max(0, previous + normalizedResult.redeemed_yyc),
       );
+      loadBalanceLots({ silent: true }).then();
       showSuccess(t('topup.redeem.success'));
       return normalizedResult;
     },
-    [t, userBalanceYYC],
+    [loadBalanceLots, t, userBalanceYYC],
   );
 
   const contextValue = useMemo(
@@ -290,6 +333,8 @@ const TopUpWorkspaceProvider = ({ children }) => {
       userBalanceYYC,
       topupBalanceYYC,
       redeemBalanceYYC,
+      balanceLots,
+      loadingBalanceLots,
       topupPlans,
       displayCurrency,
       displayCurrencyIndex,
@@ -297,18 +342,20 @@ const TopUpWorkspaceProvider = ({ children }) => {
       renderDisplayAmount,
       loadUserBalance,
       loadBalanceSummary,
+      loadBalanceLots,
       createTopupOrder,
       previewPackagePurchase,
       submitRedemption,
     }),
     [
       createTopupOrder,
+      balanceLots,
       displayCurrency,
       displayCurrencyIndex,
-      loadDisplayCurrencies,
+      loadBalanceLots,
       loadBalanceSummary,
-      loadTopupPlans,
       loadUserBalance,
+      loadingBalanceLots,
       loadingDisplayCurrencies,
       previewPackagePurchase,
       redeemBalanceYYC,

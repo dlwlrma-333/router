@@ -134,7 +134,30 @@
         "group": "Group",
         "pay_amount": "Pay Amount",
         "credited_amount": "Credited Amount",
-        "enabled": "Status"
+        "enabled": "Status",
+        "validity_days": "Validity (Days)"
+      }
+    },
+    "balance_lots": {
+      "title": "Balance Lots",
+      "empty": "No active balance lots",
+      "columns": {
+        "source": "Source",
+        "remaining": "Remaining",
+        "total": "Total",
+        "status": "Status",
+        "granted_at": "Granted At",
+        "expires_at": "Expires At"
+      },
+      "source": {
+        "topup_order": "Top-up",
+        "redemption": "Redemption",
+        "legacy_migration": "Legacy Migration"
+      },
+      "status": {
+        "active": "Active",
+        "exhausted": "Exhausted",
+        "expired": "Expired"
       }
     },
     "pricing": {
@@ -250,11 +273,11 @@
     },
     "topup": {
       "title": "Top-up",
-      "search_placeholder": "Search user, order ID, transaction ID, redemption name...",
+      "search_placeholder": "Search user, order ID, transaction ID, or status...",
       "empty": "No top-up records",
       "columns": {
         "source": "Source",
-        "redemption": "Redemption",
+        "amount": "Amount",
         "order": "Order"
       }
     },
@@ -1018,6 +1041,8 @@
     "operation": "Operation",
     "save": "Save",
     "unlimited": "Unlimited",
+    "day": "Day",
+    "never": "Never",
     "quota": {
       "display": "Equivalent: ${{amount}}",
       "display_short": "${{amount}}",
@@ -1296,6 +1321,25 @@
       "package_timezone": "Reset Timezone",
       "package_started_at": "Started At",
       "package_expires_at": "Expires At",
+      "balance_lots": {
+        "title": "Balance Lots",
+        "empty": "No balance lots match current filters",
+        "columns": {
+          "source": "Source",
+          "source_id": "Source ID",
+          "remaining": "Remaining",
+          "total": "Total",
+          "status": "Status",
+          "granted_at": "Granted At",
+          "expires_at": "Expires At"
+        },
+        "filters": {
+          "all_source": "All Sources",
+          "all_status": "All Statuses",
+          "positive_only_yes": "Remaining Only",
+          "positive_only_no": "Include Zeroed"
+        }
+      },
       "package_none": "No active package",
       "package_status_types": {
         "active": "Active",

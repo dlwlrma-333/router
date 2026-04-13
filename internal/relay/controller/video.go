@@ -383,6 +383,9 @@ func RelayVideoHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 		}
 	}()
 	if billingPlan.ChargeUserBalance() {
+		if _, expireErr := model.ExpireUserBalanceLots(meta.UserId); expireErr != nil {
+			logger.Error(ctx, "expire user balance lots failed: "+expireErr.Error())
+		}
 		userQuota, err := model.CacheGetUserQuota(ctx, meta.UserId)
 		if err != nil {
 			return openai.ErrorWrapper(err, "get_user_quota_failed", http.StatusInternalServerError)
@@ -458,6 +461,14 @@ func RelayVideoHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 		if billingPlan.ChargeUserBalance() {
 			if err := model.CacheUpdateUserQuota(ctx, meta.UserId); err != nil {
 				logger.SysError("error update user quota cache: " + err.Error())
+			}
+			if quota > 0 {
+				consumedFromLots, consumeErr := model.ConsumeUserBalanceLots(meta.UserId, quota)
+				if consumeErr != nil {
+					logger.Error(ctx, "error consuming user balance lots: "+consumeErr.Error())
+				} else if consumedFromLots < quota {
+					logger.Warnf(ctx, "user balance lot coverage partial user=%s consumed=%d requested=%d", strings.TrimSpace(meta.UserId), consumedFromLots, quota)
+				}
 			}
 		}
 		tokenName := c.GetString(ctxkey.TokenName)

@@ -212,7 +212,23 @@ func Redeem(ctx context.Context, code string, userId string) (model.RedemptionRe
 			redemption.GroupName = strings.TrimSpace(groupRow.Name)
 		}
 		beforeYYCBalance := user.Quota
-		afterYYCBalance := beforeYYCBalance + redemption.Quota
+		redeemedAt := helper.GetTimestamp()
+		_, creditedNow, err := model.CreditUserBalanceLotWithDB(tx, model.UserBalanceLotCreditInput{
+			UserID:     strings.TrimSpace(userId),
+			SourceType: model.UserBalanceLotSourceRedeem,
+			SourceID:   strings.TrimSpace(redemption.Id),
+			TotalYYC:   redemption.Quota,
+			GrantedAt:  redeemedAt,
+			ExpiresAt:  0,
+		})
+		if err != nil {
+			return err
+		}
+		quotaIncrement := int64(0)
+		if creditedNow {
+			quotaIncrement = redemption.Quota
+		}
+		afterYYCBalance := beforeYYCBalance + quotaIncrement
 		userUpdates := map[string]any{
 			"quota": afterYYCBalance,
 		}
@@ -223,7 +239,7 @@ func Redeem(ctx context.Context, code string, userId string) (model.RedemptionRe
 		if err != nil {
 			return err
 		}
-		redemption.RedeemedTime = helper.GetTimestamp()
+		redemption.RedeemedTime = redeemedAt
 		redemption.Status = model.RedemptionCodeStatusUsed
 		redemption.RedeemedByUserId = strings.TrimSpace(userId)
 		if err := tx.Save(redemption).Error; err != nil {

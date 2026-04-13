@@ -25,6 +25,7 @@ type TopupPlan struct {
 	AmountCurrency string  `json:"amount_currency" gorm:"type:varchar(16);not null;default:'CNY'"`
 	QuotaAmount    float64 `json:"quota_amount" gorm:"type:numeric(18,6);not null;default:0"`
 	QuotaCurrency  string  `json:"quota_currency" gorm:"type:varchar(16);not null;default:'USD'"`
+	ValidityDays   int     `json:"validity_days" gorm:"type:int;not null;default:0"`
 	Enabled        bool    `json:"enabled" gorm:"default:true;index"`
 	SortOrder      int     `json:"sort_order" gorm:"default:0;index"`
 	CreatedAt      int64   `json:"created_at" gorm:"bigint;index"`
@@ -59,6 +60,7 @@ func defaultTopupPlans(defaultGroupID string) []TopupPlan {
 			AmountCurrency: BillingCurrencyCodeCNY,
 			QuotaAmount:    20,
 			QuotaCurrency:  BillingCurrencyCodeUSD,
+			ValidityDays:   0,
 			Enabled:        true,
 			SortOrder:      1,
 		},
@@ -69,6 +71,7 @@ func defaultTopupPlans(defaultGroupID string) []TopupPlan {
 			AmountCurrency: BillingCurrencyCodeCNY,
 			QuotaAmount:    220,
 			QuotaCurrency:  BillingCurrencyCodeUSD,
+			ValidityDays:   0,
 			Enabled:        true,
 			SortOrder:      2,
 		},
@@ -79,6 +82,7 @@ func defaultTopupPlans(defaultGroupID string) []TopupPlan {
 			AmountCurrency: BillingCurrencyCodeCNY,
 			QuotaAmount:    500,
 			QuotaCurrency:  BillingCurrencyCodeUSD,
+			ValidityDays:   0,
 			Enabled:        true,
 			SortOrder:      3,
 		},
@@ -89,6 +93,7 @@ func defaultTopupPlans(defaultGroupID string) []TopupPlan {
 			AmountCurrency: BillingCurrencyCodeCNY,
 			QuotaAmount:    1300,
 			QuotaCurrency:  BillingCurrencyCodeUSD,
+			ValidityDays:   0,
 			Enabled:        true,
 			SortOrder:      4,
 		},
@@ -99,6 +104,7 @@ func defaultTopupPlans(defaultGroupID string) []TopupPlan {
 			AmountCurrency: BillingCurrencyCodeCNY,
 			QuotaAmount:    2600,
 			QuotaCurrency:  BillingCurrencyCodeUSD,
+			ValidityDays:   0,
 			Enabled:        true,
 			SortOrder:      5,
 		},
@@ -186,6 +192,7 @@ func normalizeTopupPlanRowWithDB(db *gorm.DB, row *TopupPlan) error {
 	row.AmountCurrency = normalizeBillingCurrencyCode(row.AmountCurrency)
 	row.QuotaAmount = normalizeTopupPlanQuotaAmount(row.QuotaAmount)
 	row.QuotaCurrency = normalizeBillingCurrencyCode(row.QuotaCurrency)
+	row.ValidityDays = normalizeTopupPlanValidityDays(row.ValidityDays)
 	row.SortOrder = max(row.SortOrder, 0)
 	groupID, err := resolveTopupPlanGroupWithDB(db, row.GroupID)
 	if err != nil {
@@ -247,6 +254,7 @@ func NormalizeTopupPlans(items []TopupPlan) []TopupPlan {
 		row.AmountCurrency = normalizeBillingCurrencyCode(row.AmountCurrency)
 		row.QuotaAmount = normalizeTopupPlanQuotaAmount(row.QuotaAmount)
 		row.QuotaCurrency = normalizeBillingCurrencyCode(row.QuotaCurrency)
+		row.ValidityDays = normalizeTopupPlanValidityDays(row.ValidityDays)
 		if row.SortOrder <= 0 {
 			row.SortOrder = index + 1
 		}
@@ -367,6 +375,7 @@ func updateTopupPlanWithDB(db *gorm.DB, item TopupPlan) (TopupPlan, error) {
 	row.AmountCurrency = item.AmountCurrency
 	row.QuotaAmount = item.QuotaAmount
 	row.QuotaCurrency = item.QuotaCurrency
+	row.ValidityDays = item.ValidityDays
 	row.Enabled = item.Enabled
 	row.SortOrder = item.SortOrder
 	if err := normalizeTopupPlanRowWithDB(db, &row); err != nil {

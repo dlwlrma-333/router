@@ -16,6 +16,7 @@ import (
 	"github.com/yeying-community/router/common/client"
 	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/common/ctxkey"
+	"github.com/yeying-community/router/common/logger"
 	"github.com/yeying-community/router/internal/admin/model"
 	adminmodel "github.com/yeying-community/router/internal/admin/model"
 	"github.com/yeying-community/router/internal/relay/adaptor/openai"
@@ -102,6 +103,9 @@ func RelayAudioHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 		}
 	}()
 	if billingPlan.ChargeUserBalance() {
+		if _, expireErr := model.ExpireUserBalanceLots(userId); expireErr != nil {
+			logger.Error(ctx, "expire user balance lots failed: "+expireErr.Error())
+		}
 		userQuota, err := model.CacheGetUserQuota(ctx, userId)
 		if err != nil {
 			return openai.ErrorWrapper(err, "get_user_quota_failed", http.StatusInternalServerError)
