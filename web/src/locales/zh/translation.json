@@ -74,7 +74,7 @@
       "package_purchase": "套餐购买"
     },
     "external_topup": {
-      "title": "外部充值",
+      "title": "额度充值",
       "current_balance": "当前余额",
       "total_balance": "总余额",
       "topup_balance": "充值余额",
@@ -113,7 +113,8 @@
       "no_link": "超级管理员未设置充值链接！",
       "plan_hint": "请选择固定充值档位进行下单。",
       "pay_label": "支付 {{amount}}",
-      "credited_label": "到账额度"
+      "credited_label": "到账额度",
+      "validity_label": "有效期"
     },
     "manage": {
       "title": "充值档位",
@@ -333,7 +334,10 @@
     "package": {
       "title": "套餐",
       "search_placeholder": "搜索用户、套餐名称、分组、记录 ID...",
-      "empty": "暂无套餐记录"
+      "empty": "暂无套餐记录",
+      "columns": {
+        "amount": "金额"
+      }
     },
     "redemption": {
       "title": "兑换",

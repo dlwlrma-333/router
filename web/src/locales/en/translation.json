@@ -74,7 +74,7 @@
       "package_purchase": "Package Purchase"
     },
     "external_topup": {
-      "title": "External Top-up",
+      "title": "Quota Top-up",
       "current_balance": "Current Balance",
       "total_balance": "Total Balance",
       "topup_balance": "Top-up Balance",
@@ -113,7 +113,8 @@
       "no_link": "Admin has not set up the top-up link!",
       "plan_hint": "Choose a preset top-up plan to place the order.",
       "pay_label": "Pay {{amount}}",
-      "credited_label": "Credited Amount"
+      "credited_label": "Credited Amount",
+      "validity_label": "Validity"
     },
     "manage": {
       "title": "Top-up Plans",
@@ -333,7 +334,10 @@
     "package": {
       "title": "Package",
       "search_placeholder": "Search user, package, group, record ID...",
-      "empty": "No package records"
+      "empty": "No package records",
+      "columns": {
+        "amount": "Amount"
+      }
     },
     "redemption": {
       "title": "Redemption",

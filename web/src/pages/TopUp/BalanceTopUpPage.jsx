@@ -14,6 +14,14 @@ const resolvePlanID = (plan) =>
   String(plan?.id || plan?.plan_id || plan?.Id || '')
     .trim();
 
+const renderPlanValidity = (validityDays, t) => {
+  const days = Number(validityDays || 0);
+  if (Number.isFinite(days) && days > 0) {
+    return `${days} ${t('common.day')}`;
+  }
+  return t('common.never');
+};
+
 const BalanceTopUpPage = () => {
   const { t } = useTranslation();
   const { topupPlans, createTopupOrder } = useTopUpWorkspace();
@@ -66,6 +74,9 @@ const BalanceTopUpPage = () => {
                         </div>
                         <div className='router-text-muted' style={{ marginTop: '0.35rem' }}>
                           {t('topup.external_topup.credited_label')}
+                        </div>
+                        <div className='router-text-muted' style={{ marginTop: '0.35rem' }}>
+                          {t('topup.external_topup.validity_label')}：{renderPlanValidity(plan.validity_days, t)}
                         </div>
                       </Card.Description>
                     </Card.Content>
