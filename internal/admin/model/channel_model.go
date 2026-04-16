@@ -697,9 +697,7 @@ func BuildFetchedChannelModelConfigs(existingRows []ChannelModel, fetchedRows []
 			if strings.TrimSpace(fetchedRow.Currency) != "" {
 				row.Currency = strings.TrimSpace(fetchedRow.Currency)
 			}
-			if strings.TrimSpace(fetchedRow.Provider) != "" {
-				row.Provider = strings.TrimSpace(fetchedRow.Provider)
-			}
+			row.Provider = strings.TrimSpace(fetchedRow.Provider)
 		}
 		row.UpstreamModel = upstreamModel
 		row.Inactive = false

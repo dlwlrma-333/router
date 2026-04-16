@@ -523,6 +523,27 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return dropChannelModelStreamOnlyWithDB(tx)
 			},
 		},
+		{
+			Version:     "202604161230_group_model_providers",
+			Description: "add canonical group_model_providers table and backfill provider mapping from current abilities",
+			Up: func(tx *gorm.DB) error {
+				return migrateGroupModelProvidersWithDB(tx)
+			},
+		},
+		{
+			Version:     "202604161700_channel_model_provider_catalog_backfill",
+			Description: "rebuild channel model provider from provider catalog unique matches and resync group model provider mapping",
+			Up: func(tx *gorm.DB) error {
+				return backfillChannelModelProviderFromCatalogWithDB(tx)
+			},
+		},
+		{
+			Version:     "202604161830_channel_model_provider_catalog_reconcile",
+			Description: "reconcile channel/group model provider mappings strictly from provider catalog unique matches",
+			Up: func(tx *gorm.DB) error {
+				return backfillChannelModelProviderFromCatalogWithDB(tx)
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }

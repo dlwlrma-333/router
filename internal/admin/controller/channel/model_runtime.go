@@ -35,7 +35,6 @@ import (
 
 type openAIModelCard struct {
 	ID               string         `json:"id"`
-	OwnedBy          string         `json:"owned_by"`
 	Type             string         `json:"type"`
 	Modality         string         `json:"modality"`
 	Modalities       []string       `json:"modalities"`
@@ -275,6 +274,19 @@ func fetchChannelModelsDetailed(protocol, key, baseURL, providerFilter string) (
 		return nil, trace, fmt.Errorf("%s", message)
 	}
 
+	catalogCandidates := make([]string, 0, len(parsed.Data))
+	for _, item := range parsed.Data {
+		id := strings.TrimSpace(item.ID)
+		if id == "" {
+			continue
+		}
+		catalogCandidates = append(catalogCandidates, id)
+	}
+	providerByModel, err := model.LoadUniqueProviderMapByModels(catalogCandidates)
+	if err != nil {
+		return nil, trace, fmt.Errorf("加载供应商模型目录失败: %w", err)
+	}
+
 	provider := commonutils.NormalizeProvider(providerFilter)
 	seen := make(map[string]struct{}, len(parsed.Data))
 	modelRows := make([]model.ChannelModel, 0, len(parsed.Data))
@@ -283,8 +295,15 @@ func fetchChannelModelsDetailed(protocol, key, baseURL, providerFilter string) (
 		if id == "" {
 			continue
 		}
-		if provider != "" && !commonutils.MatchProvider(id, item.OwnedBy, provider) {
-			continue
+		resolvedProvider := model.ResolveProviderFromCatalogMap(providerByModel, id)
+		if provider != "" {
+			if resolvedProvider != "" {
+				if commonutils.NormalizeProvider(resolvedProvider) != provider {
+					continue
+				}
+			} else {
+				continue
+			}
 		}
 		if _, ok := seen[id]; ok {
 			continue
@@ -293,6 +312,7 @@ func fetchChannelModelsDetailed(protocol, key, baseURL, providerFilter string) (
 		modelRows = append(modelRows, model.ChannelModel{
 			Model:         id,
 			UpstreamModel: id,
+			Provider:      resolvedProvider,
 			Type:          inferUpstreamModelCardType(item),
 			Selected:      false,
 		})
