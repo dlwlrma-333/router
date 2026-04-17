@@ -1065,7 +1065,7 @@ const sanitizeCreateConfigForLocalStorage = (config) => {
 
 const CHANNEL_CREATE_CACHE_KEY = 'router.channel.create.v3';
 const CREATE_CHANNEL_STEP_MIN = 1;
-const CREATE_CHANNEL_STEP_MAX = 4;
+const CREATE_CHANNEL_STEP_MAX = 5;
 
 const parseCreateStep = (rawStep) => {
   const step = Number(rawStep);
@@ -1154,7 +1154,7 @@ const inferCreatingChannelStepFromPayload = (payload) => {
     ? payload.channel_tests
     : [];
   if (testedAt > 0 || results.length > 0) {
-    return 4;
+    return 5;
   }
   return 3;
 };
@@ -1365,6 +1365,7 @@ const EditChannel = () => {
   const showStepTwo = showAllSections || createStep === 2;
   const showStepThree = showAllSections || createStep === 3;
   const showStepFour = showAllSections || createStep === 4;
+  const showStepFive = showAllSections || createStep === 5;
   const isCurrentSignatureVerified =
     requiresConnectionVerification &&
     verifiedModelSignature !== '' &&
@@ -1784,6 +1785,82 @@ const EditChannel = () => {
     createStepCurrentPageAllSelected,
     createStepCurrentPageSelectableModels,
   ]);
+
+  const createReviewRows = useMemo(() => {
+    if (!isCreateMode) {
+      return [];
+    }
+    return visibleModelConfigs.filter(
+      (row) => row.selected === true && row.inactive !== true,
+    );
+  }, [isCreateMode, visibleModelConfigs]);
+
+  const createReviewSupportedEndpointsByModel = useMemo(() => {
+    const index = new Map();
+    normalizeModelTestResults(modelTestResults).forEach((item) => {
+      const modelName = (item.model || '').toString().trim();
+      const endpoint = (item.endpoint || '').toString().trim();
+      if (modelName === '' || endpoint === '') {
+        return;
+      }
+      if (item.status !== 'supported' || item.supported !== true) {
+        return;
+      }
+      const existing = index.get(modelName) || new Set();
+      existing.add(endpoint);
+      index.set(modelName, existing);
+    });
+    return index;
+  }, [modelTestResults]);
+
+  const createReviewPendingRows = useMemo(() => {
+    if (inputs.protocol === 'proxy') {
+      return [];
+    }
+    return createReviewRows.filter((row) => {
+      const modelName = (row.model || '').toString().trim();
+      const endpoint = normalizeChannelModelEndpoint(
+        row.type,
+        row.endpoint,
+        inputs.protocol,
+      );
+      if (modelName === '' || endpoint === '') {
+        return true;
+      }
+      const result = modelTestResultsByKey.get(
+        buildModelTestResultKey(modelName, endpoint),
+      );
+      return !(result?.status === 'supported' && result?.supported === true);
+    });
+  }, [createReviewRows, inputs.protocol, modelTestResultsByKey]);
+
+  const ensureModelTestsReadyForReview = useCallback(() => {
+    if (inputs.protocol === 'proxy') {
+      return true;
+    }
+    if (createReviewRows.length === 0) {
+      showInfo(t('channel.edit.messages.models_required'));
+      return false;
+    }
+    if (createReviewPendingRows.length === 0) {
+      return true;
+    }
+    const pendingNames = createReviewPendingRows
+      .slice(0, 6)
+      .map(
+        (row) =>
+          (row.model || '').toString().trim() ||
+          (row.upstream_model || '').toString().trim() ||
+          '-',
+      )
+      .join(', ');
+    showInfo(
+      t('channel.edit.messages.model_tests_required', {
+        models: pendingNames,
+      }),
+    );
+    return false;
+  }, [createReviewPendingRows, createReviewRows.length, inputs.protocol, t]);
 
   const handleInputChange = (e, { name, value }) => {
     const nextValue = name === 'id' ? normalizeChannelIdentifier(value) : value;
@@ -2459,8 +2536,34 @@ const EditChannel = () => {
         return;
       }
     }
+    if (!ensureModelTestsReadyForReview()) {
+      return;
+    }
     goToCreateStep(4);
-  }, [createStep, ensureModelsStepCompleted, goToCreateStep]);
+  }, [
+    createStep,
+    ensureModelTestsReadyForReview,
+    ensureModelsStepCompleted,
+    goToCreateStep,
+  ]);
+
+  const moveToStepFive = useCallback(async () => {
+    if (createStep <= 2) {
+      const ok = await ensureModelsStepCompleted();
+      if (!ok) {
+        return;
+      }
+    }
+    if (!ensureModelTestsReadyForReview()) {
+      return;
+    }
+    goToCreateStep(5);
+  }, [
+    createStep,
+    ensureModelTestsReadyForReview,
+    ensureModelsStepCompleted,
+    goToCreateStep,
+  ]);
 
   const loadChannelModelConfigsFromServer = useCallback(
     async (targetChannelId, protocol) => {
@@ -3843,6 +3946,9 @@ const EditChannel = () => {
       showInfo(t('channel.edit.messages.models_required'));
       return;
     }
+    if (isCreateMode && !ensureModelTestsReadyForReview()) {
+      return;
+    }
     if (modelConfigError) {
       showInfo(modelConfigError);
       return;
@@ -4438,7 +4544,9 @@ const EditChannel = () => {
                       ? moveToStepTwo
                       : createStep === 2
                         ? moveToStepThree
-                        : moveToStepFour
+                        : createStep === 3
+                          ? moveToStepFour
+                          : moveToStepFive
                   }
                 >
                   {t('channel.edit.buttons.next_step')}
@@ -4496,6 +4604,15 @@ const EditChannel = () => {
                     basic={createStep !== 4}
                     color={createStep === 4 ? 'blue' : undefined}
                     onClick={moveToStepFour}
+                  >
+                    {t('channel.edit.wizard.step_review')}
+                  </Button>
+                  <Button
+                    type='button'
+                    className='router-page-button'
+                    basic={createStep !== 5}
+                    color={createStep === 5 ? 'blue' : undefined}
+                    onClick={moveToStepFive}
                   >
                     {t('channel.edit.wizard.step_advanced')}
                   </Button>
@@ -6369,14 +6486,246 @@ const EditChannel = () => {
                 )}
               </>
             )}
-            {showStepFour && inputs.protocol !== 'proxy' && (
+            {showStepFour && isCreateMode && inputs.protocol !== 'proxy' && (
+              <Form.Field>
+                <Message info className='router-section-message'>
+                  {t('channel.edit.model_tester.review_hint')}
+                </Message>
+                {createReviewPendingRows.length > 0 && (
+                  <Message warning className='router-section-message'>
+                    {t('channel.edit.model_tester.review_pending_notice', {
+                      count: createReviewPendingRows.length,
+                    })}
+                  </Message>
+                )}
+                <Table celled stackable className='router-detail-table'>
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.HeaderCell>
+                        {t('channel.edit.model_selector.table.name')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell>
+                        {t('channel.edit.model_selector.table.type')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell>
+                        {t('channel.edit.model_selector.table.alias')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell>
+                        {t('channel.edit.model_tester.table.endpoint')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell>
+                        {t('channel.edit.model_tester.table.supported_endpoints')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell>
+                        {t('channel.edit.model_selector.table.input_price')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell>
+                        {t('channel.edit.model_selector.table.output_price')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell>
+                        {t('channel.edit.model_selector.table.price_unit')}
+                      </Table.HeaderCell>
+                      <Table.HeaderCell>
+                        {t('channel.edit.model_tester.table.status')}
+                      </Table.HeaderCell>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {createReviewRows.length === 0 ? (
+                      <Table.Row>
+                        <Table.Cell className='router-empty-cell' colSpan='9'>
+                          {t('channel.edit.model_selector.empty')}
+                        </Table.Cell>
+                      </Table.Row>
+                    ) : (
+                      createReviewRows.map((row) => {
+                        const normalizedEndpoint =
+                          normalizeChannelModelEndpoint(
+                            row.type,
+                            row.endpoint,
+                            inputs.protocol,
+                          );
+                        const item = modelTestResultsByKey.get(
+                          buildModelTestResultKey(row.model, normalizedEndpoint),
+                        );
+                        const effectiveStatus = item?.status || 'untested';
+                        const labelColor =
+                          effectiveStatus === 'running'
+                            ? 'blue'
+                            : effectiveStatus === 'pending'
+                              ? 'orange'
+                              : effectiveStatus === 'stale'
+                                ? 'yellow'
+                                : effectiveStatus === 'untested'
+                                  ? undefined
+                                  : effectiveStatus === 'supported'
+                                    ? 'green'
+                                    : effectiveStatus === 'skipped'
+                                      ? 'grey'
+                                      : 'red';
+                        const supportedEndpointSet =
+                          createReviewSupportedEndpointsByModel.get(row.model) ||
+                          new Set();
+                        const supportedEndpoints = Array.from(
+                          supportedEndpointSet,
+                        ).sort((a, b) => a.localeCompare(b));
+                        return (
+                          <Table.Row key={`${row.upstream_model}-${row.model}`}>
+                            <Table.Cell title={row.upstream_model}>
+                              <span className='router-nowrap'>
+                                {row.upstream_model}
+                              </span>
+                            </Table.Cell>
+                            <Table.Cell>
+                              {t(
+                                `channel.model_types.${normalizeChannelModelType(
+                                  row.type,
+                                )}`,
+                              )}
+                            </Table.Cell>
+                            <Table.Cell>
+                              <Form.Input
+                                className='router-inline-input router-inline-input-wide'
+                                transparent
+                                value={row.model}
+                                onChange={(e, { value }) =>
+                                  updateModelConfigField(
+                                    row.upstream_model,
+                                    'model',
+                                    value || row.upstream_model,
+                                  )
+                                }
+                              />
+                            </Table.Cell>
+                            <Table.Cell>
+                              {row.type === 'text' ? (
+                                <Dropdown
+                                  selection
+                                  className='router-mini-dropdown'
+                                  options={TEXT_MODEL_ENDPOINT_OPTIONS}
+                                  value={
+                                    row.endpoint ||
+                                    defaultChannelModelEndpoint(
+                                      row.type,
+                                      inputs.protocol,
+                                    )
+                                  }
+                                  onChange={(e, { value }) =>
+                                    updateModelConfigField(
+                                      row.upstream_model,
+                                      'endpoint',
+                                      value,
+                                    )
+                                  }
+                                />
+                              ) : row.type === 'image' ? (
+                                <Dropdown
+                                  selection
+                                  className='router-mini-dropdown'
+                                  options={IMAGE_MODEL_ENDPOINT_OPTIONS}
+                                  value={
+                                    row.endpoint ||
+                                    defaultChannelModelEndpoint(
+                                      row.type,
+                                      inputs.protocol,
+                                    )
+                                  }
+                                  onChange={(e, { value }) =>
+                                    updateModelConfigField(
+                                      row.upstream_model,
+                                      'endpoint',
+                                      value,
+                                    )
+                                  }
+                                />
+                              ) : (
+                                normalizedEndpoint || '-'
+                              )}
+                            </Table.Cell>
+                            <Table.Cell>
+                              {supportedEndpoints.length > 0 ? (
+                                supportedEndpoints.map((endpoint) => (
+                                  <Label
+                                    key={`${row.model}-${endpoint}`}
+                                    basic
+                                    className='router-tag'
+                                  >
+                                    {endpoint}
+                                  </Label>
+                                ))
+                              ) : (
+                                <span className='router-text-muted'>-</span>
+                              )}
+                            </Table.Cell>
+                            <Table.Cell>
+                              <Form.Input
+                                className='router-inline-input'
+                                type='number'
+                                min='0'
+                                step='0.01'
+                                transparent
+                                placeholder='-'
+                                value={row.input_price ?? ''}
+                                onChange={(e, { value }) =>
+                                  updateModelConfigField(
+                                    row.upstream_model,
+                                    'input_price',
+                                    value,
+                                  )
+                                }
+                              />
+                            </Table.Cell>
+                            <Table.Cell>
+                              <Form.Input
+                                className='router-inline-input'
+                                type='number'
+                                min='0'
+                                step='0.01'
+                                transparent
+                                placeholder='-'
+                                value={row.output_price ?? ''}
+                                onChange={(e, { value }) =>
+                                  updateModelConfigField(
+                                    row.upstream_model,
+                                    'output_price',
+                                    value,
+                                  )
+                                }
+                              />
+                            </Table.Cell>
+                            <Table.Cell>
+                              <span className='router-nowrap'>
+                                {row.price_unit || '-'}
+                              </span>
+                            </Table.Cell>
+                            <Table.Cell>
+                              <Label
+                                basic
+                                color={labelColor}
+                                className='router-tag'
+                                title={item?.message || ''}
+                              >
+                                {t(
+                                  `channel.edit.model_tester.status.${effectiveStatus}`,
+                                )}
+                              </Label>
+                            </Table.Cell>
+                          </Table.Row>
+                        );
+                      })
+                    )}
+                  </Table.Body>
+                </Table>
+              </Form.Field>
+            )}
+            {showStepFive && inputs.protocol !== 'proxy' && (
               <>
                 {isDetailMode && (
                   <section className='router-entity-detail-section'>
                     <div className='router-entity-detail-section-header'>
                       <div className='router-toolbar-start'>
                         <span className='router-entity-detail-section-title'>
-                          {t('channel.edit.wizard.step_advanced')}
+                          {t('channel.edit.advanced_title')}
                         </span>
                       </div>
                       <div className='router-toolbar-end'>
