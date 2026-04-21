@@ -2157,6 +2157,7 @@
       "title": "用户登录",
       "username": "用户名 / 邮箱地址",
       "password": "密码",
+      "login": "登录",
       "button": "登录",
       "forgot_password": "忘记密码？",
       "reset_password": "点击重置",
@@ -2166,6 +2167,7 @@
       "wallet_title": "钱包登录",
       "wallet_button": "使用钱包登录",
       "password_button": "使用账密登录",
+      "password_disabled": "用户名密码登录未开启",
       "wallet_disabled": "钱包登录未开启",
       "wechat": {
         "scan_tip": "微信扫码关注公众号，输入「验证码」获取验证码（三分钟内有效）",
@@ -2183,12 +2185,15 @@
       "get_code_retry": "重试 ({{countdown}})",
       "button": "注册",
       "has_account": "已有账户？",
-      "login": "点击登录"
+      "login": "点击登录",
+      "closed_by_admin": "管理员关闭了用户注册",
+      "password_closed_by_admin": "管理员关闭了用户名密码注册"
     },
     "reset": {
       "title": "密码重置",
       "email": "邮箱地址",
       "button": "提交",
+      "remember_password": "想起密码了？",
       "notice": "系统将向您的邮箱发送一封包含重置链接的邮件，请注意查收。",
       "confirm": {
         "title": "密码重置确认",

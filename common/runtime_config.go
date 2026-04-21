@@ -85,6 +85,9 @@ type CacheRuntimeConfig struct {
 
 type AuthRuntimeConfig struct {
 	SessionSecret               string   `yaml:"session_secret"`
+	PasswordLoginEnabled        bool     `yaml:"password_login_enabled"`
+	PasswordRegisterEnabled     bool     `yaml:"password_register_enabled"`
+	RegisterEnabled             bool     `yaml:"register_enabled"`
 	AutoRegisterEnabled         bool     `yaml:"auto_register_enabled"`
 	WalletJWTSecret             string   `yaml:"wallet_jwt_secret"`
 	WalletJWTFallbackSecrets    []string `yaml:"wallet_jwt_fallback_secrets"`
@@ -153,9 +156,7 @@ type MetricsRuntimeConfig struct {
 }
 
 type BootstrapRuntimeConfig struct {
-	InitialRootToken       string `yaml:"initial_root_token"`
-	InitialRootAccessToken string `yaml:"initial_root_access_token"`
-	RootWalletAddress      string `yaml:"root_wallet_address"`
+	RootWalletAddress string `yaml:"root_wallet_address"`
 }
 
 type LoggingRuntimeConfig struct {
@@ -199,6 +200,9 @@ func defaultRuntimeConfig() RuntimeConfig {
 		},
 		Auth: AuthRuntimeConfig{
 			SessionSecret:               "",
+			PasswordLoginEnabled:        true,
+			PasswordRegisterEnabled:     true,
+			RegisterEnabled:             true,
 			AutoRegisterEnabled:         false,
 			WalletJWTSecret:             "",
 			WalletJWTFallbackSecrets:    []string{},
@@ -259,9 +263,7 @@ func defaultRuntimeConfig() RuntimeConfig {
 			FailChanSize:         128,
 		},
 		Bootstrap: BootstrapRuntimeConfig{
-			InitialRootToken:       "",
-			InitialRootAccessToken: "",
-			RootWalletAddress:      "",
+			RootWalletAddress: "",
 		},
 		Logging: LoggingRuntimeConfig{
 			OnlyOneLogFile:   false,
@@ -359,6 +361,9 @@ func ApplyRuntimeConfig(cfg *RuntimeConfig, portFlagSet bool, logDirFlagSet bool
 			config.SessionSecret = sessionSecret
 		}
 	}
+	config.PasswordLoginEnabled = cfg.Auth.PasswordLoginEnabled
+	config.PasswordRegisterEnabled = cfg.Auth.PasswordRegisterEnabled
+	config.RegisterEnabled = cfg.Auth.RegisterEnabled
 	config.AutoRegisterEnabled = cfg.Auth.AutoRegisterEnabled
 	config.WalletJWTSecret = strings.TrimSpace(cfg.Auth.WalletJWTSecret)
 	config.WalletJWTFallbackSecrets = normalizeStringSlice(cfg.Auth.WalletJWTFallbackSecrets)
@@ -479,8 +484,6 @@ func ApplyRuntimeConfig(cfg *RuntimeConfig, portFlagSet bool, logDirFlagSet bool
 		config.MetricFailChanSize = 128
 	}
 
-	config.InitialRootToken = strings.TrimSpace(cfg.Bootstrap.InitialRootToken)
-	config.InitialRootAccessToken = strings.TrimSpace(cfg.Bootstrap.InitialRootAccessToken)
 	config.RootWalletAddress = strings.TrimSpace(cfg.Bootstrap.RootWalletAddress)
 	config.RootWalletAddresses = nil
 	for _, item := range strings.Split(config.RootWalletAddress, ",") {
@@ -563,6 +566,9 @@ func setCompatibilityEnvs() {
 	_ = os.Setenv("PORT", strconv.Itoa(*Port))
 	_ = os.Setenv("GIN_MODE", GinMode)
 	_ = os.Setenv("SESSION_SECRET", config.SessionSecret)
+	_ = os.Setenv("PASSWORD_LOGIN_ENABLED", strconv.FormatBool(config.PasswordLoginEnabled))
+	_ = os.Setenv("PASSWORD_REGISTER_ENABLED", strconv.FormatBool(config.PasswordRegisterEnabled))
+	_ = os.Setenv("REGISTER_ENABLED", strconv.FormatBool(config.RegisterEnabled))
 	_ = os.Setenv("AUTO_REGISTER_ENABLED", strconv.FormatBool(config.AutoRegisterEnabled))
 	_ = os.Setenv("WALLET_JWT_SECRET", config.WalletJWTSecret)
 	_ = os.Setenv("WALLET_JWT_FALLBACK_SECRETS", strings.Join(config.WalletJWTFallbackSecrets, ","))
@@ -608,8 +614,6 @@ func setCompatibilityEnvs() {
 	_ = os.Setenv("METRIC_SUCCESS_RATE_THRESHOLD", strconv.FormatFloat(config.MetricSuccessRateThreshold, 'f', -1, 64))
 	_ = os.Setenv("METRIC_SUCCESS_CHAN_SIZE", strconv.Itoa(config.MetricSuccessChanSize))
 	_ = os.Setenv("METRIC_FAIL_CHAN_SIZE", strconv.Itoa(config.MetricFailChanSize))
-	_ = os.Setenv("INITIAL_ROOT_TOKEN", config.InitialRootToken)
-	_ = os.Setenv("INITIAL_ROOT_ACCESS_TOKEN", config.InitialRootAccessToken)
 	_ = os.Setenv("ROOT_WALLET_ADDRESS", config.RootWalletAddress)
 	_ = os.Setenv("GEMINI_VERSION", config.GeminiVersion)
 	_ = os.Setenv("ONLY_ONE_LOG_FILE", strconv.FormatBool(config.OnlyOneLogFile))
