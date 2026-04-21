@@ -36,9 +36,14 @@ const LoginForm = () => {
   })();
   const status = statusState?.status || storedStatus || {};
   const walletLoginDisabled = status?.wallet_login === false;
+  const passwordLoginDisabled = status?.password_login_enabled === false;
   const walletLoginEnabled = !walletLoginDisabled;
+  const passwordLoginEnabled = !passwordLoginDisabled;
+  const passwordRegisterEnabled =
+    status?.register_enabled !== false &&
+    status?.password_register_enabled !== false;
   const [showPasswordLogin, setShowPasswordLogin] =
-    useState(walletLoginDisabled);
+    useState(walletLoginDisabled && passwordLoginEnabled);
   const resolveLandingPath = (role) =>
     Number(role) >= 10 ? '/admin/dashboard' : '/workspace/service/pricing';
 
@@ -101,6 +106,12 @@ const LoginForm = () => {
   }
 
   async function handleSubmit() {
+    if (passwordLoginDisabled) {
+      showError(
+        t('auth.login.password_disabled', '用户名密码登录未开启，请联系管理员'),
+      );
+      return;
+    }
     if (username && password) {
       const res = await API.post(`/api/v1/public/user/login`, {
         username,
@@ -118,10 +129,10 @@ const LoginForm = () => {
   }
 
   useEffect(() => {
-    if (walletLoginDisabled) {
+    if (walletLoginDisabled && passwordLoginEnabled) {
       setShowPasswordLogin(true);
     }
-  }, [walletLoginDisabled]);
+  }, [walletLoginDisabled, passwordLoginEnabled]);
 
   return (
     <div className='router-login-page'>
@@ -166,7 +177,7 @@ const LoginForm = () => {
             <Divider horizontal>或</Divider>
 
             <div className='router-login-section'>
-              {walletLoginEnabled && (
+              {walletLoginEnabled && passwordLoginEnabled && (
                 <Button
                   basic
                   fluid
@@ -179,7 +190,16 @@ const LoginForm = () => {
                 </Button>
               )}
 
-              {showPasswordLogin && (
+              {passwordLoginDisabled && (
+                <Message warning className='router-auth-message'>
+                  {t(
+                    'auth.login.password_disabled',
+                    '用户名密码登录未开启，请联系管理员',
+                  )}
+                </Message>
+              )}
+
+              {showPasswordLogin && passwordLoginEnabled && (
                 <>
                   <Form className='router-login-form'>
                     <Form.Input
@@ -217,10 +237,12 @@ const LoginForm = () => {
                       {t('auth.login.forgot_password')}
                       <Link to='/reset'>{t('auth.login.reset_password')}</Link>
                     </div>
-                    <div>
-                      {t('auth.login.no_account')}
-                      <Link to='/register'>{t('auth.login.register')}</Link>
-                    </div>
+                    {passwordRegisterEnabled && (
+                      <div>
+                        {t('auth.login.no_account')}
+                        <Link to='/register'>{t('auth.login.register')}</Link>
+                      </div>
+                    )}
                   </div>
                 </>
               )}

@@ -2170,6 +2170,7 @@
       "wallet_title": "Wallet Login",
       "wallet_button": "Sign in with wallet",
       "password_button": "Sign in with password",
+      "password_disabled": "Password login is disabled",
       "wallet_disabled": "Wallet login is disabled",
       "wechat": {
         "scan_tip": "Scan QR code to follow WeChat Official Account, enter 'code' to get verification code (valid for 3 minutes)",
@@ -2187,7 +2188,9 @@
       "get_code_retry": "Retry ({{countdown}})",
       "button": "Register",
       "has_account": "Have an account?",
-      "login": "Login"
+      "login": "Login",
+      "closed_by_admin": "User registration is disabled by admin",
+      "password_closed_by_admin": "Password registration is disabled by admin"
     },
     "reset": {
       "title": "Password Reset",

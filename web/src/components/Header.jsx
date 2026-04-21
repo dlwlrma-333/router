@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { UserContext } from '../context/User';
+import { StatusContext } from '../context/Status';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -27,6 +28,7 @@ import '../index.css';
 const Header = ({ workspace = 'user', hideNavButtons = false }) => {
   const { t, i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
+  const [statusState] = useContext(StatusContext);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -245,6 +247,21 @@ const Header = ({ workspace = 'user', hideNavButtons = false }) => {
   const changeLanguage = (language) => {
     i18n.changeLanguage(language);
   };
+  const storedStatus = (() => {
+    const raw = localStorage.getItem('status');
+    if (!raw) {
+      return undefined;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      return undefined;
+    }
+  })();
+  const status = statusState?.status || storedStatus || {};
+  const passwordRegisterEnabled =
+    status?.register_enabled !== false &&
+    status?.password_register_enabled !== false;
 
   if (isMobile()) {
     return (
@@ -336,15 +353,17 @@ const Header = ({ workspace = 'user', hideNavButtons = false }) => {
                     >
                       {t('header.login')}
                     </Button>
-                    <Button
-                      className='router-page-button'
-                      onClick={() => {
-                        setShowSidebar(false);
-                        navigate('/register');
-                      }}
-                    >
-                      {t('header.register')}
-                    </Button>
+                    {passwordRegisterEnabled && (
+                      <Button
+                        className='router-page-button'
+                        onClick={() => {
+                          setShowSidebar(false);
+                          navigate('/register');
+                        }}
+                      >
+                        {t('header.register')}
+                      </Button>
+                    )}
                   </>
                 )}
               </Menu.Item>
