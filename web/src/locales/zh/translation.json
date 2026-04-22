@@ -1378,12 +1378,19 @@
       "assign": {
         "package": "套餐",
         "package_placeholder": "请选择套餐模板",
-        "package_required": "请选择套餐"
+        "package_required": "请选择套餐",
+        "topup_plan": "充值档位",
+        "topup_plan_placeholder": "请选择充值档位",
+        "topup_plan_required": "请选择充值档位"
       },
       "buttons": {
         "back": "返回",
         "edit": "编辑",
-        "gift_package": "赠送套餐"
+        "gift_package": "赠送套餐",
+        "gift_topup": "赠送充值档位"
+      },
+      "messages": {
+        "gift_topup_success": "赠送充值档位成功"
       }
     },
     "edit": {
