@@ -118,6 +118,38 @@ func TestBuildDefaultProviderCatalogSeeds_OpenAIIncludesGPT51Pricing(t *testing.
 	t.Fatalf("expected openai provider to exist")
 }
 
+func TestBuildDefaultProviderCatalogSeeds_OpenAIIncludesGPT55Pricing(t *testing.T) {
+	seeds := BuildDefaultProviderCatalogSeeds(1700000000)
+	for _, seed := range seeds {
+		if seed.Provider != "openai" {
+			continue
+		}
+		for _, detail := range seed.ModelDetails {
+			if detail.Model != "gpt-5.5" {
+				continue
+			}
+			if detail.Type != ProviderModelTypeText {
+				t.Fatalf("gpt-5.5 type=%q, want %q", detail.Type, ProviderModelTypeText)
+			}
+			if detail.InputPrice != 0.005 {
+				t.Fatalf("gpt-5.5 input_price=%v, want 0.005", detail.InputPrice)
+			}
+			if detail.OutputPrice != 0.03 {
+				t.Fatalf("gpt-5.5 output_price=%v, want 0.03", detail.OutputPrice)
+			}
+			if detail.PriceUnit != ProviderPriceUnitPer1KTokens {
+				t.Fatalf("gpt-5.5 price_unit=%q, want %q", detail.PriceUnit, ProviderPriceUnitPer1KTokens)
+			}
+			if detail.Currency != ProviderPriceCurrencyUSD {
+				t.Fatalf("gpt-5.5 currency=%q, want %q", detail.Currency, ProviderPriceCurrencyUSD)
+			}
+			return
+		}
+		t.Fatalf("expected openai seed to include gpt-5.5")
+	}
+	t.Fatalf("expected openai provider to exist")
+}
+
 func TestBuildDefaultProviderCatalogSeeds_AnthropicIncludesClaude46AndLegacyPricing(t *testing.T) {
 	seeds := BuildDefaultProviderCatalogSeeds(1700000000)
 	expected := map[string]struct {

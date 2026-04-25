@@ -563,6 +563,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				).Error
 			},
 		},
+		{
+			Version:     "202604251130_openai_gpt55_provider_catalog",
+			Description: "sync default provider catalog to add openai gpt-5.5 pricing rows",
+			Up: func(tx *gorm.DB) error {
+				return syncDefaultProviderCatalogWithDB(tx)
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }
