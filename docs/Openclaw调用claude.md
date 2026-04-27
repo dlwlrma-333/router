@@ -1,1 +1,1 @@
-首先安装openclaw和claude
+首先安装(需要node22和npm)openclaw和claude
