@@ -131,3 +131,15 @@ EOF
 
 chmod +x "$OC_ROOT/openclaw-router"
 ```
+### 3.测试
+
+```bash
+cd "$OC_ROOT"
+
+timeout 180 ./openclaw-router agent --local \
+  --session-id smoke \
+  --message 'Reply with OPENCLAW_READY only.'
+
+echo "exit=$?"
+```
+看到回`OPENCLAW_READY`就是成功了
