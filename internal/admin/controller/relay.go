@@ -56,6 +56,8 @@ func Relay(c *gin.Context) {
 	ctx := c.Request.Context()
 	c.Set(ctxkey.RelayRetryCount, 0)
 	c.Set(ctxkey.RelayError, "")
+	c.Set(ctxkey.RelayErrorType, "")
+	c.Set(ctxkey.RelayErrorCode, "")
 	relayMode := getEffectiveRelayMode(c)
 	if config.DebugEnabled {
 		requestBody, _ := common.GetRequestBody(c)
@@ -149,30 +151,19 @@ func Relay(c *gin.Context) {
 		}
 		channelId := c.GetString(ctxkey.ChannelId)
 		lastFailedChannelId = channelId
-		channelName := c.GetString(ctxkey.ChannelName)
+		channelName = c.GetString(ctxkey.ChannelName)
 		if trimmedChannelID := strings.TrimSpace(channelId); trimmedChannelID != "" {
 			failedChannelIDs[trimmedChannelID] = struct{}{}
 		}
 		go processChannelRelayError(ctx, userId, group, channelId, channelName, originalModel, requestPath, *bizErr)
 	}
 	if bizErr != nil {
-		upstreamStatus := bizErr.StatusCode
 		normalizeFinalRelayError(bizErr)
 		c.Set(ctxkey.RelayError, bizErr.Error.Message)
-		logger.RelayErrorf(ctx, relaylogging.NewFields("FAIL").
-			Int("status", bizErr.StatusCode).
-			Int("upstream_status", upstreamStatus).
-			String("channel_id", lastFailedChannelId).
-			String("channel_name", channelName).
-			String("group", group).
-			String("model", originalModel).
-			String("endpoint", requestPath).
-			String("user_id", userId).
-			String("error_code", errorCodeString(bizErr.Error.Code)).
-			String("error_type", bizErr.Error.Type).
-			Int("retry_count", retryCount).
-			String("error", bizErr.Error.Message).
-			Build())
+		c.Set(ctxkey.RelayErrorType, bizErr.Error.Type)
+		c.Set(ctxkey.RelayErrorCode, errorCodeString(bizErr.Error.Code))
+		c.Set(ctxkey.ChannelId, lastFailedChannelId)
+		c.Set(ctxkey.ChannelName, channelName)
 
 		// BUG: bizErr is in race condition
 		bizErr.Error.Message = helper.MessageWithTraceID(bizErr.Error.Message, traceID)
@@ -313,7 +304,9 @@ func processChannelRelayError(ctx context.Context, userId string, groupID string
 		String("error_code", errorCodeString(err.Code)).
 		String("error", err.Message).
 		Build()
-	if err.StatusCode >= http.StatusInternalServerError {
+	if isRelayContextCanceledError(&err) {
+		logger.RelayWarnf(ctx, msg)
+	} else if err.StatusCode >= http.StatusInternalServerError {
 		logger.RelayErrorf(ctx, msg)
 	} else {
 		logger.RelayWarnf(ctx, msg)
@@ -340,6 +333,17 @@ func processChannelRelayError(ctx context.Context, userId string, groupID string
 	} else {
 		monitor.Emit(channelId, false)
 	}
+}
+
+func isRelayContextCanceledError(err *model.ErrorWithStatusCode) bool {
+	if err == nil {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(errorCodeString(err.Code)), "do_request_failed") {
+		return false
+	}
+	lowerMessage := strings.ToLower(strings.TrimSpace(err.Message))
+	return strings.Contains(lowerMessage, "context canceled")
 }
 
 func shouldDisableChannelModelCapability(err *model.ErrorWithStatusCode) bool {
