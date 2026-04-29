@@ -35,6 +35,7 @@ func RelayLogger() gin.HandlerFunc {
 			String("ip", c.ClientIP()).
 			String("user_id", c.GetString(ctxkey.Id)).
 			String("token_id", c.GetString(ctxkey.TokenId)).
+			String("token_name", c.GetString(ctxkey.TokenName)).
 			String("channel_id", c.GetString(ctxkey.ChannelId)).
 			String("channel_name", c.GetString(ctxkey.ChannelName)).
 			String("group", c.GetString(ctxkey.Group)).
