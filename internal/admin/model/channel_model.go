@@ -609,9 +609,6 @@ func replaceChannelModelRowsWithDB(db *gorm.DB, channelID string, rows []Channel
 		if err := lockChannelRowForUpdateWithDB(tx, normalizedChannelID); err != nil {
 			return err
 		}
-		if err := SyncChannelModelEndpointsWithDB(tx, normalizedChannelID, dbRows); err != nil {
-			return err
-		}
 		if err := tx.Where("channel_id = ?", normalizedChannelID).Delete(&ChannelModel{}).Error; err != nil {
 			return err
 		}
@@ -1020,6 +1017,29 @@ const (
 	ChannelModelEndpointAudio     = "/v1/audio/speech"
 	ChannelModelEndpointVideos    = "/v1/videos"
 )
+
+func channelModelEndpointSortRank(endpoint string) int {
+	switch NormalizeRequestedChannelModelEndpoint(endpoint) {
+	case ChannelModelEndpointChat:
+		return 10
+	case ChannelModelEndpointResponses:
+		return 20
+	case ChannelModelEndpointMessages:
+		return 30
+	case ChannelModelEndpointImages:
+		return 40
+	case ChannelModelEndpointImageEdit:
+		return 50
+	case ChannelModelEndpointBatches:
+		return 60
+	case ChannelModelEndpointAudio:
+		return 70
+	case ChannelModelEndpointVideos:
+		return 80
+	default:
+		return 1000
+	}
+}
 
 func DefaultChannelModelEndpoint(modelType string) string {
 	switch normalizeModelType(modelType, "") {

@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -75,6 +76,7 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	}
 	meta.UpstreamMode = upstreamMode
 	meta.UpstreamRequestPath = upstreamPath
+	meta.EndpointPolicy = adminmodel.CacheGetChannelModelEndpointPolicy(meta.ChannelId, upstreamPath, meta.OriginModelName, textRequest.Model)
 	if config.DebugEnabled {
 		logger.Debugf(
 			ctx,
@@ -145,6 +147,10 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	// get request body
 	requestBody, err := getRequestBody(c, meta, upstreamRequest, adaptor)
 	if err != nil {
+		var policyErr *endpointPolicyError
+		if errors.As(err, &policyErr) {
+			return openai.ErrorWrapper(policyErr, policyErr.ErrorCode(), policyErr.StatusCode())
+		}
 		return openai.ErrorWrapper(err, "convert_request_failed", http.StatusInternalServerError)
 	}
 
@@ -184,6 +190,10 @@ func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralO
 		if err != nil {
 			return nil, err
 		}
+		jsonData, err = applyEndpointRequestPolicy(c, meta, jsonData)
+		if err != nil {
+			return nil, err
+		}
 		logger.Debugf(
 			c.Request.Context(),
 			"[messages_body] len=%d model=%s stream=%t",
@@ -203,11 +213,16 @@ func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralO
 		return bytes.NewBuffer(jsonData), nil
 	}
 	if meta.Mode == relaymode.Responses && upstreamMode == relaymode.Responses {
+		rawBody, err := common.GetRequestBody(c)
+		if err != nil {
+			return nil, err
+		}
+		rawBody, err = applyEndpointRequestPolicy(c, meta, rawBody)
+		if err != nil {
+			return nil, err
+		}
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(rawBody))
 		if config.DebugEnabled {
-			rawBody, err := common.GetRequestBody(c)
-			if err != nil {
-				return nil, err
-			}
 			logger.Debugf(
 				c.Request.Context(),
 				"[responses_body] len=%d model=%s stream=%t",
@@ -222,8 +237,6 @@ func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralO
 				relayModeLabel(upstreamMode),
 				sanitizePayloadForRelayDebug(rawBody),
 			)
-			// keep direct pass-through behavior while restoring body for downstream sender
-			c.Request.Body = io.NopCloser(bytes.NewBuffer(rawBody))
 		}
 		return c.Request.Body, nil
 	}
@@ -238,6 +251,10 @@ func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralO
 			return nil, err
 		}
 		jsonData, err = normalizeRequestBodyForResponses(jsonData)
+		if err != nil {
+			return nil, err
+		}
+		jsonData, err = applyEndpointRequestPolicy(c, meta, jsonData)
 		if err != nil {
 			return nil, err
 		}
@@ -267,6 +284,15 @@ func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralO
 		meta.Mode == upstreamMode &&
 		meta.Mode != relaymode.Messages {
 		// no need to convert request for openai
+		rawBody, err := common.GetRequestBody(c)
+		if err != nil {
+			return nil, err
+		}
+		rawBody, err = applyEndpointRequestPolicy(c, meta, rawBody)
+		if err != nil {
+			return nil, err
+		}
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(rawBody))
 		return c.Request.Body, nil
 	}
 
@@ -280,6 +306,10 @@ func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralO
 	jsonData, err := json.Marshal(convertedRequest)
 	if err != nil {
 		logger.Debugf(c.Request.Context(), "converted request json_marshal_failed: %s\n", err.Error())
+		return nil, err
+	}
+	jsonData, err = applyEndpointRequestPolicy(c, meta, jsonData)
+	if err != nil {
 		return nil, err
 	}
 	if config.DebugEnabled {

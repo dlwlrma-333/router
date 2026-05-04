@@ -232,6 +232,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 			},
 		},
 		{
+			Version:     "202604301030_channel_model_endpoint_policies",
+			Description: "add channel model endpoint policy table for request compatibility rules",
+			Up: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&ChannelModelEndpointPolicy{})
+			},
+		},
+		{
 			Version:     "202604011030_billing_currency_cny_decouple",
 			Description: "decouple CNY yyc rate from system default linkage and switch legacy default source to manual",
 			Up: func(tx *gorm.DB) error {
@@ -582,6 +589,29 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 			Description: "sync default provider catalog to add openai gpt-5.5 pricing rows",
 			Up: func(tx *gorm.DB) error {
 				return syncDefaultProviderCatalogWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605041030_provider_model_supported_endpoints",
+			Description: "add provider model supported endpoints as channel endpoint candidates",
+			Up: func(tx *gorm.DB) error {
+				if err := syncDefaultProviderCatalogWithDB(tx); err != nil {
+					return err
+				}
+				channelIDs := make([]string, 0)
+				if err := tx.Model(&Channel{}).Distinct("id").Pluck("id", &channelIDs).Error; err != nil {
+					return err
+				}
+				for _, channelID := range channelIDs {
+					rows, err := listChannelModelRowsByChannelIDWithDB(tx, channelID)
+					if err != nil {
+						return err
+					}
+					if err := SyncChannelModelEndpointsWithDB(tx, channelID, rows); err != nil {
+						return err
+					}
+				}
+				return nil
 			},
 		},
 	}

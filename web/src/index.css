@@ -1091,6 +1091,30 @@ code {
     color: #2185d0 !important;
 }
 
+.router-entity-detail-tabs {
+    overflow-x: auto;
+}
+
+.ui.pointing.secondary.menu.router-detail-tab-menu {
+    margin: 0 !important;
+    border-bottom-color: rgba(34, 36, 38, 0.08) !important;
+    flex-wrap: nowrap;
+    min-width: max-content;
+}
+
+.ui.pointing.secondary.menu.router-detail-tab-menu .item {
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: rgba(15, 23, 42, 0.72) !important;
+    padding: 0.75rem 0.95rem !important;
+    white-space: nowrap;
+}
+
+.ui.pointing.secondary.menu.router-detail-tab-menu .active.item {
+    color: #1f2937 !important;
+    border-color: #2185d0 !important;
+}
+
 .router-provider-detail-sections,
 .router-entity-detail-sections {
     display: flex;
@@ -1182,6 +1206,13 @@ code {
     border-radius: 0.28571429rem;
     background: #fafbfc;
     padding: 8px 12px;
+}
+
+.router-detail-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
 }
 
 .router-inline-stat-value {
@@ -2479,6 +2510,10 @@ code {
 
   .router-settings-menu-column {
     max-width: none;
+  }
+
+  .router-detail-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .ui.container.main-content {

@@ -48,16 +48,17 @@ type ProviderModelPriceComponentDetail struct {
 }
 
 type ProviderModelDetail struct {
-	Model           string                              `json:"model"`
-	Type            string                              `json:"type,omitempty"`
-	Capabilities    []string                            `json:"capabilities,omitempty"`
-	InputPrice      float64                             `json:"input_price,omitempty"`
-	OutputPrice     float64                             `json:"output_price,omitempty"`
-	PriceUnit       string                              `json:"price_unit,omitempty"`
-	Currency        string                              `json:"currency,omitempty"`
-	Source          string                              `json:"source,omitempty"`
-	UpdatedAt       int64                               `json:"updated_at,omitempty"`
-	PriceComponents []ProviderModelPriceComponentDetail `json:"price_components,omitempty"`
+	Model              string                              `json:"model"`
+	Type               string                              `json:"type,omitempty"`
+	Capabilities       []string                            `json:"capabilities,omitempty"`
+	SupportedEndpoints []string                            `json:"supported_endpoints,omitempty"`
+	InputPrice         float64                             `json:"input_price,omitempty"`
+	OutputPrice        float64                             `json:"output_price,omitempty"`
+	PriceUnit          string                              `json:"price_unit,omitempty"`
+	Currency           string                              `json:"currency,omitempty"`
+	Source             string                              `json:"source,omitempty"`
+	UpdatedAt          int64                               `json:"updated_at,omitempty"`
+	PriceComponents    []ProviderModelPriceComponentDetail `json:"price_components,omitempty"`
 }
 
 type ProviderCatalogSeed struct {
@@ -99,16 +100,17 @@ func NormalizeProviderModelDetails(details []ProviderModelDetail) []ProviderMode
 			outputPrice = 0
 		}
 		entry := ProviderModelDetail{
-			Model:           modelName,
-			Type:            t,
-			Capabilities:    normalizeProviderModelCapabilities(detail.Capabilities, t, detail.PriceComponents),
-			InputPrice:      inputPrice,
-			OutputPrice:     outputPrice,
-			PriceUnit:       priceUnit,
-			Currency:        currency,
-			Source:          source,
-			UpdatedAt:       detail.UpdatedAt,
-			PriceComponents: NormalizeProviderModelPriceComponents(detail.PriceComponents),
+			Model:              modelName,
+			Type:               t,
+			Capabilities:       normalizeProviderModelCapabilities(detail.Capabilities, t, detail.PriceComponents),
+			SupportedEndpoints: NormalizeProviderModelSupportedEndpoints(t, detail.SupportedEndpoints),
+			InputPrice:         inputPrice,
+			OutputPrice:        outputPrice,
+			PriceUnit:          priceUnit,
+			Currency:           currency,
+			Source:             source,
+			UpdatedAt:          detail.UpdatedAt,
+			PriceComponents:    NormalizeProviderModelPriceComponents(detail.PriceComponents),
 		}
 		if idx, ok := index[modelName]; ok {
 			existing := normalized[idx]
@@ -134,6 +136,7 @@ func NormalizeProviderModelDetails(details []ProviderModelDetail) []ProviderMode
 				existing.UpdatedAt = entry.UpdatedAt
 			}
 			existing.Capabilities = normalizeProviderModelCapabilities(append(existing.Capabilities, entry.Capabilities...), existing.Type, append(existing.PriceComponents, entry.PriceComponents...))
+			existing.SupportedEndpoints = NormalizeProviderModelSupportedEndpoints(existing.Type, append(existing.SupportedEndpoints, entry.SupportedEndpoints...))
 			existing.PriceComponents = NormalizeProviderModelPriceComponents(append(existing.PriceComponents, entry.PriceComponents...))
 			normalized[idx] = existing
 			continue
@@ -256,6 +259,54 @@ func normalizeProviderModelCapabilities(capabilities []string, modelType string,
 	}
 	sort.Strings(result)
 	return result
+}
+
+func NormalizeProviderModelSupportedEndpoints(modelType string, endpoints []string) []string {
+	normalizedType := normalizeModelType(modelType, "")
+	seen := make(map[string]struct{}, len(endpoints))
+	result := make([]string, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		normalizedEndpoint := NormalizeRequestedChannelModelEndpoint(endpoint)
+		if normalizedEndpoint == "" || !IsChannelModelEndpointAllowedForType(normalizedType, normalizedEndpoint) {
+			continue
+		}
+		if _, exists := seen[normalizedEndpoint]; exists {
+			continue
+		}
+		seen[normalizedEndpoint] = struct{}{}
+		result = append(result, normalizedEndpoint)
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		return channelModelEndpointSortRank(result[i]) < channelModelEndpointSortRank(result[j])
+	})
+	return result
+}
+
+func IsChannelModelEndpointAllowedForType(modelType string, endpoint string) bool {
+	normalizedEndpoint := NormalizeRequestedChannelModelEndpoint(endpoint)
+	if normalizedEndpoint == "" {
+		return false
+	}
+	switch normalizeModelType(modelType, "") {
+	case ProviderModelTypeImage:
+		switch normalizedEndpoint {
+		case ChannelModelEndpointResponses, ChannelModelEndpointBatches, ChannelModelEndpointImageEdit, ChannelModelEndpointImages:
+			return true
+		default:
+			return false
+		}
+	case ProviderModelTypeAudio:
+		return normalizedEndpoint == ChannelModelEndpointAudio
+	case ProviderModelTypeVideo:
+		return normalizedEndpoint == ChannelModelEndpointVideos
+	default:
+		switch normalizedEndpoint {
+		case ChannelModelEndpointChat, ChannelModelEndpointResponses, ChannelModelEndpointMessages:
+			return true
+		default:
+			return false
+		}
+	}
 }
 
 func providerCapabilityFromComponent(component string) string {

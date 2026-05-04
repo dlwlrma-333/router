@@ -459,6 +459,7 @@
         "model": "Model",
         "type": "Type",
         "capabilities": "Capabilities",
+        "supported_endpoints": "Supported Endpoints",
         "input_price": "Input Price",
         "output_price": "Output Price",
         "price_unit": "Price Unit",
@@ -553,6 +554,82 @@
   "models_placeholder": "Please select models supported by this channel",
   "detail_basic_title": "Basic Info",
   "detail_models_title": "Model Selection",
+  "detail_tabs": {
+    "overview": "Overview",
+    "models": "Models",
+    "endpoints": "Endpoints",
+    "tests": "Tests"
+  },
+  "endpoint_capabilities": {
+    "title": "Endpoint Capabilities",
+    "summary": "{{total}} total, {{enabled}} enabled, {{explicit}} explicit, {{candidate}} candidates",
+    "hint": "This section shows endpoint capabilities for the current channel models. Candidate endpoints come from the provider model catalog; routing and /v1/models exposure use enabled channel endpoint capabilities.",
+    "cards": {
+      "total": "Total Endpoints",
+      "enabled": "Enabled",
+      "explicit": "Explicit",
+      "candidate": "Provider Candidates"
+    },
+    "loading": "Loading endpoint capabilities...",
+    "empty": "No endpoint capability data yet. Sync models or run model tests first.",
+    "load_failed": "Failed to load endpoint capabilities",
+    "update_success": "Endpoint capability updated",
+    "update_failed": "Failed to update endpoint capability",
+    "table": {
+      "model": "Model",
+      "endpoint": "Endpoint",
+      "source": "Source",
+      "enabled": "Enabled",
+      "latest_test": "Latest Test",
+      "updated_at": "Updated At"
+    },
+    "source": {
+      "explicit": "Explicit",
+      "provider_catalog": "Provider Candidate"
+    }
+  },
+  "endpoint_policies": {
+    "title": "Endpoint Policies",
+    "summary": "{{total}} total, {{enabled}} enabled",
+    "hint": "Endpoint policies describe compatibility adjustments inside a specific channel model endpoint, such as dropping unsupported fields, rejecting certain inputs, or converting image URLs to base64. This section manages explicit policies only and does not change endpoint capability state itself.",
+    "cards": {
+      "configured": "Configured",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "not_configured": "Not Configured"
+    },
+    "loading": "Loading endpoint policies...",
+    "empty": "No configurable endpoint policies yet. Make sure endpoint capabilities exist first.",
+    "load_failed": "Failed to load endpoint policies",
+    "update_success": "Endpoint policy updated",
+    "update_failed": "Failed to update endpoint policy",
+    "invalid": "Incomplete endpoint policy payload",
+    "create": "Create Policy",
+    "edit": "Edit Policy",
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "not_configured": "Not Configured"
+    },
+    "table": {
+      "model": "Model",
+      "endpoint": "Endpoint",
+      "status": "Status",
+      "source": "Source",
+      "reason": "Reason",
+      "updated_at": "Updated At",
+      "actions": "Actions"
+    },
+    "editor": {
+      "title": "Edit Endpoint Policy",
+      "hint": "JSON text is validated by backend rules. `capabilities` describes factual support, `request_policy` describes request-side actions, and `response_policy` is reserved for now.",
+      "template": "Policy Template",
+      "template_placeholder": "Choose a common template for quick fill",
+      "capabilities": "Capabilities JSON",
+      "request_policy": "Request Policy JSON",
+      "response_policy": "Response Policy JSON"
+    }
+  },
   "created_time": "Created Time",
   "system_prompt": "System Prompt",
       "system_prompt_placeholder": "Optional, used to force set system prompt. Use with custom model & model mapping. First create a unique custom model name above, then map it to a natively supported model",
@@ -582,6 +659,12 @@
       },
       "model_selector": {
         "summary": "Selected {{selected}} / {{total}}",
+        "cards": {
+          "enabled": "Enabled Models",
+          "assigned": "Assigned to Provider",
+          "unassigned": "Unassigned",
+          "inactive": "Inactive Models"
+        },
         "table": {
           "selected": "Enabled",
           "name": "Name",

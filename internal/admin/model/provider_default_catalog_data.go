@@ -341,7 +341,32 @@ func normalizeDefaultProviderSeedModelDetails(provider string, details []Provide
 		if next.UpdatedAt <= 0 {
 			next.UpdatedAt = now
 		}
+		if len(next.SupportedEndpoints) == 0 {
+			next.SupportedEndpoints = DefaultProviderModelSupportedEndpoints(normalizedProvider, next.Type, next.Model)
+		} else {
+			next.SupportedEndpoints = NormalizeProviderModelSupportedEndpoints(next.Type, next.SupportedEndpoints)
+		}
 		cloned = append(cloned, next)
 	}
 	return NormalizeProviderModelDetails(cloned)
+}
+
+func DefaultProviderModelSupportedEndpoints(provider string, modelType string, modelName string) []string {
+	normalizedProvider := strings.TrimSpace(strings.ToLower(provider))
+	switch normalizeModelType(modelType, modelName) {
+	case ProviderModelTypeImage:
+		return []string{ChannelModelEndpointImages}
+	case ProviderModelTypeAudio:
+		return []string{ChannelModelEndpointAudio}
+	case ProviderModelTypeVideo:
+		return []string{ChannelModelEndpointVideos}
+	}
+	switch normalizedProvider {
+	case "anthropic":
+		return []string{ChannelModelEndpointMessages}
+	case "openai":
+		return []string{ChannelModelEndpointResponses}
+	default:
+		return []string{ChannelModelEndpointChat}
+	}
 }

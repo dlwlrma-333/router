@@ -82,15 +82,16 @@ func LoadProviderModelDetailsMapForProviders(db *gorm.DB, providers []string) (m
 			continue
 		}
 		detail := ProviderModelDetail{
-			Model:        modelName,
-			Type:         strings.TrimSpace(strings.ToLower(row.Type)),
-			Capabilities: splitProviderModelCapabilities(row.Capabilities),
-			InputPrice:   row.InputPrice,
-			OutputPrice:  row.OutputPrice,
-			PriceUnit:    strings.TrimSpace(strings.ToLower(row.PriceUnit)),
-			Currency:     strings.TrimSpace(strings.ToUpper(row.Currency)),
-			Source:       strings.TrimSpace(strings.ToLower(row.Source)),
-			UpdatedAt:    row.UpdatedAt,
+			Model:              modelName,
+			Type:               strings.TrimSpace(strings.ToLower(row.Type)),
+			Capabilities:       splitProviderModelCapabilities(row.Capabilities),
+			SupportedEndpoints: splitProviderModelSupportedEndpoints(row.SupportedEndpoints),
+			InputPrice:         row.InputPrice,
+			OutputPrice:        row.OutputPrice,
+			PriceUnit:          strings.TrimSpace(strings.ToLower(row.PriceUnit)),
+			Currency:           strings.TrimSpace(strings.ToUpper(row.Currency)),
+			Source:             strings.TrimSpace(strings.ToLower(row.Source)),
+			UpdatedAt:          row.UpdatedAt,
 		}
 		result[provider] = append(result[provider], detail)
 		detailIndex[provider+"\x00"+modelName] = len(result[provider]) - 1
@@ -162,16 +163,17 @@ func BuildProviderModelStoreRows(provider string, details []ProviderModelDetail,
 			updatedAt = now
 		}
 		rows = append(rows, ProviderModel{
-			Provider:     normalizedProvider,
-			Model:        detail.Model,
-			Type:         detail.Type,
-			Capabilities: joinProviderModelCapabilities(detail.Capabilities),
-			InputPrice:   detail.InputPrice,
-			OutputPrice:  detail.OutputPrice,
-			PriceUnit:    detail.PriceUnit,
-			Currency:     detail.Currency,
-			Source:       detail.Source,
-			UpdatedAt:    updatedAt,
+			Provider:           normalizedProvider,
+			Model:              detail.Model,
+			Type:               detail.Type,
+			Capabilities:       joinProviderModelCapabilities(detail.Capabilities),
+			SupportedEndpoints: joinProviderModelSupportedEndpoints(detail.Type, detail.SupportedEndpoints),
+			InputPrice:         detail.InputPrice,
+			OutputPrice:        detail.OutputPrice,
+			PriceUnit:          detail.PriceUnit,
+			Currency:           detail.Currency,
+			Source:             detail.Source,
+			UpdatedAt:          updatedAt,
 		})
 		for _, component := range NormalizeProviderModelPriceComponents(detail.PriceComponents) {
 			componentUpdatedAt := component.UpdatedAt
@@ -218,6 +220,30 @@ func splitProviderModelCapabilities(raw string) []string {
 
 func joinProviderModelCapabilities(values []string) string {
 	normalized := normalizeProviderModelCapabilities(values, "", nil)
+	if len(normalized) == 0 {
+		return ""
+	}
+	return strings.Join(normalized, ",")
+}
+
+func splitProviderModelSupportedEndpoints(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := NormalizeRequestedChannelModelEndpoint(part)
+		if value == "" {
+			continue
+		}
+		result = append(result, value)
+	}
+	return result
+}
+
+func joinProviderModelSupportedEndpoints(modelType string, values []string) string {
+	normalized := NormalizeProviderModelSupportedEndpoints(modelType, values)
 	if len(normalized) == 0 {
 		return ""
 	}

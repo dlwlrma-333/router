@@ -459,6 +459,7 @@
         "model": "模型",
         "type": "类型",
         "capabilities": "能力",
+        "supported_endpoints": "支持端点",
         "input_price": "输入价格",
         "output_price": "输出价格",
         "price_unit": "计价单位",
@@ -553,6 +554,83 @@
   "models_placeholder": "请选择该渠道所支持的模型",
   "detail_basic_title": "基础信息",
   "detail_models_title": "模型选择",
+  "detail_tabs": {
+    "overview": "概览",
+    "models": "模型",
+    "endpoints": "端点",
+    "tests": "测试"
+  },
+  "endpoint_capabilities": {
+    "title": "端点能力",
+    "summary": "共 {{total}} 条，启用 {{enabled}} 条，显式 {{explicit}} 条，候选 {{candidate}} 条",
+    "hint": "这里展示的是当前渠道模型的端点能力。候选端点来自供应商模型目录；真正参与路由和 /v1/models 暴露的是已启用的渠道端点能力。",
+    "cards": {
+      "total": "端点总数",
+      "enabled": "已启用",
+      "explicit": "显式配置",
+      "candidate": "供应商候选"
+    },
+    "loading": "加载端点能力中...",
+    "empty": "当前没有端点能力数据，请先同步模型或执行模型测试。",
+    "load_failed": "加载端点能力失败",
+    "update_success": "端点能力更新成功",
+    "update_failed": "更新端点能力失败",
+    "table": {
+      "model": "模型",
+      "endpoint": "端点",
+      "source": "来源",
+      "enabled": "启用",
+      "latest_test": "最近测试",
+      "updated_at": "更新时间"
+    },
+    "source": {
+      "explicit": "显式配置",
+      "provider_catalog": "供应商候选"
+    }
+  },
+  "endpoint_policies": {
+    "title": "端点策略",
+    "summary": "共 {{total}} 条，启用 {{enabled}} 条",
+    "hint": "端点策略用于描述某个渠道模型端点内部的兼容性修正，例如删除不支持字段、拒绝某类输入、把图片 URL 转成 base64。这里只管理显式策略，不改变端点能力本身。",
+    "cards": {
+      "configured": "已配置策略",
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "not_configured": "未配置"
+    },
+    "loading": "加载端点策略中...",
+    "empty": "当前没有可配置的端点策略，请先确保端点能力已生成。",
+    "load_failed": "加载端点策略失败",
+    "update_success": "端点策略更新成功",
+    "update_failed": "更新端点策略失败",
+    "invalid": "端点策略参数不完整",
+    "create": "新建策略",
+    "edit": "编辑策略",
+    "status": {
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "not_configured": "未配置"
+    },
+    "table": {
+      "model": "模型",
+      "endpoint": "端点",
+      "status": "状态",
+      "source": "来源",
+      "reason": "原因",
+      "updated_at": "更新时间",
+      "actions": "操作"
+    },
+    "editor": {
+      "title": "编辑端点策略",
+      "hint": "JSON 文本会按后端规则校验。`capabilities` 描述事实能力，`request_policy` 描述请求侧动作，`response_policy` 暂作为预留字段。"
+      ,
+      "template": "策略模板",
+      "template_placeholder": "选择常用模板快速填充",
+      "capabilities": "能力声明 JSON",
+      "request_policy": "请求策略 JSON",
+      "response_policy": "响应策略 JSON"
+    }
+  },
   "created_time": "创建时间",
   "system_prompt": "系统提示词",
       "system_prompt_placeholder": "此项可选，用于强制设置给定的系统提示词，请配合自定义模型 & 模型重定向使用，首先创建一个唯一的自定义模型名称并在上面填入，之后将该自定义模型重定向映射到该渠道一个原生支持的模型",
@@ -582,6 +660,12 @@
       },
       "model_selector": {
         "summary": "已选择 {{selected}} / {{total}}",
+        "cards": {
+          "enabled": "已启用模型",
+          "assigned": "已归属供应商",
+          "unassigned": "未归属供应商",
+          "inactive": "已下线模型"
+        },
         "table": {
           "selected": "启用",
           "name": "名称",

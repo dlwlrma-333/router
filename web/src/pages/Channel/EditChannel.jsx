@@ -17,6 +17,7 @@ import {
   Icon,
   Label,
   Message,
+  Menu,
   Modal,
   Pagination,
   Table,
@@ -224,6 +225,18 @@ const normalizeChannelModelEndpoints = (type, endpoints, endpoint, protocol) => 
   return result;
 };
 
+const DETAIL_TAB_KEYS = [
+  'overview',
+  'models',
+  'endpoints',
+  'tests',
+];
+
+const normalizeDetailTab = (value) => {
+  const normalized = (value || '').toString().trim().toLowerCase();
+  return DETAIL_TAB_KEYS.includes(normalized) ? normalized : 'overview';
+};
+
 const CHANNEL_MODEL_TYPE_OPTIONS = [
   { key: 'text', value: 'text', text: 'text' },
   { key: 'image', value: 'image', text: 'image' },
@@ -248,6 +261,20 @@ const IMAGE_MODEL_ENDPOINT_OPTIONS = [
   { key: 'batches', value: '/v1/batches', text: '/v1/batches' },
 ];
 
+const CHANNEL_ENDPOINT_SOURCE_EXPLICIT = 'explicit';
+const CHANNEL_ENDPOINT_SOURCE_PROVIDER_CATALOG = 'provider_catalog';
+
+const CHANNEL_ENDPOINT_SORT_ORDER = {
+  '/v1/chat/completions': 10,
+  '/v1/responses': 20,
+  '/v1/messages': 30,
+  '/v1/images/generations': 40,
+  '/v1/images/edits': 50,
+  '/v1/batches': 60,
+  '/v1/audio/speech': 70,
+  '/v1/videos': 80,
+};
+
 const endpointOptionsForModelType = (type) => {
   const normalizedType = normalizeChannelModelType(type);
   if (normalizedType === 'image') {
@@ -258,6 +285,243 @@ const endpointOptionsForModelType = (type) => {
   }
   return [];
 };
+
+const normalizeChannelEndpointSource = (value) => {
+  const normalized = (value || '').toString().trim().toLowerCase();
+  if (normalized === CHANNEL_ENDPOINT_SOURCE_EXPLICIT) {
+    return CHANNEL_ENDPOINT_SOURCE_EXPLICIT;
+  }
+  return CHANNEL_ENDPOINT_SOURCE_PROVIDER_CATALOG;
+};
+
+const buildChannelEndpointKey = (modelName, endpoint) =>
+  `${(modelName || '').toString().trim()}::${(endpoint || '')
+    .toString()
+    .trim()}`;
+
+const normalizeChannelEndpointRows = (items) => {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  const seen = new Set();
+  const rows = [];
+  items.forEach((item) => {
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+    const model = (item.model || '').toString().trim();
+    const endpoint = (item.endpoint || '').toString().trim();
+    if (model === '' || endpoint === '') {
+      return;
+    }
+    const key = buildChannelEndpointKey(model, endpoint);
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    rows.push({
+      channel_id: (item.channel_id || '').toString().trim(),
+      model,
+      endpoint,
+      enabled: item.enabled === true,
+      updated_at: Number(item.updated_at || 0),
+      source: normalizeChannelEndpointSource(item.source),
+    });
+  });
+  rows.sort((left, right) => {
+    const modelOrder = left.model.localeCompare(right.model);
+    if (modelOrder !== 0) {
+      return modelOrder;
+    }
+    const leftOrder =
+      CHANNEL_ENDPOINT_SORT_ORDER[left.endpoint] || Number.MAX_SAFE_INTEGER;
+    const rightOrder =
+      CHANNEL_ENDPOINT_SORT_ORDER[right.endpoint] || Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+    return left.endpoint.localeCompare(right.endpoint);
+  });
+  return rows;
+};
+
+const prettyJSONString = (value) => {
+  const trimmed = (value || '').toString().trim();
+  if (trimmed === '') {
+    return '';
+  }
+  try {
+    return JSON.stringify(JSON.parse(trimmed), null, 2);
+  } catch {
+    return trimmed;
+  }
+};
+
+const normalizeChannelEndpointPolicyRows = (items) => {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  const seen = new Set();
+  const rows = [];
+  items.forEach((item) => {
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+    const model = (item.model || '').toString().trim();
+    const endpoint = (item.endpoint || '').toString().trim();
+    if (model === '' || endpoint === '') {
+      return;
+    }
+    const key = buildChannelEndpointKey(model, endpoint);
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    rows.push({
+      id: (item.id || '').toString().trim(),
+      channel_id: (item.channel_id || '').toString().trim(),
+      model,
+      endpoint,
+      enabled: item.enabled === true,
+      capabilities: prettyJSONString(item.capabilities),
+      request_policy: prettyJSONString(item.request_policy),
+      response_policy: prettyJSONString(item.response_policy),
+      reason: (item.reason || '').toString(),
+      source: (item.source || '').toString().trim() || 'manual',
+      last_verified_at: Number(item.last_verified_at || 0),
+      updated_at: Number(item.updated_at || 0),
+    });
+  });
+  rows.sort((left, right) => {
+    const modelOrder = left.model.localeCompare(right.model);
+    if (modelOrder !== 0) {
+      return modelOrder;
+    }
+    const leftOrder =
+      CHANNEL_ENDPOINT_SORT_ORDER[left.endpoint] || Number.MAX_SAFE_INTEGER;
+    const rightOrder =
+      CHANNEL_ENDPOINT_SORT_ORDER[right.endpoint] || Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+    return left.endpoint.localeCompare(right.endpoint);
+  });
+  return rows;
+};
+
+const buildEmptyEndpointPolicyDraft = (channelId, modelName, endpoint) => ({
+  id: '',
+  channel_id: (channelId || '').toString().trim(),
+  model: (modelName || '').toString().trim(),
+  endpoint: (endpoint || '').toString().trim(),
+  enabled: true,
+  capabilities: '',
+  request_policy: '',
+  response_policy: '',
+  reason: '',
+  source: 'manual',
+  last_verified_at: 0,
+  updated_at: 0,
+});
+
+const ENDPOINT_POLICY_TEMPLATES = [
+  {
+    key: 'drop_legacy_penalties',
+    value: 'drop_legacy_penalties',
+    text: 'drop_fields: 删除 legacy penalties',
+    buildDraft: () => ({
+      capabilities: '',
+      request_policy: JSON.stringify(
+        {
+          actions: [
+            {
+              type: 'drop_fields',
+              fields: ['presence_penalty', 'frequency_penalty'],
+              reason: 'drop legacy penalties not accepted by upstream',
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      response_policy: '',
+      reason: '上游不接受 legacy penalties 字段，需在请求前移除',
+      source: 'manual',
+    }),
+  },
+  {
+    key: 'reject_anthropic_image_url',
+    value: 'reject_anthropic_image_url',
+    text: 'reject_unsupported_input: 拒绝图片 URL',
+    buildDraft: () => ({
+      capabilities: JSON.stringify(
+        {
+          input_image_url: false,
+          input_image_base64: true,
+        },
+        null,
+        2,
+      ),
+      request_policy: JSON.stringify(
+        {
+          actions: [
+            {
+              type: 'reject_unsupported_input',
+              input_types: ['anthropic.image_url'],
+              reason: 'image url is unsupported by the upstream channel',
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      response_policy: '',
+      reason: '该上游不支持图片 URL，需明确拒绝避免误判为可用',
+      source: 'manual',
+    }),
+  },
+  {
+    key: 'anthropic_image_url_to_base64',
+    value: 'anthropic_image_url_to_base64',
+    text: 'image_url_to_base64: 图片 URL 转 base64',
+    buildDraft: () => ({
+      capabilities: JSON.stringify(
+        {
+          input_image_url: false,
+          input_image_base64: true,
+        },
+        null,
+        2,
+      ),
+      request_policy: JSON.stringify(
+        {
+          actions: [
+            {
+              type: 'image_url_to_base64',
+              input_types: ['anthropic.image_url'],
+              reason: 'convert image url to base64 for upstream compatibility',
+              limits: {
+                max_bytes: 5242880,
+                timeout_ms: 10000,
+                allowed_content_types: [
+                  'image/png',
+                  'image/jpeg',
+                  'image/webp',
+                  'image/gif',
+                ],
+              },
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      response_policy: '',
+      reason: '该上游只稳定支持 base64 图片输入，需要在 Router 侧转换',
+      source: 'manual',
+    }),
+  },
+];
 
 const CHANNEL_MODEL_PAGE_SIZE = 10;
 
@@ -396,6 +660,11 @@ const buildProviderCatalogIndex = (items) => {
           detail.currency.toString().trim() !== ''
             ? detail.currency.toString().trim().toUpperCase()
             : 'USD',
+        supported_endpoints: Array.isArray(detail?.supported_endpoints)
+          ? detail.supported_endpoints
+              .map((endpoint) => (endpoint || '').toString().trim())
+              .filter(Boolean)
+          : [],
         source:
           typeof detail?.source === 'string' &&
           detail.source.toString().trim() !== ''
@@ -810,6 +1079,36 @@ const fetchChannelTests = async (channelId) => {
   };
 };
 
+const fetchChannelEndpoints = async (channelId) => {
+  const normalizedChannelId = (channelId || '').toString().trim();
+  if (normalizedChannelId === '') {
+    return [];
+  }
+  const res = await API.get(
+    `/api/v1/admin/channel/${normalizedChannelId}/endpoints`,
+  );
+  const { success, message, data } = res.data || {};
+  if (!success) {
+    throw new Error(message || 'fetch channel endpoints failed');
+  }
+  return normalizeChannelEndpointRows(data?.items);
+};
+
+const fetchChannelEndpointPolicies = async (channelId) => {
+  const normalizedChannelId = (channelId || '').toString().trim();
+  if (normalizedChannelId === '') {
+    return [];
+  }
+  const res = await API.get(
+    `/api/v1/admin/channel/${normalizedChannelId}/policies`,
+  );
+  const { success, message, data } = res.data || {};
+  if (!success) {
+    throw new Error(message || 'fetch channel endpoint policies failed');
+  }
+  return normalizeChannelEndpointPolicyRows(data?.items);
+};
+
 const fetchActiveChannelTasks = async (channelId) => {
   const normalizedChannelId = (channelId || '').toString().trim();
   if (normalizedChannelId === '') {
@@ -1194,6 +1493,13 @@ const EditChannel = () => {
     const query = new URLSearchParams(location.search);
     return parseCreateStep(query.get('step'));
   });
+  const activeDetailTab = useMemo(() => {
+    if (!isDetailMode) {
+      return 'overview';
+    }
+    const query = new URLSearchParams(location.search);
+    return normalizeDetailTab(query.get('tab'));
+  }, [isDetailMode, location.search]);
   const [creatingChannelId, setCreatingChannelId] = useState(
     creatingChannelIdFromQuery,
   );
@@ -1225,6 +1531,29 @@ const EditChannel = () => {
     },
     [channelId, creatingChannelId, navigate],
   );
+  const goToDetailTab = useCallback(
+    (nextTab) => {
+      if (!isDetailMode) {
+        return;
+      }
+      const normalizedTab = normalizeDetailTab(nextTab);
+      const query = new URLSearchParams(location.search);
+      if (normalizedTab === 'overview') {
+        query.delete('tab');
+      } else {
+        query.set('tab', normalizedTab);
+      }
+      const nextSearch = query.toString();
+      navigate(
+        {
+          pathname: location.pathname,
+          search: nextSearch ? `?${nextSearch}` : '',
+        },
+        { replace: false, state: location.state },
+      );
+    },
+    [isDetailMode, location.pathname, location.search, location.state, navigate],
+  );
   const [inputs, setInputs] = useState(CHANNEL_ORIGIN_INPUTS);
   const [channelProtocolOptions, setChannelProtocolOptions] = useState(() =>
     getChannelProtocolOptions(),
@@ -1234,6 +1563,21 @@ const EditChannel = () => {
   const [modelsLastSyncedAt, setModelsLastSyncedAt] = useState(0);
   const [verifiedModelSignature, setVerifiedModelSignature] = useState('');
   const [modelTestResults, setModelTestResults] = useState([]);
+  const [channelEndpoints, setChannelEndpoints] = useState([]);
+  const [channelEndpointsLoading, setChannelEndpointsLoading] = useState(false);
+  const [channelEndpointsError, setChannelEndpointsError] = useState('');
+  const [endpointMutatingKey, setEndpointMutatingKey] = useState('');
+  const [channelEndpointPolicies, setChannelEndpointPolicies] = useState([]);
+  const [channelEndpointPoliciesLoading, setChannelEndpointPoliciesLoading] =
+    useState(false);
+  const [channelEndpointPoliciesError, setChannelEndpointPoliciesError] =
+    useState('');
+  const [policyEditorOpen, setPolicyEditorOpen] = useState(false);
+  const [policyEditorSaving, setPolicyEditorSaving] = useState(false);
+  const [selectedPolicyTemplate, setSelectedPolicyTemplate] = useState('');
+  const [policyDraft, setPolicyDraft] = useState(
+    buildEmptyEndpointPolicyDraft('', '', ''),
+  );
   const [modelTesting, setModelTesting] = useState(false);
   const [modelTestingScope, setModelTestingScope] = useState('');
   const [modelTestingTargets, setModelTestingTargets] = useState([]);
@@ -1366,6 +1710,10 @@ const EditChannel = () => {
   const showStepThree = showAllSections || createStep === 3;
   const showStepFour = showAllSections || createStep === 4;
   const showStepFive = showAllSections || createStep === 5;
+  const showDetailOverviewTab = isDetailMode && activeDetailTab === 'overview';
+  const showDetailModelsTab = isDetailMode && activeDetailTab === 'models';
+  const showDetailEndpointsTab = isDetailMode && activeDetailTab === 'endpoints';
+  const showDetailTestsTab = isDetailMode && activeDetailTab === 'tests';
   const isCurrentSignatureVerified =
     requiresConnectionVerification &&
     verifiedModelSignature !== '' &&
@@ -1741,11 +2089,19 @@ const EditChannel = () => {
         } else {
           acc.unassigned += 1;
         }
+        if (row.selected === true) {
+          acc.enabled += 1;
+        }
+        if (row.inactive === true) {
+          acc.inactive += 1;
+        }
         return acc;
       },
       {
         assigned: 0,
         unassigned: 0,
+        enabled: 0,
+        inactive: 0,
       },
     );
   }, [getProviderOwnersForModel, visibleModelConfigs]);
@@ -1826,6 +2182,78 @@ const EditChannel = () => {
     }
     return parts.filter(Boolean).join(' · ');
   }, [modelAssignmentSummaryText, modelSelectionSummaryText]);
+  const endpointCapabilityStats = useMemo(() => {
+    return channelEndpoints.reduce(
+      (acc, row) => {
+        acc.total += 1;
+        if (row.enabled) {
+          acc.enabled += 1;
+        } else {
+          acc.disabled += 1;
+        }
+        if (row.source === CHANNEL_ENDPOINT_SOURCE_EXPLICIT) {
+          acc.explicit += 1;
+        } else {
+          acc.candidate += 1;
+        }
+        return acc;
+      },
+      {
+        total: 0,
+        enabled: 0,
+        disabled: 0,
+        explicit: 0,
+        candidate: 0,
+      },
+    );
+  }, [channelEndpoints]);
+  const endpointCapabilitySummaryText = useMemo(
+    () =>
+      t('channel.edit.endpoint_capabilities.summary', {
+        total: endpointCapabilityStats.total,
+        enabled: endpointCapabilityStats.enabled,
+        explicit: endpointCapabilityStats.explicit,
+        candidate: endpointCapabilityStats.candidate,
+      }),
+    [endpointCapabilityStats, t],
+  );
+  const endpointPolicySummaryText = useMemo(
+    () =>
+      t('channel.edit.endpoint_policies.summary', {
+        total: channelEndpointPolicies.length,
+        enabled: channelEndpointPolicies.filter((row) => row.enabled).length,
+      }),
+    [channelEndpointPolicies, t],
+  );
+  const endpointPolicyStats = useMemo(() => {
+    const configuredKeys = new Set(
+      channelEndpointPolicies.map((row) =>
+        buildChannelEndpointKey(row.model, row.endpoint),
+      ),
+    );
+    const enabled = channelEndpointPolicies.filter((row) => row.enabled).length;
+    const disabled = channelEndpointPolicies.filter((row) => !row.enabled).length;
+    let unconfigured = 0;
+    channelEndpoints.forEach((row) => {
+      const key = buildChannelEndpointKey(row.model, row.endpoint);
+      if (!configuredKeys.has(key)) {
+        unconfigured += 1;
+      }
+    });
+    return {
+      total: channelEndpointPolicies.length,
+      enabled,
+      disabled,
+      unconfigured,
+    };
+  }, [channelEndpointPolicies, channelEndpoints]);
+  const endpointCapabilityReadonly =
+    !isDetailMode ||
+    isAnyDetailSectionEditing ||
+    channelEndpointsLoading ||
+    endpointMutatingKey !== '';
+  const endpointPolicyReadonly =
+    !isDetailMode || isAnyDetailSectionEditing || policyEditorSaving;
 
   const createStepCurrentPageSelectableModels = useMemo(() => {
     if (isDetailMode) {
@@ -2658,6 +3086,33 @@ const EditChannel = () => {
     [t],
   );
 
+  const loadChannelEndpointsFromServer = useCallback(
+    async (targetChannelId) => {
+      try {
+        return await fetchChannelEndpoints(targetChannelId);
+      } catch (error) {
+        throw new Error(
+          error?.message ||
+            t('channel.edit.endpoint_capabilities.load_failed'),
+        );
+      }
+    },
+    [t],
+  );
+
+  const loadChannelEndpointPoliciesFromServer = useCallback(
+    async (targetChannelId) => {
+      try {
+        return await fetchChannelEndpointPolicies(targetChannelId);
+      } catch (error) {
+        throw new Error(
+          error?.message || t('channel.edit.endpoint_policies.load_failed'),
+        );
+      }
+    },
+    [t],
+  );
+
   const loadChannelTasksFromServer = useCallback(async (targetChannelId) => {
     try {
       return await fetchActiveChannelTasks(targetChannelId);
@@ -2672,10 +3127,19 @@ const EditChannel = () => {
       if (normalizedChannelId === '') {
         return;
       }
-      const [nextModelConfigs, nextTests, nextTasks] = await Promise.all([
+      const [
+        nextModelConfigs,
+        nextTests,
+        nextTasks,
+        nextEndpoints,
+        nextPolicies,
+      ] =
+        await Promise.all([
         loadChannelModelConfigsFromServer(normalizedChannelId, inputs.protocol),
         loadChannelTestsFromServer(normalizedChannelId),
         loadChannelTasksFromServer(normalizedChannelId),
+        loadChannelEndpointsFromServer(normalizedChannelId),
+        loadChannelEndpointPoliciesFromServer(normalizedChannelId),
       ]);
       const nextInputs = buildNextInputsWithModelConfigs(
         inputs,
@@ -2704,12 +3168,20 @@ const EditChannel = () => {
         Number(nextTests.lastTestedAt || 0) > 0 ? nextSignature : '',
       );
       setChannelTasks(normalizeAsyncTasks(nextTasks));
+      setChannelEndpoints(normalizeChannelEndpointRows(nextEndpoints));
+      setChannelEndpointsError('');
+      setChannelEndpointPolicies(
+        normalizeChannelEndpointPolicyRows(nextPolicies),
+      );
+      setChannelEndpointPoliciesError('');
     },
     [
       effectivePreviewKey,
       inputs,
       inputs.base_url,
       inputs.protocol,
+      loadChannelEndpointPoliciesFromServer,
+      loadChannelEndpointsFromServer,
       loadChannelModelConfigsFromServer,
       loadChannelTasksFromServer,
       loadChannelTestsFromServer,
@@ -3524,6 +3996,202 @@ const EditChannel = () => {
     [channelId, previewChannelID, t],
   );
 
+  const updateChannelEndpointCapability = useCallback(
+    async (row, enabled) => {
+      if (!isDetailMode || endpointCapabilityReadonly) {
+        return;
+      }
+      const targetChannelId = (
+        row?.channel_id || channelId || creatingChannelId || ''
+      )
+        .toString()
+        .trim();
+      const modelName = (row?.model || '').toString().trim();
+      const endpoint = (row?.endpoint || '').toString().trim();
+      if (targetChannelId === '' || modelName === '' || endpoint === '') {
+        return;
+      }
+      const endpointKey = buildChannelEndpointKey(modelName, endpoint);
+      setEndpointMutatingKey(endpointKey);
+      try {
+        const res = await API.put(
+          `/api/v1/admin/channel/${targetChannelId}/endpoints`,
+          {
+            model: modelName,
+            endpoint,
+            enabled: !!enabled,
+          },
+        );
+        const { success, message } = res.data || {};
+        if (!success) {
+          showError(
+            message || t('channel.edit.endpoint_capabilities.update_failed'),
+          );
+          return;
+        }
+        const nextEndpoints = await loadChannelEndpointsFromServer(
+          targetChannelId,
+        );
+        setChannelEndpoints(normalizeChannelEndpointRows(nextEndpoints));
+        setChannelEndpointsError('');
+        showSuccess(
+          t('channel.edit.endpoint_capabilities.update_success'),
+        );
+      } catch (error) {
+        showError(
+          error?.message || t('channel.edit.endpoint_capabilities.update_failed'),
+        );
+      } finally {
+        setEndpointMutatingKey('');
+      }
+    },
+    [
+      channelId,
+      creatingChannelId,
+      endpointCapabilityReadonly,
+      isDetailMode,
+      loadChannelEndpointsFromServer,
+      t,
+    ],
+  );
+
+  const renderEndpointCapabilitySource = useCallback(
+    (source) => {
+      const normalizedSource = normalizeChannelEndpointSource(source);
+      if (normalizedSource === CHANNEL_ENDPOINT_SOURCE_EXPLICIT) {
+        return (
+          <Label basic color='blue' className='router-tag'>
+            {t('channel.edit.endpoint_capabilities.source.explicit')}
+          </Label>
+        );
+      }
+      return (
+        <Label basic color='grey' className='router-tag'>
+          {t('channel.edit.endpoint_capabilities.source.provider_catalog')}
+        </Label>
+      );
+    },
+    [t],
+  );
+
+  const openEndpointPolicyEditor = useCallback(
+    (row) => {
+      const targetChannelId = (
+        row?.channel_id || channelId || creatingChannelId || ''
+      )
+        .toString()
+        .trim();
+      const modelName = (row?.model || '').toString().trim();
+      const endpoint = (row?.endpoint || '').toString().trim();
+      if (targetChannelId === '' || modelName === '' || endpoint === '') {
+        return;
+      }
+      const existingPolicy =
+        channelEndpointPolicies.find(
+          (item) => item.model === modelName && item.endpoint === endpoint,
+        ) || null;
+      setPolicyDraft(
+        existingPolicy
+          ? {
+              ...existingPolicy,
+              channel_id: targetChannelId,
+              capabilities: prettyJSONString(existingPolicy.capabilities),
+              request_policy: prettyJSONString(existingPolicy.request_policy),
+              response_policy: prettyJSONString(existingPolicy.response_policy),
+            }
+          : buildEmptyEndpointPolicyDraft(targetChannelId, modelName, endpoint),
+      );
+      setSelectedPolicyTemplate('');
+      setPolicyEditorOpen(true);
+    },
+    [channelEndpointPolicies, channelId, creatingChannelId],
+  );
+
+  const closeEndpointPolicyEditor = useCallback(() => {
+    if (policyEditorSaving) {
+      return;
+    }
+    setPolicyEditorOpen(false);
+    setSelectedPolicyTemplate('');
+    setPolicyDraft(buildEmptyEndpointPolicyDraft('', '', ''));
+  }, [policyEditorSaving]);
+
+  const applyEndpointPolicyTemplate = useCallback((templateValue) => {
+    const template = ENDPOINT_POLICY_TEMPLATES.find(
+      (item) => item.value === templateValue,
+    );
+    if (!template) {
+      return;
+    }
+    const patch = template.buildDraft();
+    setPolicyDraft((prev) => ({
+      ...prev,
+      ...patch,
+    }));
+    setSelectedPolicyTemplate(templateValue);
+  }, []);
+
+  const saveEndpointPolicy = useCallback(async () => {
+    if (policyEditorSaving) {
+      return;
+    }
+    const targetChannelId = (policyDraft.channel_id || '').toString().trim();
+    const modelName = (policyDraft.model || '').toString().trim();
+    const endpoint = (policyDraft.endpoint || '').toString().trim();
+    if (targetChannelId === '' || modelName === '' || endpoint === '') {
+      showError(t('channel.edit.endpoint_policies.invalid'));
+      return;
+    }
+    setPolicyEditorSaving(true);
+    try {
+      const res = await API.put(
+        `/api/v1/admin/channel/${targetChannelId}/policies`,
+        {
+          id: (policyDraft.id || '').toString().trim(),
+          model: modelName,
+          endpoint,
+          enabled: !!policyDraft.enabled,
+          capabilities: (policyDraft.capabilities || '').toString().trim(),
+          request_policy: (policyDraft.request_policy || '')
+            .toString()
+            .trim(),
+          response_policy: (policyDraft.response_policy || '')
+            .toString()
+            .trim(),
+          reason: (policyDraft.reason || '').toString(),
+          source: (policyDraft.source || 'manual').toString().trim() || 'manual',
+          last_verified_at: Number(policyDraft.last_verified_at || 0),
+        },
+      );
+      const { success, message } = res.data || {};
+      if (!success) {
+        showError(message || t('channel.edit.endpoint_policies.update_failed'));
+        return;
+      }
+      const nextPolicies = await loadChannelEndpointPoliciesFromServer(
+        targetChannelId,
+      );
+      setChannelEndpointPolicies(
+        normalizeChannelEndpointPolicyRows(nextPolicies),
+      );
+      setChannelEndpointPoliciesError('');
+      showSuccess(t('channel.edit.endpoint_policies.update_success'));
+      closeEndpointPolicyEditor();
+    } catch (error) {
+      showError(
+        error?.message || t('channel.edit.endpoint_policies.update_failed'),
+      );
+    } finally {
+      setPolicyEditorSaving(false);
+    }
+  }, [
+    closeEndpointPolicyEditor,
+    loadChannelEndpointPoliciesFromServer,
+    policyDraft,
+    policyEditorSaving,
+    t,
+  ]);
+
   const toggleModelSelection = useCallback(
     async (upstreamModel, checked) => {
       const nextConfigs = visibleModelConfigs.map((row) =>
@@ -3768,6 +4436,80 @@ const EditChannel = () => {
     loadChannelById,
     restoreCreateChannelCache,
   ]);
+
+  useEffect(() => {
+    if (!isDetailMode || !channelId) {
+      setChannelEndpoints([]);
+      setChannelEndpointsError('');
+      setChannelEndpointsLoading(false);
+      return undefined;
+    }
+    let disposed = false;
+    setChannelEndpointsLoading(true);
+    loadChannelEndpointsFromServer(channelId)
+      .then((items) => {
+        if (disposed) {
+          return;
+        }
+        setChannelEndpoints(normalizeChannelEndpointRows(items));
+        setChannelEndpointsError('');
+      })
+      .catch((error) => {
+        if (disposed) {
+          return;
+        }
+        setChannelEndpoints([]);
+        setChannelEndpointsError(
+          error?.message || t('channel.edit.endpoint_capabilities.load_failed'),
+        );
+      })
+      .finally(() => {
+        if (disposed) {
+          return;
+        }
+        setChannelEndpointsLoading(false);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [channelId, isDetailMode, loadChannelEndpointsFromServer, t]);
+
+  useEffect(() => {
+    if (!isDetailMode || !channelId) {
+      setChannelEndpointPolicies([]);
+      setChannelEndpointPoliciesError('');
+      setChannelEndpointPoliciesLoading(false);
+      return undefined;
+    }
+    let disposed = false;
+    setChannelEndpointPoliciesLoading(true);
+    loadChannelEndpointPoliciesFromServer(channelId)
+      .then((items) => {
+        if (disposed) {
+          return;
+        }
+        setChannelEndpointPolicies(normalizeChannelEndpointPolicyRows(items));
+        setChannelEndpointPoliciesError('');
+      })
+      .catch((error) => {
+        if (disposed) {
+          return;
+        }
+        setChannelEndpointPolicies([]);
+        setChannelEndpointPoliciesError(
+          error?.message || t('channel.edit.endpoint_policies.load_failed'),
+        );
+      })
+      .finally(() => {
+        if (disposed) {
+          return;
+        }
+        setChannelEndpointPoliciesLoading(false);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [channelId, isDetailMode, loadChannelEndpointPoliciesFromServer, t]);
 
   useEffect(() => {
     const targetChannelId = (
@@ -4414,6 +5156,15 @@ const EditChannel = () => {
                         )}`,
                       )}
                     </Label>
+                    {(detail.supported_endpoints || []).map((endpoint) => (
+                      <Label
+                        key={`${detail.provider || 'provider'}-${detail.model || 'model'}-${endpoint}`}
+                        basic
+                        className='router-tag'
+                      >
+                        {endpoint}
+                      </Label>
+                    ))}
                   </div>
                 </div>
                 <Table celled compact className='router-detail-subtable'>
@@ -4537,6 +5288,155 @@ const EditChannel = () => {
         </Modal.Actions>
       </Modal>
       <Modal
+        size='large'
+        open={policyEditorOpen}
+        onClose={closeEndpointPolicyEditor}
+        closeOnDimmerClick={!policyEditorSaving}
+      >
+        <Modal.Header>
+          {t('channel.edit.endpoint_policies.editor.title')}
+        </Modal.Header>
+        <Modal.Content scrolling>
+          <Form>
+            <Message info className='router-section-message'>
+              {t('channel.edit.endpoint_policies.editor.hint')}
+            </Message>
+            <Form.Group widths='equal'>
+              <Form.Field>
+                <label>
+                  {t('channel.edit.endpoint_policies.editor.template')}
+                </label>
+                <Dropdown
+                  selection
+                  clearable
+                  className='router-modal-dropdown'
+                  options={ENDPOINT_POLICY_TEMPLATES}
+                  value={selectedPolicyTemplate}
+                  placeholder={t(
+                    'channel.edit.endpoint_policies.editor.template_placeholder',
+                  )}
+                  onChange={(e, { value }) => {
+                    const nextValue = (value || '').toString();
+                    if (nextValue === '') {
+                      setSelectedPolicyTemplate('');
+                      return;
+                    }
+                    applyEndpointPolicyTemplate(nextValue);
+                  }}
+                />
+              </Form.Field>
+            </Form.Group>
+            <Form.Group widths='equal'>
+              <Form.Input
+                className='router-modal-input'
+                label={t('channel.edit.endpoint_policies.table.model')}
+                value={policyDraft.model}
+                readOnly
+              />
+              <Form.Input
+                className='router-modal-input'
+                label={t('channel.edit.endpoint_policies.table.endpoint')}
+                value={policyDraft.endpoint}
+                readOnly
+              />
+            </Form.Group>
+            <Form.Group widths='equal'>
+              <Form.Field>
+                <label>{t('channel.edit.endpoint_policies.table.status')}</label>
+                <Checkbox
+                  toggle
+                  checked={policyDraft.enabled === true}
+                  onChange={(e, { checked }) =>
+                    setPolicyDraft((prev) => ({
+                      ...prev,
+                      enabled: !!checked,
+                    }))
+                  }
+                />
+              </Form.Field>
+              <Form.Input
+                className='router-modal-input'
+                label={t('channel.edit.endpoint_policies.table.source')}
+                value={policyDraft.source}
+                onChange={(e, { value }) =>
+                  setPolicyDraft((prev) => ({
+                    ...prev,
+                    source: value || 'manual',
+                  }))
+                }
+              />
+            </Form.Group>
+            <Form.TextArea
+              className='router-section-textarea router-code-textarea router-code-textarea-sm'
+              label={t('channel.edit.endpoint_policies.table.reason')}
+              value={policyDraft.reason}
+              onChange={(e, { value }) =>
+                setPolicyDraft((prev) => ({
+                  ...prev,
+                  reason: value || '',
+                }))
+              }
+            />
+            <Form.TextArea
+              className='router-section-textarea router-code-textarea router-code-textarea-md'
+              label={t('channel.edit.endpoint_policies.editor.capabilities')}
+              placeholder='{"input_image_url": false}'
+              value={policyDraft.capabilities}
+              onChange={(e, { value }) =>
+                setPolicyDraft((prev) => ({
+                  ...prev,
+                  capabilities: value || '',
+                }))
+              }
+            />
+            <Form.TextArea
+              className='router-section-textarea router-code-textarea router-code-textarea-md'
+              label={t('channel.edit.endpoint_policies.editor.request_policy')}
+              placeholder='{"actions":[{"type":"drop_fields","fields":["presence_penalty"]}]}'
+              value={policyDraft.request_policy}
+              onChange={(e, { value }) =>
+                setPolicyDraft((prev) => ({
+                  ...prev,
+                  request_policy: value || '',
+                }))
+              }
+            />
+            <Form.TextArea
+              className='router-section-textarea router-code-textarea router-code-textarea-md'
+              label={t('channel.edit.endpoint_policies.editor.response_policy')}
+              placeholder='{}'
+              value={policyDraft.response_policy}
+              onChange={(e, { value }) =>
+                setPolicyDraft((prev) => ({
+                  ...prev,
+                  response_policy: value || '',
+                }))
+              }
+            />
+          </Form>
+        </Modal.Content>
+        <Modal.Actions>
+          <Button
+            type='button'
+            className='router-modal-button'
+            onClick={closeEndpointPolicyEditor}
+            disabled={policyEditorSaving}
+          >
+            {t('channel.edit.buttons.cancel')}
+          </Button>
+          <Button
+            type='button'
+            className='router-modal-button'
+            color='blue'
+            loading={policyEditorSaving}
+            disabled={policyEditorSaving}
+            onClick={saveEndpointPolicy}
+          >
+            {t('channel.edit.buttons.save')}
+          </Button>
+        </Modal.Actions>
+      </Modal>
+      <Modal
         size='tiny'
         open={appendProviderModalOpen}
         onClose={closeAppendProviderModal}
@@ -4627,6 +5527,48 @@ const EditChannel = () => {
                   {inputs.name || channelId || '-'}
                 </Breadcrumb.Section>
               </Breadcrumb>
+            </div>
+          )}
+          {isDetailMode && (
+            <div className='router-entity-detail-tabs router-block-gap-sm'>
+              <Menu secondary pointing className='router-detail-tab-menu'>
+                <Menu.Item
+                  active={activeDetailTab === 'overview'}
+                  disabled={
+                    isAnyDetailSectionEditing && activeDetailTab !== 'overview'
+                  }
+                  onClick={() => goToDetailTab('overview')}
+                >
+                  {t('channel.edit.detail_tabs.overview')}
+                </Menu.Item>
+                <Menu.Item
+                  active={activeDetailTab === 'models'}
+                  disabled={
+                    isAnyDetailSectionEditing && activeDetailTab !== 'models'
+                  }
+                  onClick={() => goToDetailTab('models')}
+                >
+                  {t('channel.edit.detail_tabs.models')}
+                </Menu.Item>
+                <Menu.Item
+                  active={activeDetailTab === 'endpoints'}
+                  disabled={
+                    isAnyDetailSectionEditing && activeDetailTab !== 'endpoints'
+                  }
+                  onClick={() => goToDetailTab('endpoints')}
+                >
+                  {t('channel.edit.detail_tabs.endpoints')}
+                </Menu.Item>
+                <Menu.Item
+                  active={activeDetailTab === 'tests'}
+                  disabled={
+                    isAnyDetailSectionEditing && activeDetailTab !== 'tests'
+                  }
+                  onClick={() => goToDetailTab('tests')}
+                >
+                  {t('channel.edit.detail_tabs.tests')}
+                </Menu.Item>
+              </Menu>
             </div>
           )}
           {isCreateMode && (
@@ -4733,7 +5675,7 @@ const EditChannel = () => {
               </div>
             )}
             {showStepOne &&
-              (isDetailMode ? (
+              (showDetailOverviewTab ? (
                 <section className='router-entity-detail-section'>
                   <div className='router-entity-detail-section-header'>
                     <div className='router-toolbar-start'>
@@ -5052,7 +5994,7 @@ const EditChannel = () => {
                     />
                   </Form.Group>
                 </section>
-              ) : (
+              ) : !isDetailMode ? (
                 <>
                   <Form.Group widths='equal'>
                     <Form.Input
@@ -5312,10 +6254,10 @@ const EditChannel = () => {
                     </Form.Field>
                   )}
                 </>
-              ))}
+              ) : null)}
             {showStepTwo && inputs.protocol !== 'proxy' && (
               <>
-                {isDetailMode && (
+                {showDetailModelsTab && (
                   <section className='router-entity-detail-section'>
                     <div className='router-entity-detail-section-header'>
                       <div className='router-toolbar-start router-block-gap-sm'>
@@ -5389,6 +6331,40 @@ const EditChannel = () => {
                       </div>
                     </div>
                     <Form.Field>
+                      <div className='router-detail-summary-grid'>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {detailModelStats.enabled}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t('channel.edit.model_selector.cards.enabled')}
+                          </div>
+                        </div>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {detailModelStats.assigned}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t('channel.edit.model_selector.cards.assigned')}
+                          </div>
+                        </div>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {detailModelStats.unassigned}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t('channel.edit.model_selector.cards.unassigned')}
+                          </div>
+                        </div>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {detailModelStats.inactive}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t('channel.edit.model_selector.cards.inactive')}
+                          </div>
+                        </div>
+                      </div>
                       <Table
                         celled
                         stackable
@@ -5635,6 +6611,375 @@ const EditChannel = () => {
                       {modelsSyncError && (
                         <div className='router-error-text router-error-text-top'>
                           {modelsSyncError}
+                        </div>
+                      )}
+                    </Form.Field>
+                  </section>
+                )}
+                {showDetailEndpointsTab && (
+                  <section className='router-entity-detail-section'>
+                    <div className='router-entity-detail-section-header'>
+                      <div className='router-toolbar-start router-block-gap-sm'>
+                        <span className='router-entity-detail-section-title'>
+                          {t('channel.edit.endpoint_capabilities.title')}
+                        </span>
+                        <span className='router-toolbar-meta'>
+                          ({endpointCapabilitySummaryText})
+                        </span>
+                      </div>
+                    </div>
+                    <Form.Field>
+                      <Message info className='router-section-message'>
+                        {t('channel.edit.endpoint_capabilities.hint')}
+                      </Message>
+                      <div className='router-detail-summary-grid'>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {endpointCapabilityStats.total}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t('channel.edit.endpoint_capabilities.cards.total')}
+                          </div>
+                        </div>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {endpointCapabilityStats.enabled}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t('channel.edit.endpoint_capabilities.cards.enabled')}
+                          </div>
+                        </div>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {endpointCapabilityStats.explicit}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t('channel.edit.endpoint_capabilities.cards.explicit')}
+                          </div>
+                        </div>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {endpointCapabilityStats.candidate}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t('channel.edit.endpoint_capabilities.cards.candidate')}
+                          </div>
+                        </div>
+                      </div>
+                      <Table
+                        celled
+                        stackable
+                        className='router-detail-table'
+                        compact='very'
+                      >
+                        <Table.Header>
+                          <Table.Row>
+                            <Table.HeaderCell width={3}>
+                              {t(
+                                'channel.edit.endpoint_capabilities.table.model',
+                              )}
+                            </Table.HeaderCell>
+                            <Table.HeaderCell width={3}>
+                              {t(
+                                'channel.edit.endpoint_capabilities.table.endpoint',
+                              )}
+                            </Table.HeaderCell>
+                            <Table.HeaderCell width={2}>
+                              {t(
+                                'channel.edit.endpoint_capabilities.table.source',
+                              )}
+                            </Table.HeaderCell>
+                            <Table.HeaderCell width={2} textAlign='center'>
+                              {t(
+                                'channel.edit.endpoint_capabilities.table.enabled',
+                              )}
+                            </Table.HeaderCell>
+                            <Table.HeaderCell width={2}>
+                              {t(
+                                'channel.edit.endpoint_capabilities.table.latest_test',
+                              )}
+                            </Table.HeaderCell>
+                            <Table.HeaderCell width={2}>
+                              {t(
+                                'channel.edit.endpoint_capabilities.table.updated_at',
+                              )}
+                            </Table.HeaderCell>
+                          </Table.Row>
+                        </Table.Header>
+                        <Table.Body>
+                          {channelEndpoints.length === 0 ? (
+                            <Table.Row>
+                              <Table.Cell
+                                className='router-empty-cell'
+                                colSpan={6}
+                              >
+                                {channelEndpointsLoading
+                                  ? t(
+                                      'channel.edit.endpoint_capabilities.loading',
+                                    )
+                                  : t(
+                                      'channel.edit.endpoint_capabilities.empty',
+                                    )}
+                              </Table.Cell>
+                            </Table.Row>
+                          ) : (
+                            channelEndpoints.map((row) => {
+                              const endpointKey = buildChannelEndpointKey(
+                                row.model,
+                                row.endpoint,
+                              );
+                              const latestResult =
+                                modelTestResultsByKey.get(endpointKey) || null;
+                              const latestStatusKey = latestResult
+                                ? latestResult.supported === true &&
+                                  latestResult.status === 'supported'
+                                  ? 'supported'
+                                  : latestResult.status || 'unsupported'
+                                : 'untested';
+                              const isMutating =
+                                endpointMutatingKey === endpointKey;
+                              return (
+                                <Table.Row key={endpointKey}>
+                                  <Table.Cell>{row.model}</Table.Cell>
+                                  <Table.Cell>
+                                    <span className='router-nowrap'>
+                                      {row.endpoint}
+                                    </span>
+                                  </Table.Cell>
+                                  <Table.Cell>
+                                    {renderEndpointCapabilitySource(row.source)}
+                                  </Table.Cell>
+                                  <Table.Cell textAlign='center'>
+                                    <Checkbox
+                                      checked={row.enabled === true}
+                                      disabled={
+                                        endpointCapabilityReadonly || isMutating
+                                      }
+                                      onChange={(e, { checked }) =>
+                                        updateChannelEndpointCapability(
+                                          row,
+                                          !!checked,
+                                        )
+                                      }
+                                    />
+                                  </Table.Cell>
+                                  <Table.Cell>
+                                    {t(
+                                      `channel.edit.model_tester.status.${latestStatusKey}`,
+                                    )}
+                                  </Table.Cell>
+                                  <Table.Cell>
+                                    {row.updated_at > 0
+                                      ? timestamp2string(row.updated_at)
+                                      : '-'}
+                                  </Table.Cell>
+                                </Table.Row>
+                              );
+                            })
+                          )}
+                        </Table.Body>
+                      </Table>
+                      {channelEndpointsError && (
+                        <div className='router-error-text router-error-text-top'>
+                          {channelEndpointsError}
+                        </div>
+                      )}
+                    </Form.Field>
+                  </section>
+                )}
+                {showDetailEndpointsTab && (
+                  <section className='router-entity-detail-section'>
+                    <div className='router-entity-detail-section-header'>
+                      <div className='router-toolbar-start router-block-gap-sm'>
+                        <span className='router-entity-detail-section-title'>
+                          {t('channel.edit.endpoint_policies.title')}
+                        </span>
+                        <span className='router-toolbar-meta'>
+                          ({endpointPolicySummaryText})
+                        </span>
+                      </div>
+                    </div>
+                    <Form.Field>
+                      <Message info className='router-section-message'>
+                        {t('channel.edit.endpoint_policies.hint')}
+                      </Message>
+                      <div className='router-detail-summary-grid'>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {endpointPolicyStats.total}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t('channel.edit.endpoint_policies.cards.configured')}
+                          </div>
+                        </div>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {endpointPolicyStats.enabled}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t('channel.edit.endpoint_policies.cards.enabled')}
+                          </div>
+                        </div>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {endpointPolicyStats.disabled}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t('channel.edit.endpoint_policies.cards.disabled')}
+                          </div>
+                        </div>
+                        <div className='router-inline-stat-card'>
+                          <div className='router-inline-stat-value'>
+                            {endpointPolicyStats.unconfigured}
+                          </div>
+                          <div className='router-inline-stat-hint'>
+                            {t(
+                              'channel.edit.endpoint_policies.cards.not_configured',
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <Table
+                        celled
+                        stackable
+                        className='router-detail-table'
+                        compact='very'
+                      >
+                        <Table.Header>
+                          <Table.Row>
+                            <Table.HeaderCell width={3}>
+                              {t('channel.edit.endpoint_policies.table.model')}
+                            </Table.HeaderCell>
+                            <Table.HeaderCell width={3}>
+                              {t(
+                                'channel.edit.endpoint_policies.table.endpoint',
+                              )}
+                            </Table.HeaderCell>
+                            <Table.HeaderCell width={2}>
+                              {t('channel.edit.endpoint_policies.table.status')}
+                            </Table.HeaderCell>
+                            <Table.HeaderCell width={2}>
+                              {t('channel.edit.endpoint_policies.table.source')}
+                            </Table.HeaderCell>
+                            <Table.HeaderCell width={3}>
+                              {t('channel.edit.endpoint_policies.table.reason')}
+                            </Table.HeaderCell>
+                            <Table.HeaderCell width={2}>
+                              {t(
+                                'channel.edit.endpoint_policies.table.updated_at',
+                              )}
+                            </Table.HeaderCell>
+                            <Table.HeaderCell width={2}>
+                              {t(
+                                'channel.edit.endpoint_policies.table.actions',
+                              )}
+                            </Table.HeaderCell>
+                          </Table.Row>
+                        </Table.Header>
+                        <Table.Body>
+                          {channelEndpoints.length === 0 ? (
+                            <Table.Row>
+                              <Table.Cell
+                                className='router-empty-cell'
+                                colSpan={7}
+                              >
+                                {channelEndpointPoliciesLoading
+                                  ? t('channel.edit.endpoint_policies.loading')
+                                  : t('channel.edit.endpoint_policies.empty')}
+                              </Table.Cell>
+                            </Table.Row>
+                          ) : (
+                            channelEndpoints.map((endpointRow) => {
+                              const endpointKey = buildChannelEndpointKey(
+                                endpointRow.model,
+                                endpointRow.endpoint,
+                              );
+                              const policyRow =
+                                channelEndpointPolicies.find(
+                                  (item) =>
+                                    item.model === endpointRow.model &&
+                                    item.endpoint === endpointRow.endpoint,
+                                ) || null;
+                              return (
+                                <Table.Row key={`policy-${endpointKey}`}>
+                                  <Table.Cell>{endpointRow.model}</Table.Cell>
+                                  <Table.Cell>
+                                    <span className='router-nowrap'>
+                                      {endpointRow.endpoint}
+                                    </span>
+                                  </Table.Cell>
+                                  <Table.Cell>
+                                    {policyRow ? (
+                                      policyRow.enabled ? (
+                                        <Label
+                                          basic
+                                          color='green'
+                                          className='router-tag'
+                                        >
+                                          {t(
+                                            'channel.edit.endpoint_policies.status.enabled',
+                                          )}
+                                        </Label>
+                                      ) : (
+                                        <Label
+                                          basic
+                                          color='grey'
+                                          className='router-tag'
+                                        >
+                                          {t(
+                                            'channel.edit.endpoint_policies.status.disabled',
+                                          )}
+                                        </Label>
+                                      )
+                                    ) : (
+                                      <Label basic className='router-tag'>
+                                        {t(
+                                          'channel.edit.endpoint_policies.status.not_configured',
+                                        )}
+                                      </Label>
+                                    )}
+                                  </Table.Cell>
+                                  <Table.Cell>
+                                    {policyRow?.source || '-'}
+                                  </Table.Cell>
+                                  <Table.Cell
+                                    title={(policyRow?.reason || '').toString()}
+                                    className='router-cell-truncate'
+                                  >
+                                    {policyRow?.reason || '-'}
+                                  </Table.Cell>
+                                  <Table.Cell>
+                                    {policyRow?.updated_at > 0
+                                      ? timestamp2string(policyRow.updated_at)
+                                      : '-'}
+                                  </Table.Cell>
+                                  <Table.Cell collapsing>
+                                    <Button
+                                      type='button'
+                                      className='router-inline-button'
+                                      disabled={endpointPolicyReadonly}
+                                      onClick={() =>
+                                        openEndpointPolicyEditor(endpointRow)
+                                      }
+                                    >
+                                      {policyRow
+                                        ? t(
+                                            'channel.edit.endpoint_policies.edit',
+                                          )
+                                        : t(
+                                            'channel.edit.endpoint_policies.create',
+                                          )}
+                                    </Button>
+                                  </Table.Cell>
+                                </Table.Row>
+                              );
+                            })
+                          )}
+                        </Table.Body>
+                      </Table>
+                      {channelEndpointPoliciesError && (
+                        <div className='router-error-text router-error-text-top'>
+                          {channelEndpointPoliciesError}
                         </div>
                       )}
                     </Form.Field>
@@ -5950,7 +7295,7 @@ const EditChannel = () => {
             )}
             {showStepThree && inputs.protocol !== 'proxy' && (
               <>
-                {isDetailMode && (
+                {showDetailTestsTab && (
                   <section className='router-entity-detail-section'>
                     <div className='router-entity-detail-section-header'>
                       <div className='router-toolbar-start'>
@@ -6916,7 +8261,7 @@ const EditChannel = () => {
             )}
             {showStepFive && inputs.protocol !== 'proxy' && (
               <>
-                {isDetailMode && (
+                {showDetailOverviewTab && (
                   <section className='router-entity-detail-section'>
                     <div className='router-entity-detail-section-header'>
                       <div className='router-toolbar-start'>

@@ -22,6 +22,16 @@ import { ITEMS_PER_PAGE } from '../constants';
 
 const PROVIDER_DETAIL_MODEL_PAGE_SIZE = 20;
 const PROVIDER_CAPABILITY_ORDER = ['text', 'image', 'audio', 'video'];
+const PROVIDER_ENDPOINT_SORT_ORDER = {
+  '/v1/chat/completions': 10,
+  '/v1/responses': 20,
+  '/v1/messages': 30,
+  '/v1/images/generations': 40,
+  '/v1/images/edits': 50,
+  '/v1/batches': 60,
+  '/v1/audio/speech': 70,
+  '/v1/videos': 80,
+};
 
 const normalizeProvider = (provider) => {
   if (typeof provider !== 'string') return '';
@@ -184,6 +194,85 @@ const normalizeCapabilities = (capabilities, model) => {
   return PROVIDER_CAPABILITY_ORDER.filter((type) => set.has(type));
 };
 
+const normalizeProviderEndpoint = (endpoint) => {
+  const normalized = (endpoint || '').toString().trim().toLowerCase();
+  if (normalized.startsWith('/v1/chat/completions')) {
+    return '/v1/chat/completions';
+  }
+  if (normalized.startsWith('/v1/responses')) {
+    return '/v1/responses';
+  }
+  if (normalized.startsWith('/v1/messages')) {
+    return '/v1/messages';
+  }
+  if (normalized.startsWith('/v1/images/generations')) {
+    return '/v1/images/generations';
+  }
+  if (normalized.startsWith('/v1/images/edits')) {
+    return '/v1/images/edits';
+  }
+  if (normalized.startsWith('/v1/batches')) {
+    return '/v1/batches';
+  }
+  if (normalized.startsWith('/v1/audio/')) {
+    return '/v1/audio/speech';
+  }
+  if (normalized.startsWith('/v1/videos')) {
+    return '/v1/videos';
+  }
+  return '';
+};
+
+const isProviderEndpointAllowedForType = (type, endpoint) => {
+  const normalizedType = normalizeProviderCapabilityType(type, '');
+  switch (normalizedType) {
+    case 'image':
+      return [
+        '/v1/responses',
+        '/v1/images/generations',
+        '/v1/images/edits',
+        '/v1/batches',
+      ].includes(endpoint);
+    case 'audio':
+      return endpoint === '/v1/audio/speech';
+    case 'video':
+      return endpoint === '/v1/videos';
+    case 'text':
+    default:
+      return [
+        '/v1/chat/completions',
+        '/v1/responses',
+        '/v1/messages',
+      ].includes(endpoint);
+  }
+};
+
+const normalizeSupportedEndpoints = (endpoints, type) => {
+  const values = Array.isArray(endpoints)
+    ? endpoints
+    : typeof endpoints === 'string'
+      ? endpoints.split(',')
+      : [];
+  const seen = new Set();
+  const result = [];
+  values.forEach((item) => {
+    const endpoint = normalizeProviderEndpoint(item);
+    if (!endpoint || !isProviderEndpointAllowedForType(type, endpoint)) {
+      return;
+    }
+    if (seen.has(endpoint)) {
+      return;
+    }
+    seen.add(endpoint);
+    result.push(endpoint);
+  });
+  return result.sort(
+    (a, b) =>
+      (PROVIDER_ENDPOINT_SORT_ORDER[a] || 1000) -
+        (PROVIDER_ENDPOINT_SORT_ORDER[b] || 1000) || a.localeCompare(b),
+  );
+};
+
 const createEmptyPriceComponent = (component = '') => ({
   component,
   condition: '',
@@ -254,6 +343,7 @@ const createEmptyModelDetail = (model = '') => {
     model,
     type: t,
     capabilities: normalizeCapabilities([], model),
+    supported_endpoints: [],
     input_price: 0,
     output_price: 0,
     price_unit: defaultPriceUnitByType(t, model),
@@ -299,6 +389,10 @@ const normalizeModelDetails = (details) => {
       model,
       type,
       capabilities: normalizeCapabilities(item.capabilities, model),
+      supported_endpoints: normalizeSupportedEndpoints(
+        item.supported_endpoints,
+        type,
+      ),
       input_price:
         Number.isFinite(inputPrice) && inputPrice > 0 ? inputPrice : 0,
       output_price:
@@ -692,6 +786,10 @@ const ProvidersManager = () => {
           next.capabilities,
           next.model || '',
         );
+        next.supported_endpoints = normalizeSupportedEndpoints(
+          next.supported_endpoints,
+          normalizedType,
+        );
         if (!next.price_unit) {
           next.price_unit = defaultPriceUnitByType(
             normalizedType,
@@ -707,11 +805,20 @@ const ProvidersManager = () => {
           next.capabilities,
           next.model || '',
         );
+        next.supported_endpoints = normalizeSupportedEndpoints(
+          next.supported_endpoints,
+          next.type,
+        );
         if (!next.price_unit) {
           next.price_unit = defaultPriceUnitByType(next.type, next.model);
         }
       } else if (key === 'capabilities') {
         next.capabilities = normalizeCapabilities(value, next.model || '');
+      } else if (key === 'supported_endpoints') {
+        next.supported_endpoints = normalizeSupportedEndpoints(
+          value,
+          next.type,
+        );
       } else {
         next[key] = value || '';
       }
@@ -1261,6 +1368,7 @@ const ProvidersManager = () => {
               detail.model || '',
               detail.type || '',
               (detail.capabilities || []).join(','),
+              (detail.supported_endpoints || []).join(','),
               detail.price_unit || '',
               detail.currency || '',
               detail.source || '',
@@ -1320,6 +1428,9 @@ const ProvidersManager = () => {
               <Table.HeaderCell width={3}>
                 {t('channel.providers.model_detail_table.capabilities')}
               </Table.HeaderCell>
+              <Table.HeaderCell width={3}>
+                {t('channel.providers.model_detail_table.supported_endpoints')}
+              </Table.HeaderCell>
               <Table.HeaderCell>
                 {t('channel.providers.model_detail_table.input_price')}
               </Table.HeaderCell>
@@ -1348,7 +1459,7 @@ const ProvidersManager = () => {
               <Table.Row>
                 <Table.Cell
                   className='router-empty-cell'
-                  colSpan={10}
+                  colSpan={11}
                   textAlign='center'
                 >
                   {t('channel.providers.model_detail_table.empty')}
@@ -1412,6 +1523,28 @@ const ProvidersManager = () => {
                             row,
                             detailIndex,
                             'capabilities',
+                            value || '',
+                          )
+                        }
+                      />
+                    </Table.Cell>
+                    <Table.Cell className='router-cell-min-240'>
+                      <Form.Input
+                        className='router-inline-input'
+                        fluid
+                        placeholder='/v1/responses, /v1/chat/completions'
+                        value={
+                          Array.isArray(detail.supported_endpoints)
+                            ? detail.supported_endpoints.join(', ')
+                            : ''
+                        }
+                        disabled={disabled}
+                        onChange={(e, { value }) =>
+                          setModelDetailField(
+                            setValueFn,
+                            row,
+                            detailIndex,
+                            'supported_endpoints',
                             value || '',
                           )
                         }
@@ -1537,7 +1670,7 @@ const ProvidersManager = () => {
                     </Table.Cell>
                   </Table.Row>
                   <Table.Row>
-                    <Table.Cell colSpan={10}>
+                    <Table.Cell colSpan={11}>
                       <div className='router-block-top-sm'>
                         <div className='router-toolbar router-toolbar-compact'>
                           <div className='router-toolbar-title'>
@@ -1862,6 +1995,7 @@ const ProvidersManager = () => {
               detail.model || '',
               detail.type || '',
               (detail.capabilities || []).join(','),
+              (detail.supported_endpoints || []).join(','),
               detail.price_unit || '',
               detail.currency || '',
               detail.source || '',
@@ -1922,6 +2056,9 @@ const ProvidersManager = () => {
               <Table.HeaderCell width={1}>
                 {t('channel.providers.model_detail_table.capabilities')}
               </Table.HeaderCell>
+              <Table.HeaderCell width={2}>
+                {t('channel.providers.model_detail_table.supported_endpoints')}
+              </Table.HeaderCell>
               <Table.HeaderCell>
                 {t('channel.providers.model_detail_table.input_price')}
               </Table.HeaderCell>
@@ -1947,7 +2084,7 @@ const ProvidersManager = () => {
               <Table.Row>
                 <Table.Cell
                   className='router-empty-cell'
-                  colSpan={9}
+                  colSpan={10}
                   textAlign='center'
                 >
                   {t('channel.providers.model_detail_table.empty')}
@@ -1974,6 +2111,19 @@ const ProvidersManager = () => {
                               className='router-tag'
                             >
                               {t(`channel.model_types.${type}`)}
+                            </Label>
+                          ))
+                        : '-'}
+                    </Table.Cell>
+                    <Table.Cell className='router-cell-min-180'>
+                      {(detail.supported_endpoints || []).length > 0
+                        ? detail.supported_endpoints.map((endpoint) => (
+                            <Label
+                              key={`${detail.model || 'model'}-${endpoint}`}
+                              basic
+                              className='router-tag'
+                            >
+                              {endpoint}
                             </Label>
                           ))
                         : '-'}
@@ -2133,6 +2283,27 @@ const ProvidersManager = () => {
                     detailModelsDraft,
                     detailEditingModelIndex,
                     'capabilities',
+                    value || '',
+                  )
+                }
+              />
+              <Form.Input
+                className='router-section-input'
+                label={t(
+                  'channel.providers.model_detail_table.supported_endpoints',
+                )}
+                placeholder='/v1/responses, /v1/chat/completions'
+                value={
+                  Array.isArray(detail.supported_endpoints)
+                    ? detail.supported_endpoints.join(', ')
+                    : ''
+                }
+                onChange={(e, { value }) =>
+                  setModelDetailField(
+                    setDetailModelsValue,
+                    detailModelsDraft,
+                    detailEditingModelIndex,
+                    'supported_endpoints',
                     value || '',
                   )
                 }

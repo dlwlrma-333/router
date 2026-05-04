@@ -22,6 +22,7 @@ type Meta struct {
 	Group               string
 	ModelMapping        map[string]string
 	ChannelModelConfigs []model.ChannelModel
+	EndpointPolicy      *model.ChannelModelEndpointPolicy
 	// BaseURL is the proxy url set in the channel config
 	BaseURL  string
 	APIKey   string
