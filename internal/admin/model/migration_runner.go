@@ -592,6 +592,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 			},
 		},
 		{
+			Version:     "202605051230_openai_gpt_image_2_provider_catalog",
+			Description: "sync default provider catalog to add openai gpt-image-2 pricing rows",
+			Up: func(tx *gorm.DB) error {
+				return syncDefaultProviderCatalogWithDB(tx)
+			},
+		},
+		{
 			Version:     "202605041030_provider_model_supported_endpoints",
 			Description: "add provider model supported endpoints as channel endpoint candidates",
 			Up: func(tx *gorm.DB) error {

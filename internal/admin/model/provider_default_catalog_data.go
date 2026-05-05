@@ -37,6 +37,20 @@ var defaultProviderCatalogTemplates = normalizeDefaultProviderCatalogTemplates([
 			{Model: "o3", Type: ProviderModelTypeText, InputPrice: 0.002, OutputPrice: 0.008, PriceUnit: ProviderPriceUnitPer1KTokens, Currency: ProviderPriceCurrencyUSD, Source: "default"},
 			{Model: "o4-mini", Type: ProviderModelTypeText, InputPrice: 0.0011, OutputPrice: 0.0044, PriceUnit: ProviderPriceUnitPer1KTokens, Currency: ProviderPriceCurrencyUSD, Source: "default"},
 			{
+				Model:              "gpt-image-2",
+				Type:               ProviderModelTypeImage,
+				SupportedEndpoints: []string{ChannelModelEndpointResponses, ChannelModelEndpointImages, ChannelModelEndpointImageEdit},
+				InputPrice:         0.008,
+				OutputPrice:        0.03,
+				PriceUnit:          ProviderPriceUnitPer1KTokens,
+				Currency:           ProviderPriceCurrencyUSD,
+				Source:             "default",
+				PriceComponents: []ProviderModelPriceComponentDetail{
+					{Component: ProviderModelPriceComponentText, InputPrice: 0.005, PriceUnit: ProviderPriceUnitPer1KTokens, Currency: ProviderPriceCurrencyUSD, Source: "default", SourceURL: "https://openai.com/api/pricing/", SortOrder: 10},
+					{Component: ProviderModelPriceComponentImageGeneration, InputPrice: 0.008, OutputPrice: 0.03, PriceUnit: ProviderPriceUnitPer1KTokens, Currency: ProviderPriceCurrencyUSD, Source: "default", SourceURL: "https://openai.com/api/pricing/", SortOrder: 20},
+				},
+			},
+			{
 				Model:      "gpt-image-1",
 				Type:       ProviderModelTypeImage,
 				InputPrice: 0.011,
