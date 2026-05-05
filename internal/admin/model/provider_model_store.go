@@ -92,6 +92,13 @@ func LoadProviderModelDetailsMapForProviders(db *gorm.DB, providers []string) (m
 			Source:             strings.TrimSpace(strings.ToLower(row.Source)),
 			UpdatedAt:          row.UpdatedAt,
 		}
+		if len(detail.SupportedEndpoints) == 0 {
+			detail.SupportedEndpoints = DefaultProviderModelSupportedEndpoints(
+				provider,
+				detail.Type,
+				detail.Model,
+			)
+		}
 		result[provider] = append(result[provider], detail)
 		detailIndex[provider+"\x00"+modelName] = len(result[provider]) - 1
 	}

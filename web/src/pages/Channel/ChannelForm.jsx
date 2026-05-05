@@ -1705,6 +1705,8 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   const skipNextCreatingReloadRef = useRef('');
   const pendingRefreshTaskIdRef = useRef('');
   const pendingRefreshSignatureRef = useRef('');
+  const forcedProviderCatalogStepThreeRef = useRef(false);
+  const forcedProviderCatalogStepFourRef = useRef(false);
   const deferredModelSearchKeyword = useDeferredValue(modelSearchKeyword);
   const currentProtocolOption = useMemo(() => {
     const normalizedProtocol = (inputs.protocol || '')
@@ -5179,6 +5181,30 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     }
     loadProviderCatalogIndex({ silent: true }).then();
   }, [loadProviderCatalogIndex, showStepTwo]);
+
+  useEffect(() => {
+    if (!showStepThree || inputs.protocol === 'proxy') {
+      forcedProviderCatalogStepThreeRef.current = false;
+      return;
+    }
+    if (forcedProviderCatalogStepThreeRef.current) {
+      return;
+    }
+    forcedProviderCatalogStepThreeRef.current = true;
+    loadProviderCatalogIndex({ silent: true, force: true }).then();
+  }, [inputs.protocol, loadProviderCatalogIndex, showStepThree]);
+
+  useEffect(() => {
+    if (!showStepFour || !isCreateMode || inputs.protocol === 'proxy') {
+      forcedProviderCatalogStepFourRef.current = false;
+      return;
+    }
+    if (forcedProviderCatalogStepFourRef.current) {
+      return;
+    }
+    forcedProviderCatalogStepFourRef.current = true;
+    loadProviderCatalogIndex({ silent: true, force: true }).then();
+  }, [inputs.protocol, isCreateMode, loadProviderCatalogIndex, showStepFour]);
 
   useEffect(() => {
     if (detailModelPage <= detailModelTotalPages) {

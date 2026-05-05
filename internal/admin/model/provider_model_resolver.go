@@ -132,7 +132,17 @@ func LoadProviderModelEndpointMapByModelsWithDB(db *gorm.DB, provider string, mo
 	}
 	for _, row := range rows {
 		modelName := canonicalizeModelNameForProvider(normalizedProvider, row.Model)
-		endpoints := NormalizeProviderModelSupportedEndpoints(row.Type, splitProviderModelSupportedEndpoints(row.SupportedEndpoints))
+		endpoints := NormalizeProviderModelSupportedEndpoints(
+			row.Type,
+			splitProviderModelSupportedEndpoints(row.SupportedEndpoints),
+		)
+		if len(endpoints) == 0 {
+			endpoints = DefaultProviderModelSupportedEndpoints(
+				normalizedProvider,
+				row.Type,
+				modelName,
+			)
+		}
 		if modelName == "" || len(endpoints) == 0 {
 			continue
 		}

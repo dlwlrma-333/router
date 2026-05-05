@@ -638,6 +638,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return dropProviderModelCapabilitiesWithDB(tx)
 			},
 		},
+		{
+			Version:     "202605051330_repair_openai_text_model_endpoint_candidates",
+			Description: "repair openai text provider model endpoint candidates to include responses and chat completions",
+			Up: func(tx *gorm.DB) error {
+				return backfillOpenAITextProviderModelEndpointCandidatesWithDB(tx)
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }
