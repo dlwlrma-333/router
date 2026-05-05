@@ -1392,6 +1392,7 @@ const CHANNEL_ORIGIN_INPUTS = {
   models: [],
   test_model: '',
   created_time: 0,
+  updated_at: 0,
 };
 
 const CHANNEL_DEFAULT_CONFIG = {
@@ -3247,6 +3248,7 @@ const EditChannel = () => {
               models: modelState.selectedModels,
               test_model: data.test_model || modelState.selectedModels[0] || '',
               created_time: 0,
+              updated_at: 0,
             });
             setModelTestResults([]);
             setModelTestError('');
@@ -3272,6 +3274,7 @@ const EditChannel = () => {
               weight: data.weight,
               priority: data.priority,
               created_time: Number(data.created_time || 0),
+              updated_at: Number(data.updated_at || 0),
             });
             setModelTestResults(storedModelTestResults);
             setModelTestError('');
@@ -5989,6 +5992,14 @@ const EditChannel = () => {
                         inputs.created_time
                           ? timestamp2string(inputs.created_time)
                           : '-'
+                      }
+                      readOnly
+                    />
+                    <Form.Input
+                      className='router-section-input'
+                      label={t('channel.edit.updated_at')}
+                      value={
+                        inputs.updated_at ? timestamp2string(inputs.updated_at) : '-'
                       }
                       readOnly
                     />

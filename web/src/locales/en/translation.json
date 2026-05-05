@@ -365,6 +365,7 @@
   "status": "Status",
   "created_time": "Created Time",
   "updated_at": "Updated At",
+  "updated_at": "Updated At",
   "response_time": "Response Time",
   "capabilities": "Capabilities",
       "balance": "Balance",

@@ -365,6 +365,7 @@
   "status": "状态",
   "created_time": "创建时间",
   "updated_at": "更新时间",
+  "updated_at": "更新时间",
   "response_time": "响应时间",
   "capabilities": "能力",
       "balance": "余额",
