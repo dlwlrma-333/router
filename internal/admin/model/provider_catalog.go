@@ -50,7 +50,6 @@ type ProviderModelPriceComponentDetail struct {
 type ProviderModelDetail struct {
 	Model              string                              `json:"model"`
 	Type               string                              `json:"type,omitempty"`
-	Capabilities       []string                            `json:"capabilities,omitempty"`
 	SupportedEndpoints []string                            `json:"supported_endpoints,omitempty"`
 	InputPrice         float64                             `json:"input_price,omitempty"`
 	OutputPrice        float64                             `json:"output_price,omitempty"`
@@ -102,7 +101,6 @@ func NormalizeProviderModelDetails(details []ProviderModelDetail) []ProviderMode
 		entry := ProviderModelDetail{
 			Model:              modelName,
 			Type:               t,
-			Capabilities:       normalizeProviderModelCapabilities(detail.Capabilities, t, detail.PriceComponents),
 			SupportedEndpoints: NormalizeProviderModelSupportedEndpoints(t, detail.SupportedEndpoints),
 			InputPrice:         inputPrice,
 			OutputPrice:        outputPrice,
@@ -135,7 +133,6 @@ func NormalizeProviderModelDetails(details []ProviderModelDetail) []ProviderMode
 			if entry.UpdatedAt > existing.UpdatedAt {
 				existing.UpdatedAt = entry.UpdatedAt
 			}
-			existing.Capabilities = normalizeProviderModelCapabilities(append(existing.Capabilities, entry.Capabilities...), existing.Type, append(existing.PriceComponents, entry.PriceComponents...))
 			existing.SupportedEndpoints = NormalizeProviderModelSupportedEndpoints(existing.Type, append(existing.SupportedEndpoints, entry.SupportedEndpoints...))
 			existing.PriceComponents = NormalizeProviderModelPriceComponents(append(existing.PriceComponents, entry.PriceComponents...))
 			normalized[idx] = existing
@@ -234,33 +231,6 @@ func NormalizeProviderModelPriceComponents(details []ProviderModelPriceComponent
 	return normalized
 }
 
-func normalizeProviderModelCapabilities(capabilities []string, modelType string, components []ProviderModelPriceComponentDetail) []string {
-	seen := make(map[string]struct{}, len(capabilities)+4)
-	result := make([]string, 0, len(capabilities)+4)
-	appendCapability := func(value string) {
-		normalized := strings.TrimSpace(strings.ToLower(value))
-		switch normalized {
-		case ProviderModelTypeText, ProviderModelTypeImage, ProviderModelTypeAudio, ProviderModelTypeVideo:
-		default:
-			return
-		}
-		if _, ok := seen[normalized]; ok {
-			return
-		}
-		seen[normalized] = struct{}{}
-		result = append(result, normalized)
-	}
-	appendCapability(modelType)
-	for _, capability := range capabilities {
-		appendCapability(capability)
-	}
-	for _, component := range components {
-		appendCapability(providerCapabilityFromComponent(component.Component))
-	}
-	sort.Strings(result)
-	return result
-}
-
 func NormalizeProviderModelSupportedEndpoints(modelType string, endpoints []string) []string {
 	normalizedType := normalizeModelType(modelType, "")
 	seen := make(map[string]struct{}, len(endpoints))
@@ -306,21 +276,6 @@ func IsChannelModelEndpointAllowedForType(modelType string, endpoint string) boo
 		default:
 			return false
 		}
-	}
-}
-
-func providerCapabilityFromComponent(component string) string {
-	switch strings.TrimSpace(strings.ToLower(component)) {
-	case ProviderModelPriceComponentImageGeneration:
-		return ProviderModelTypeImage
-	case ProviderModelPriceComponentAudioInput, ProviderModelPriceComponentAudioOutput, ProviderModelPriceComponentRealtimeAudio:
-		return ProviderModelTypeAudio
-	case ProviderModelPriceComponentVideoGeneration:
-		return ProviderModelTypeVideo
-	case ProviderModelPriceComponentText, ProviderModelPriceComponentRealtimeText:
-		return ProviderModelTypeText
-	default:
-		return ""
 	}
 }
 

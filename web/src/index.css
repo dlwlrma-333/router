@@ -2032,6 +2032,14 @@ code {
     min-width: 280px;
 }
 
+.router-cell-min-300 {
+    min-width: 300px;
+}
+
+.router-cell-min-360 {
+    min-width: 360px;
+}
+
 .router-search-form-md {
     width: 320px;
     max-width: 100%;

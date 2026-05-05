@@ -440,7 +440,6 @@
       "table": {
         "provider": "Provider ID",
         "name": "Display Name",
-        "capabilities": "Capabilities",
         "key": "API Key",
         "key_set": "Configured",
         "key_not_set": "Not Set",
@@ -458,7 +457,6 @@
         "search_placeholder": "Search model details...",
         "model": "Model",
         "type": "Type",
-        "capabilities": "Capabilities",
         "supported_endpoints": "Supported Endpoints",
         "input_price": "Input Price",
         "output_price": "Output Price",

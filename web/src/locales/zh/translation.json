@@ -440,7 +440,6 @@
       "table": {
         "provider": "供应商标识",
         "name": "展示名称",
-        "capabilities": "能力",
         "key": "API Key",
         "key_set": "已配置",
         "key_not_set": "未配置",
@@ -458,7 +457,6 @@
         "search_placeholder": "搜索模型明细...",
         "model": "模型",
         "type": "类型",
-        "capabilities": "能力",
         "supported_endpoints": "支持端点",
         "input_price": "输入价格",
         "output_price": "输出价格",

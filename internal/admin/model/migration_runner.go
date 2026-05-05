@@ -624,6 +624,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return backfillOpenAITextProviderModelEndpointCandidatesWithDB(tx)
 			},
 		},
+		{
+			Version:     "202605051130_drop_provider_model_capabilities",
+			Description: "drop provider model capabilities column in favor of model type",
+			Up: func(tx *gorm.DB) error {
+				return dropProviderModelCapabilitiesWithDB(tx)
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }

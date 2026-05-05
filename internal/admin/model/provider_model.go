@@ -8,7 +8,6 @@ type ProviderModel struct {
 	Provider           string  `json:"provider" gorm:"primaryKey;type:varchar(64)"`
 	Model              string  `json:"model" gorm:"primaryKey;type:varchar(255)"`
 	Type               string  `json:"type" gorm:"type:varchar(32);default:'text'"`
-	Capabilities       string  `json:"capabilities" gorm:"type:text;default:''"`
 	SupportedEndpoints string  `json:"supported_endpoints" gorm:"type:text;default:''"`
 	InputPrice         float64 `json:"input_price" gorm:"type:double precision;default:0"`
 	OutputPrice        float64 `json:"output_price" gorm:"type:double precision;default:0"`

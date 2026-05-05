@@ -84,7 +84,6 @@ func LoadProviderModelDetailsMapForProviders(db *gorm.DB, providers []string) (m
 		detail := ProviderModelDetail{
 			Model:              modelName,
 			Type:               strings.TrimSpace(strings.ToLower(row.Type)),
-			Capabilities:       splitProviderModelCapabilities(row.Capabilities),
 			SupportedEndpoints: splitProviderModelSupportedEndpoints(row.SupportedEndpoints),
 			InputPrice:         row.InputPrice,
 			OutputPrice:        row.OutputPrice,
@@ -166,7 +165,6 @@ func BuildProviderModelStoreRows(provider string, details []ProviderModelDetail,
 			Provider:           normalizedProvider,
 			Model:              detail.Model,
 			Type:               detail.Type,
-			Capabilities:       joinProviderModelCapabilities(detail.Capabilities),
 			SupportedEndpoints: joinProviderModelSupportedEndpoints(detail.Type, detail.SupportedEndpoints),
 			InputPrice:         detail.InputPrice,
 			OutputPrice:        detail.OutputPrice,
@@ -200,30 +198,6 @@ func BuildProviderModelStoreRows(provider string, details []ProviderModelDetail,
 		Models:          rows,
 		PriceComponents: componentRows,
 	}
-}
-
-func splitProviderModelCapabilities(raw string) []string {
-	if strings.TrimSpace(raw) == "" {
-		return nil
-	}
-	parts := strings.Split(raw, ",")
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		value := strings.TrimSpace(strings.ToLower(part))
-		if value == "" {
-			continue
-		}
-		result = append(result, value)
-	}
-	return result
-}
-
-func joinProviderModelCapabilities(values []string) string {
-	normalized := normalizeProviderModelCapabilities(values, "", nil)
-	if len(normalized) == 0 {
-		return ""
-	}
-	return strings.Join(normalized, ",")
 }
 
 func splitProviderModelSupportedEndpoints(raw string) []string {
