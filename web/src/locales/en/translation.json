@@ -749,9 +749,18 @@
         "title": "Model Test",
         "hint": "Shows the models selected in step 2 and lets you choose the real upstream endpoint for each model. Text models default to /v1/responses and can be switched to /v1/chat/completions or /v1/messages. Other model types use fixed endpoints. Supports both single-row and bulk testing.",
         "button": "Test Selected Models",
+        "button_enter_batch": "Batch Test",
+        "button_run_batch": "Run Batch Test",
         "single": "Test",
         "task_created": "{{count}} test tasks submitted, {{reused}} active tasks reused.",
         "selection": "Selected {{selected}} / {{total}}",
+        "group_count": "{{count}} models",
+        "group_type": "Type: {{type}}",
+        "history_tasks": "Task History",
+        "filters": {
+          "provider": "Provider",
+          "type": "Model Type"
+        },
         "selection_notice": "Model test results are used for the publish review step. Only tested-and-supported endpoints should be published.",
         "review_hint": "Confirm the final configuration of enabled models here. If you change model endpoints, go back to Step 3 and pass tests again before publishing.",
         "review_pending_notice": "{{count}} models still have current endpoints that are not tested/supported, so publishing cannot continue.",

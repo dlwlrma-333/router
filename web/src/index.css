@@ -1310,6 +1310,11 @@ code {
     align-items: center !important;
 }
 
+.ui.selection.dropdown.router-inline-dropdown.router-inline-dropdown-fixed {
+    width: 180px !important;
+    min-width: 180px !important;
+}
+
 .ui.selection.dropdown.router-inline-dropdown .menu > .item {
     padding: 0.72rem 0.92rem !important;
 }
@@ -1927,6 +1932,11 @@ code {
     line-height: 1.5;
 }
 
+.router-toolbar-meta-soft {
+    color: rgba(0, 0, 0, 0.46);
+    white-space: nowrap;
+}
+
 .router-toolbar-title {
     font-weight: 600;
 }
@@ -1996,12 +2006,81 @@ code {
     white-space: nowrap;
 }
 
+.ui.table.router-create-model-table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.ui.table.router-create-model-table th.router-create-model-selected-col,
+.ui.table.router-create-model-table td.router-create-model-selected-col {
+    width: 8%;
+}
+
+.ui.table.router-create-model-table th.router-create-model-name-col,
+.ui.table.router-create-model-table td.router-create-model-name-col {
+    width: 22%;
+}
+
+.ui.table.router-create-model-table th.router-create-model-type-col,
+.ui.table.router-create-model-table td.router-create-model-type-col {
+    width: 5%;
+}
+
+.ui.table.router-create-model-table th.router-create-model-providers-col,
+.ui.table.router-create-model-table td.router-create-model-providers-col {
+    width: 15%;
+}
+
+.ui.table.router-create-model-table th.router-create-model-alias-col,
+.ui.table.router-create-model-table td.router-create-model-alias-col {
+    width: 22%;
+}
+
+.ui.table.router-create-model-table th.router-create-model-price-col,
+.ui.table.router-create-model-table td.router-create-model-price-col {
+    width: 12%;
+}
+
 .router-cell-shrink {
     width: 1%;
 }
 
 .router-inline-input-wide {
     min-width: 220px;
+}
+
+.ui.table.router-create-model-table td.router-create-model-name-col,
+.ui.table.router-create-model-table td.router-create-model-providers-col,
+.ui.table.router-create-model-table td.router-create-model-alias-col {
+    overflow: hidden;
+}
+
+.ui.table.router-create-model-table td.router-create-model-name-col .router-cell-truncate {
+    display: block;
+}
+
+.router-create-model-provider-list {
+    display: flex;
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+.router-create-model-provider-list .ui.label.router-tag {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 0 1 auto;
+}
+
+.ui.form .field .ui.input.router-create-model-alias-input input,
+.ui.input.router-create-model-alias-input > input {
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .router-cell-min-120 {
