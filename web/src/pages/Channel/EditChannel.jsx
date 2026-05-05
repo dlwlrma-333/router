@@ -286,6 +286,22 @@ const endpointOptionsForModelType = (type) => {
   return [];
 };
 
+const buildEndpointOptionsFromValues = (type, values, protocol) => {
+  const labelByValue = new Map(
+    endpointOptionsForModelType(type).map((option) => [
+      normalizeChannelModelEndpoint(type, option.value, protocol),
+      option.text || option.value,
+    ]),
+  );
+  return normalizeChannelModelEndpoints(type, values, '', protocol).map(
+    (endpoint) => ({
+      key: endpoint,
+      value: endpoint,
+      text: labelByValue.get(endpoint) || endpoint,
+    }),
+  );
+};
+
 const normalizeChannelEndpointSource = (value) => {
   const normalized = (value || '').toString().trim().toLowerCase();
   if (normalized === CHANNEL_ENDPOINT_SOURCE_EXPLICIT) {
@@ -2056,6 +2072,68 @@ const EditChannel = () => {
     },
     [getProviderOwnersForModel, providerModelDetailsIndex],
   );
+  const getProviderCandidateEndpointsForModel = useCallback(
+    (row) => {
+      const providerId = resolvePreferredProviderForModel(row);
+      const providerDetails = providerModelDetailsIndex[providerId] || {};
+      const candidates = [];
+      buildProviderLookupKeys(row).forEach((key) => {
+        const detail = providerDetails[key];
+        if (!detail || !Array.isArray(detail.supported_endpoints)) {
+          return;
+        }
+        detail.supported_endpoints.forEach((endpoint) => {
+          candidates.push(endpoint);
+        });
+      });
+      const seen = new Set();
+      const result = [];
+      candidates.forEach((endpoint) => {
+        const normalized = normalizeChannelModelEndpoint(
+          row?.type,
+          endpoint,
+          inputs.protocol,
+        );
+        if (normalized === '' || seen.has(normalized)) {
+          return;
+        }
+        seen.add(normalized);
+        result.push(normalized);
+      });
+      return result;
+    },
+    [inputs.protocol, providerModelDetailsIndex, resolvePreferredProviderForModel],
+  );
+  const getEndpointOptionsForModel = useCallback(
+    (row) => {
+      const providerEndpoints = getProviderCandidateEndpointsForModel(row);
+      const fallbackEndpoints = endpointOptionsForModelType(row?.type).map(
+        (option) => option.value,
+      );
+      const values =
+        providerEndpoints.length > 0 ? providerEndpoints : fallbackEndpoints;
+      return buildEndpointOptionsFromValues(row?.type, values, inputs.protocol);
+    },
+    [getProviderCandidateEndpointsForModel, inputs.protocol],
+  );
+  const getEffectiveModelEndpoint = useCallback(
+    (row) => {
+      const normalizedCurrent = normalizeChannelModelEndpoint(
+        row?.type,
+        row?.endpoint,
+        inputs.protocol,
+      );
+      const providerEndpoints = getProviderCandidateEndpointsForModel(row);
+      if (
+        providerEndpoints.length === 0 ||
+        providerEndpoints.includes(normalizedCurrent)
+      ) {
+        return normalizedCurrent;
+      }
+      return providerEndpoints[0] || normalizedCurrent;
+    },
+    [getProviderCandidateEndpointsForModel, inputs.protocol],
+  );
   const openComplexPricingModal = useCallback(
     (row) => {
       const details = getComplexPricingDetailsForModel(row);
@@ -2262,6 +2340,14 @@ const EditChannel = () => {
     }
     return renderedModelConfigs.filter((row) => canSelectChannelModel(row));
   }, [canSelectChannelModel, isDetailMode, renderedModelConfigs]);
+  const createStepCurrentPageBlockedModels = useMemo(() => {
+    if (isDetailMode) {
+      return [];
+    }
+    return renderedModelConfigs.filter(
+      (row) => row.inactive !== true && !canSelectChannelModel(row),
+    );
+  }, [canSelectChannelModel, isDetailMode, renderedModelConfigs]);
 
   const createStepCurrentPageAllSelected = useMemo(() => {
     return (
@@ -2315,11 +2401,7 @@ const EditChannel = () => {
     }
     return createReviewRows.filter((row) => {
       const modelName = (row.model || '').toString().trim();
-      const endpoint = normalizeChannelModelEndpoint(
-        row.type,
-        row.endpoint,
-        inputs.protocol,
-      );
+      const endpoint = getEffectiveModelEndpoint(row);
       if (modelName === '' || endpoint === '') {
         return true;
       }
@@ -2328,7 +2410,12 @@ const EditChannel = () => {
       );
       return !(result?.status === 'supported' && result?.supported === true);
     });
-  }, [createReviewRows, inputs.protocol, modelTestResultsByKey]);
+  }, [
+    createReviewRows,
+    getEffectiveModelEndpoint,
+    inputs.protocol,
+    modelTestResultsByKey,
+  ]);
 
   const ensureModelTestsReadyForReview = useCallback(() => {
     if (inputs.protocol === 'proxy') {
@@ -3061,6 +3148,65 @@ const EditChannel = () => {
     goToCreateStep,
   ]);
 
+  const persistConfirmedCreateChannelEndpoints = useCallback(
+    async (targetChannelId) => {
+      const normalizedChannelId = (targetChannelId || '').toString().trim();
+      if (
+        !isCreateMode ||
+        inputs.protocol === 'proxy' ||
+        normalizedChannelId === ''
+      ) {
+        return;
+      }
+      const rows = [];
+      createReviewRows.forEach((row) => {
+        const modelName = (row.model || '').toString().trim();
+        if (modelName === '') {
+          return;
+        }
+        const supportedEndpoints =
+          createReviewSupportedEndpointsByModel.get(modelName) || new Set();
+        supportedEndpoints.forEach((endpoint) => {
+          const normalizedEndpoint = normalizeChannelModelEndpoint(
+            row.type,
+            endpoint,
+            inputs.protocol,
+          );
+          if (normalizedEndpoint === '') {
+            return;
+          }
+          rows.push({
+            model: modelName,
+            endpoint: normalizedEndpoint,
+          });
+        });
+      });
+      for (const row of rows) {
+        const res = await API.put(
+          `/api/v1/admin/channel/${normalizedChannelId}/endpoints`,
+          {
+            model: row.model,
+            endpoint: row.endpoint,
+            enabled: true,
+          },
+        );
+        const { success, message } = res.data || {};
+        if (!success) {
+          throw new Error(
+            message || t('channel.edit.endpoint_capabilities.update_failed'),
+          );
+        }
+      }
+    },
+    [
+      createReviewRows,
+      createReviewSupportedEndpointsByModel,
+      inputs.protocol,
+      isCreateMode,
+      t,
+    ],
+  );
+
   const loadChannelModelConfigsFromServer = useCallback(
     async (targetChannelId, protocol) => {
       try {
@@ -3713,11 +3859,7 @@ const EditChannel = () => {
         .filter((row) => normalizedTargets.includes(row.model))
         .map((row) => ({
           model: row.model,
-          endpoint: normalizeChannelModelEndpoint(
-            row.type,
-            row.endpoint,
-            inputs.protocol,
-          ),
+          endpoint: getEffectiveModelEndpoint(row),
           is_stream: !!row.is_stream,
         }));
       setModelTesting(true);
@@ -3765,6 +3907,7 @@ const EditChannel = () => {
     [
       modelTestTargetModels,
       creatingChannelId,
+      getEffectiveModelEndpoint,
       inputs.base_url,
       inputs,
       inputs.models,
@@ -4329,23 +4472,52 @@ const EditChannel = () => {
       const selectCellClassName = inDetailMode
         ? 'router-cell-checkbox'
         : undefined;
+      const disabledReason =
+        !canSelect && !row.selected
+          ? t('channel.edit.model_selector.selection_disabled_unassigned')
+          : '';
+      const handleDisabledClick = () => {
+        if (disabledReason) {
+          showInfo(disabledReason);
+        }
+      };
       return (
         <Table.Cell textAlign='center' className={selectCellClassName}>
-          <Checkbox
-            checked={!!row.selected}
-            disabled={selectDisabled || (!canSelect && !row.selected)}
-            onChange={(e, { checked }) =>
-              toggleModelSelection(row.upstream_model, checked)
-            }
-          />
+          <span
+            className='router-inline-block'
+            onClick={handleDisabledClick}
+            role={disabledReason ? 'button' : undefined}
+            tabIndex={disabledReason ? 0 : undefined}
+            onKeyDown={(e) => {
+              if ((e.key === 'Enter' || e.key === ' ') && disabledReason) {
+                e.preventDefault();
+                showInfo(disabledReason);
+              }
+            }}
+          >
+            <Checkbox
+              checked={!!row.selected}
+              disabled={selectDisabled || (!canSelect && !row.selected)}
+              onChange={(e, { checked }) =>
+                toggleModelSelection(row.upstream_model, checked)
+              }
+            />
+          </span>
         </Table.Cell>
       );
     },
-    [toggleModelSelection],
+    [t, toggleModelSelection],
   );
 
   const toggleCreateStepCurrentPageSelections = useCallback(
     (checked) => {
+      if (checked && createStepCurrentPageBlockedModels.length > 0) {
+        showInfo(
+          t('channel.edit.model_selector.selection_skipped_unassigned', {
+            count: createStepCurrentPageBlockedModels.length,
+          }),
+        );
+      }
       const targetIDs = new Set(
         createStepCurrentPageSelectableModels.map((row) => row.upstream_model),
       );
@@ -4361,7 +4533,12 @@ const EditChannel = () => {
         buildNextInputsWithModelConfigs(prev, nextConfigs, prev.protocol),
       );
     },
-    [createStepCurrentPageSelectableModels, visibleModelConfigs],
+    [
+      createStepCurrentPageBlockedModels.length,
+      createStepCurrentPageSelectableModels,
+      t,
+      visibleModelConfigs,
+    ],
   );
 
   useEffect(() => {
@@ -4822,8 +4999,18 @@ const EditChannel = () => {
     } else {
       res = await API.post(`/api/v1/admin/channel/`, localInputs);
     }
-    const { success, message } = res.data;
+    const { success, message, data } = res.data;
     if (success) {
+      try {
+        await persistConfirmedCreateChannelEndpoints(
+          creatingChannelId || data?.id || localInputs.id,
+        );
+      } catch (error) {
+        showError(
+          error?.message || t('channel.edit.endpoint_capabilities.update_failed'),
+        );
+        return;
+      }
       showSuccess(t('channel.edit.messages.create_success'));
       clearCreateChannelCache();
       navigate('/admin/channel', { replace: true });
@@ -6391,10 +6578,10 @@ const EditChannel = () => {
                             <Table.HeaderCell width={3}>
                               {t('channel.edit.model_selector.table.name')}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={1}>
+                            <Table.HeaderCell width={2}>
                               {t('channel.edit.model_selector.table.type')}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={3}>
+                            <Table.HeaderCell width={6}>
                               {t('channel.edit.model_selector.table.providers')}
                             </Table.HeaderCell>
                             <Table.HeaderCell width={3}>
@@ -7067,10 +7254,10 @@ const EditChannel = () => {
                           <Table.HeaderCell width={5}>
                             {t('channel.edit.model_selector.table.name')}
                           </Table.HeaderCell>
-                          <Table.HeaderCell width={2}>
+                          <Table.HeaderCell width={4}>
                             {t('channel.edit.model_selector.table.type')}
                           </Table.HeaderCell>
-                          <Table.HeaderCell width={4}>
+                          <Table.HeaderCell width={8}>
                             {t('channel.edit.model_selector.table.providers')}
                           </Table.HeaderCell>
                           <Table.HeaderCell width={5}>
@@ -7541,18 +7728,12 @@ const EditChannel = () => {
                                       <Dropdown
                                         selection
                                         className='router-mini-dropdown'
-                                        options={TEXT_MODEL_ENDPOINT_OPTIONS}
+                                        options={getEndpointOptionsForModel(row)}
                                         disabled={
                                           detailTestingReadonly ||
                                           detailModelMutating
                                         }
-                                        value={
-                                          row.endpoint ||
-                                          defaultChannelModelEndpoint(
-                                            row.type,
-                                            inputs.protocol,
-                                          )
-                                        }
+                                        value={getEffectiveModelEndpoint(row)}
                                         onChange={(e, { value }) =>
                                           updateModelTestEndpoint(row.model, value)
                                         }
@@ -7561,18 +7742,12 @@ const EditChannel = () => {
                                       <Dropdown
                                         selection
                                         className='router-mini-dropdown'
-                                        options={IMAGE_MODEL_ENDPOINT_OPTIONS}
+                                        options={getEndpointOptionsForModel(row)}
                                         disabled={
                                           detailTestingReadonly ||
                                           detailModelMutating
                                         }
-                                        value={
-                                          row.endpoint ||
-                                          defaultChannelModelEndpoint(
-                                            row.type,
-                                            inputs.protocol,
-                                          )
-                                        }
+                                        value={getEffectiveModelEndpoint(row)}
                                         onChange={(e, { value }) =>
                                           updateModelTestEndpoint(row.model, value)
                                         }
@@ -8091,12 +8266,7 @@ const EditChannel = () => {
                       </Table.Row>
                     ) : (
                       createReviewRows.map((row) => {
-                        const normalizedEndpoint =
-                          normalizeChannelModelEndpoint(
-                            row.type,
-                            row.endpoint,
-                            inputs.protocol,
-                          );
+                        const normalizedEndpoint = getEffectiveModelEndpoint(row);
                         const item = modelTestResultsByKey.get(
                           buildModelTestResultKey(row.model, normalizedEndpoint),
                         );
@@ -8154,14 +8324,8 @@ const EditChannel = () => {
                                 <Dropdown
                                   selection
                                   className='router-mini-dropdown'
-                                  options={TEXT_MODEL_ENDPOINT_OPTIONS}
-                                  value={
-                                    row.endpoint ||
-                                    defaultChannelModelEndpoint(
-                                      row.type,
-                                      inputs.protocol,
-                                    )
-                                  }
+                                  options={getEndpointOptionsForModel(row)}
+                                  value={normalizedEndpoint}
                                   onChange={(e, { value }) =>
                                     updateModelConfigField(
                                       row.upstream_model,
@@ -8174,14 +8338,8 @@ const EditChannel = () => {
                                 <Dropdown
                                   selection
                                   className='router-mini-dropdown'
-                                  options={IMAGE_MODEL_ENDPOINT_OPTIONS}
-                                  value={
-                                    row.endpoint ||
-                                    defaultChannelModelEndpoint(
-                                      row.type,
-                                      inputs.protocol,
-                                    )
-                                  }
+                                  options={getEndpointOptionsForModel(row)}
+                                  value={normalizedEndpoint}
                                   onChange={(e, { value }) =>
                                     updateModelConfigField(
                                       row.upstream_model,

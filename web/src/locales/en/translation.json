@@ -361,13 +361,12 @@
       "id": "Channel Identifier",
       "name": "Channel",
       "group": "Group",
-  "type": "Protocol Type",
-  "status": "Status",
-  "created_time": "Created Time",
-  "updated_at": "Updated At",
-  "updated_at": "Updated At",
-  "response_time": "Response Time",
-  "capabilities": "Capabilities",
+      "type": "Protocol Type",
+      "status": "Status",
+      "created_time": "Created Time",
+      "updated_at": "Updated At",
+      "response_time": "Response Time",
+      "capabilities": "Capabilities",
       "balance": "Balance",
       "priority": "Priority",
       "actions": "Actions",
@@ -444,15 +443,15 @@
         "key": "API Key",
         "key_set": "Configured",
         "key_not_set": "Not Set",
-    "models": "Supported Models",
-    "source": "Source",
-    "complex_pricing_count": "{{count}} complex pricing models",
-    "created_at": "Created At",
-    "updated_at": "Updated At",
-    "actions": "Actions",
-    "empty": "No provider catalog",
-    "model_count": "{{count}} models"
-  },
+        "models": "Supported Models",
+        "source": "Source",
+        "complex_pricing_count": "{{count}} complex pricing models",
+        "created_at": "Created At",
+        "updated_at": "Updated At",
+        "actions": "Actions",
+        "empty": "No provider catalog",
+        "model_count": "{{count}} models"
+      },
       "model_detail_table": {
         "add": "Add Model",
         "search_placeholder": "Search model details...",
@@ -549,88 +548,88 @@
       "group": "Group",
       "group_placeholder": "Please select groups that can use this channel",
       "group_addition": "You can add a group in Group Management:",
-  "models": "Models",
-  "models_placeholder": "Please select models supported by this channel",
-  "detail_basic_title": "Basic Info",
-  "detail_models_title": "Model Selection",
-  "detail_tabs": {
-    "overview": "Overview",
-    "models": "Models",
-    "endpoints": "Endpoints",
-    "tests": "Tests"
-  },
-  "endpoint_capabilities": {
-    "title": "Endpoint Capabilities",
-    "summary": "{{total}} total, {{enabled}} enabled, {{explicit}} explicit, {{candidate}} candidates",
-    "hint": "This section shows endpoint capabilities for the current channel models. Candidate endpoints come from the provider model catalog; routing and /v1/models exposure use enabled channel endpoint capabilities.",
-    "cards": {
-      "total": "Total Endpoints",
-      "enabled": "Enabled",
-      "explicit": "Explicit",
-      "candidate": "Provider Candidates"
-    },
-    "loading": "Loading endpoint capabilities...",
-    "empty": "No endpoint capability data yet. Sync models or run model tests first.",
-    "load_failed": "Failed to load endpoint capabilities",
-    "update_success": "Endpoint capability updated",
-    "update_failed": "Failed to update endpoint capability",
-    "table": {
-      "model": "Model",
-      "endpoint": "Endpoint",
-      "source": "Source",
-      "enabled": "Enabled",
-      "latest_test": "Latest Test",
-      "updated_at": "Updated At"
-    },
-    "source": {
-      "explicit": "Explicit",
-      "provider_catalog": "Provider Candidate"
-    }
-  },
-  "endpoint_policies": {
-    "title": "Endpoint Policies",
-    "summary": "{{total}} total, {{enabled}} enabled",
-    "hint": "Endpoint policies describe compatibility adjustments inside a specific channel model endpoint, such as dropping unsupported fields, rejecting certain inputs, or converting image URLs to base64. This section manages explicit policies only and does not change endpoint capability state itself.",
-    "cards": {
-      "configured": "Configured",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
-      "not_configured": "Not Configured"
-    },
-    "loading": "Loading endpoint policies...",
-    "empty": "No configurable endpoint policies yet. Make sure endpoint capabilities exist first.",
-    "load_failed": "Failed to load endpoint policies",
-    "update_success": "Endpoint policy updated",
-    "update_failed": "Failed to update endpoint policy",
-    "invalid": "Incomplete endpoint policy payload",
-    "create": "Create Policy",
-    "edit": "Edit Policy",
-    "status": {
-      "enabled": "Enabled",
-      "disabled": "Disabled",
-      "not_configured": "Not Configured"
-    },
-    "table": {
-      "model": "Model",
-      "endpoint": "Endpoint",
-      "status": "Status",
-      "source": "Source",
-      "reason": "Reason",
-      "updated_at": "Updated At",
-      "actions": "Actions"
-    },
-    "editor": {
-      "title": "Edit Endpoint Policy",
-      "hint": "JSON text is validated by backend rules. `capabilities` describes factual support, `request_policy` describes request-side actions, and `response_policy` is reserved for now.",
-      "template": "Policy Template",
-      "template_placeholder": "Choose a common template for quick fill",
-      "capabilities": "Capabilities JSON",
-      "request_policy": "Request Policy JSON",
-      "response_policy": "Response Policy JSON"
-    }
-  },
-  "created_time": "Created Time",
-  "system_prompt": "System Prompt",
+      "models": "Models",
+      "models_placeholder": "Please select models supported by this channel",
+      "detail_basic_title": "Basic Info",
+      "detail_models_title": "Model Selection",
+      "detail_tabs": {
+        "overview": "Overview",
+        "models": "Models",
+        "endpoints": "Endpoints",
+        "tests": "Tests"
+      },
+      "endpoint_capabilities": {
+        "title": "Endpoint Capabilities",
+        "summary": "{{total}} total, {{enabled}} enabled, {{explicit}} explicit, {{candidate}} candidates",
+        "hint": "This section shows endpoint capabilities for the current channel models. Candidate endpoints come from the provider model catalog; routing and /v1/models exposure use enabled channel endpoint capabilities.",
+        "cards": {
+          "total": "Total Endpoints",
+          "enabled": "Enabled",
+          "explicit": "Explicit",
+          "candidate": "Provider Candidates"
+        },
+        "loading": "Loading endpoint capabilities...",
+        "empty": "No endpoint capability data yet. Sync models or run model tests first.",
+        "load_failed": "Failed to load endpoint capabilities",
+        "update_success": "Endpoint capability updated",
+        "update_failed": "Failed to update endpoint capability",
+        "table": {
+          "model": "Model",
+          "endpoint": "Endpoint",
+          "source": "Source",
+          "enabled": "Enabled",
+          "latest_test": "Latest Test",
+          "updated_at": "Updated At"
+        },
+        "source": {
+          "explicit": "Explicit",
+          "provider_catalog": "Provider Candidate"
+        }
+      },
+      "endpoint_policies": {
+        "title": "Endpoint Policies",
+        "summary": "{{total}} total, {{enabled}} enabled",
+        "hint": "Endpoint policies describe compatibility adjustments inside a specific channel model endpoint, such as dropping unsupported fields, rejecting certain inputs, or converting image URLs to base64. This section manages explicit policies only and does not change endpoint capability state itself.",
+        "cards": {
+          "configured": "Configured",
+          "enabled": "Enabled",
+          "disabled": "Disabled",
+          "not_configured": "Not Configured"
+        },
+        "loading": "Loading endpoint policies...",
+        "empty": "No configurable endpoint policies yet. Make sure endpoint capabilities exist first.",
+        "load_failed": "Failed to load endpoint policies",
+        "update_success": "Endpoint policy updated",
+        "update_failed": "Failed to update endpoint policy",
+        "invalid": "Incomplete endpoint policy payload",
+        "create": "Create Policy",
+        "edit": "Edit Policy",
+        "status": {
+          "enabled": "Enabled",
+          "disabled": "Disabled",
+          "not_configured": "Not Configured"
+        },
+        "table": {
+          "model": "Model",
+          "endpoint": "Endpoint",
+          "status": "Status",
+          "source": "Source",
+          "reason": "Reason",
+          "updated_at": "Updated At",
+          "actions": "Actions"
+        },
+        "editor": {
+          "title": "Edit Endpoint Policy",
+          "hint": "JSON text is validated by backend rules. `capabilities` describes factual support, `request_policy` describes request-side actions, and `response_policy` is reserved for now.",
+          "template": "Policy Template",
+          "template_placeholder": "Choose a common template for quick fill",
+          "capabilities": "Capabilities JSON",
+          "request_policy": "Request Policy JSON",
+          "response_policy": "Response Policy JSON"
+        }
+      },
+      "created_time": "Created Time",
+      "system_prompt": "System Prompt",
       "system_prompt_placeholder": "Optional, used to force set system prompt. Use with custom model & model mapping. First create a unique custom model name above, then map it to a natively supported model",
       "proxy_url": "Address",
       "proxy_url_placeholder": "This is optional and used for API calls via a proxy. Please enter the proxy URL, formatted as: https://domain.com",
@@ -693,6 +692,8 @@
         "provider_append_invalid": "Please select a provider and enter a model name",
         "provider_append_success": "Model added to provider",
         "provider_append_failed": "Failed to add model to provider",
+        "selection_disabled_unassigned": "This model is not assigned to a provider and cannot be enabled. Add it to the provider model catalog first.",
+        "selection_skipped_unassigned": "Skipped {{count}} unassigned models on this page. Add them to the provider model catalog before enabling.",
         "realtime_enabled": "Realtime model sync is enabled: changing address or key refreshes the model list, but does not select all by default.",
         "realtime_hint": "After address and key are filled, supported models will be fetched automatically.",
         "flow_title": "Create Channel Flow",
@@ -836,7 +837,8 @@
         "spark": "Enter in format: APPID|APISecret|APIKey",
         "fastgpt": "Enter in format: APIKey-AppId, e.g.: fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041",
         "tencent": "Enter in format: AppId|SecretId|SecretKey"
-      }
+      },
+      "updated_at": "Updated At"
     }
   },
   "group_manage": {
@@ -850,12 +852,12 @@
       "billing_ratio": "Billing Ratio",
       "daily_quota_limit": "Daily Limit",
       "source": "Source",
-    "status": "Status",
-    "sort_order": "Sort Order",
-    "created_at": "Created At",
-    "updated_at": "Updated At",
-    "actions": "Actions"
-  },
+      "status": "Status",
+      "sort_order": "Sort Order",
+      "created_at": "Created At",
+      "updated_at": "Updated At",
+      "actions": "Actions"
+    },
     "status": {
       "enabled": "Enabled",
       "disabled": "Disabled"
@@ -895,22 +897,22 @@
       "delete_confirm": "Are you sure you want to delete group {{id}}?",
       "bind_channels_title": "Configure Channels for Group {{id}}"
     },
-  "detail": {
-    "title": "Group Detail",
-    "model": "Model",
-    "enabled": "Enabled",
-    "selected": "Use",
-    "priority": "Priority",
-    "channel_count": "Channel Count",
-    "model_channels": "Channels",
-    "model_search_placeholder": "Search model or channel",
-    "supported_models": "Supported Models",
-    "empty_models": "No supported models",
-    "empty_model_channels": "No configurable channels for this model",
-    "edit_model_title": "Edit Model {{model}}",
-    "bound_channels": "Related Channels",
-    "empty_channels": "No related channels"
-  },
+    "detail": {
+      "title": "Group Detail",
+      "model": "Model",
+      "enabled": "Enabled",
+      "selected": "Use",
+      "priority": "Priority",
+      "channel_count": "Channel Count",
+      "model_channels": "Channels",
+      "model_search_placeholder": "Search model or channel",
+      "supported_models": "Supported Models",
+      "empty_models": "No supported models",
+      "empty_model_channels": "No configurable channels for this model",
+      "edit_model_title": "Edit Model {{model}}",
+      "bound_channels": "Related Channels",
+      "empty_channels": "No related channels"
+    },
     "edit": {
       "model_configs": "Group Model Mappings",
       "model": "Visible Model",
@@ -930,13 +932,13 @@
       "daily_quota_limit_invalid": "Daily limit must be greater than or equal to 0",
       "load_failed": "Failed to load groups",
       "bind_load_failed": "Failed to load group channels",
-    "model_load_failed": "Failed to load group models",
-    "model_config_load_failed": "Failed to load group model configs",
-    "model_config_incomplete": "Please complete the group model config before submitting",
-    "model_config_duplicate": "The same visible model cannot use the same channel twice",
-    "model_channel_empty": "This model has no available related channels",
-    "model_channel_required": "Please select at least one channel",
-    "create_success": "Group created successfully",
+      "model_load_failed": "Failed to load group models",
+      "model_config_load_failed": "Failed to load group model configs",
+      "model_config_incomplete": "Please complete the group model config before submitting",
+      "model_config_duplicate": "The same visible model cannot use the same channel twice",
+      "model_channel_empty": "This model has no available related channels",
+      "model_channel_required": "Please select at least one channel",
+      "create_success": "Group created successfully",
       "create_failed": "Failed to create group",
       "update_success": "Group updated successfully",
       "update_failed": "Failed to update group",
@@ -2215,27 +2217,27 @@
       "empty": "No rates",
       "columns": {
         "pair": "Pair",
-      "rate": "Rate",
-      "provider": "Provider",
-      "rate_date": "Rate Date",
-      "created_at": "Created At",
-      "updated_at": "Updated At",
-      "action": "Action"
-    },
+        "rate": "Rate",
+        "provider": "Provider",
+        "rate_date": "Rate Date",
+        "created_at": "Created At",
+        "updated_at": "Updated At",
+        "action": "Action"
+      },
       "rate_display": "1 {{base}} = {{value}} {{quote}}",
       "providers": {
         "manual": "Manual"
       },
-  "buttons": {
-    "sync": "Sync",
-    "save": "Save",
-    "edit": "Edit"
-  },
-  "dialogs": {
-    "edit_title": "Edit Rate",
-    "rate_label": "Rate"
-  },
-  "messages": {
+      "buttons": {
+        "sync": "Sync",
+        "save": "Save",
+        "edit": "Edit"
+      },
+      "dialogs": {
+        "edit_title": "Edit Rate",
+        "rate_label": "Rate"
+      },
+      "messages": {
         "load_failed": "Failed to load rates",
         "sync_failed": "Failed to sync rates",
         "sync_success": "Rates synced, updated {{count}} items",
