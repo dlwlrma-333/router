@@ -1336,6 +1336,12 @@ code {
     min-width: 220px !important;
 }
 
+.ui.selection.dropdown.router-mini-dropdown.router-table-dropdown-fluid {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+}
+
 .ui.selection.dropdown.router-mini-dropdown .menu > .item {
     padding: 0.68rem 0.88rem !important;
 }
@@ -2011,34 +2017,13 @@ code {
     table-layout: fixed;
 }
 
-.ui.table.router-create-model-table th.router-create-model-selected-col,
-.ui.table.router-create-model-table td.router-create-model-selected-col {
-    width: 8%;
-}
-
-.ui.table.router-create-model-table th.router-create-model-name-col,
-.ui.table.router-create-model-table td.router-create-model-name-col {
-    width: 22%;
-}
-
-.ui.table.router-create-model-table th.router-create-model-type-col,
-.ui.table.router-create-model-table td.router-create-model-type-col {
-    width: 5%;
-}
-
-.ui.table.router-create-model-table th.router-create-model-providers-col,
-.ui.table.router-create-model-table td.router-create-model-providers-col {
-    width: 15%;
-}
-
-.ui.table.router-create-model-table th.router-create-model-alias-col,
-.ui.table.router-create-model-table td.router-create-model-alias-col {
-    width: 22%;
-}
-
-.ui.table.router-create-model-table th.router-create-model-price-col,
-.ui.table.router-create-model-table td.router-create-model-price-col {
-    width: 12%;
+.ui.table.router-channel-detail-model-table,
+.ui.table.router-model-test-table,
+.ui.table.router-channel-endpoint-capability-table,
+.ui.table.router-channel-endpoint-policy-table,
+.ui.table.router-channel-create-review-table {
+    width: 100%;
+    table-layout: fixed;
 }
 
 .router-cell-shrink {
@@ -2052,18 +2037,48 @@ code {
 .ui.table.router-create-model-table td.router-create-model-name-col,
 .ui.table.router-create-model-table td.router-create-model-providers-col,
 .ui.table.router-create-model-table td.router-create-model-alias-col {
+    min-width: 0;
     overflow: hidden;
 }
 
 .ui.table.router-create-model-table td.router-create-model-name-col .router-cell-truncate {
     display: block;
+    min-width: 0;
 }
 
 .router-create-model-provider-list {
     display: flex;
     gap: 6px;
     flex-wrap: nowrap;
+    min-width: 0;
     overflow: hidden;
+}
+
+.ui.table.router-model-test-table td {
+    overflow: hidden;
+}
+
+.ui.table.router-model-test-table td .router-cell-truncate {
+    display: block;
+    min-width: 0;
+}
+
+.ui.table.router-model-test-table td.router-table-dropdown-cell,
+.ui.table.router-channel-create-review-table td.router-table-dropdown-cell {
+    overflow: visible;
+}
+
+.ui.table.router-channel-endpoint-capability-table td,
+.ui.table.router-channel-endpoint-policy-table td,
+.ui.table.router-channel-create-review-table td {
+    overflow: hidden;
+}
+
+.ui.table.router-channel-endpoint-capability-table td .router-cell-truncate,
+.ui.table.router-channel-endpoint-policy-table td .router-cell-truncate,
+.ui.table.router-channel-create-review-table td .router-cell-truncate {
+    display: block;
+    min-width: 0;
 }
 
 .router-create-model-provider-list .ui.label.router-tag {

@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, Dropdown, Label, Message, Table } from 'semantic-ui-react';
 import { timestamp2string } from '../../helpers';
 
+const MODEL_TEST_COLUMN_WIDTHS = ['16%', '20%', '6%', '8%', '9%', '14%', '15%', '12%'];
+const MODEL_TEST_BATCH_COLUMN_WIDTHS = ['4%', '15%', '22%', '6%', '8%', '9%', '14%', '12%', '12%'];
+
 const CreateChannelModelTestSection = ({
   modelTesting,
   modelTestingScope,
@@ -69,7 +72,15 @@ const CreateChannelModelTestSection = ({
       rows.some((row) => modelTestTargetModels.includes(row.model));
 
     return (
-      <Table celled stackable className='router-detail-table'>
+      <Table celled stackable className='router-detail-table router-model-test-table'>
+        <colgroup>
+          {(batchMode
+            ? MODEL_TEST_BATCH_COLUMN_WIDTHS
+            : MODEL_TEST_COLUMN_WIDTHS
+          ).map((width, index) => (
+            <col key={`model-test-col-${index}`} style={{ width }} />
+          ))}
+        </colgroup>
         <Table.Header>
           <Table.Row>
             {batchMode && (
@@ -151,12 +162,14 @@ const CreateChannelModelTestSection = ({
                     />
                   </Table.Cell>
                 )}
-                <Table.Cell>{row.model || '-'}</Table.Cell>
-                <Table.Cell>
+                <Table.Cell title={row.model || '-'}>
+                  <span className='router-cell-truncate'>{row.model || '-'}</span>
+                </Table.Cell>
+                <Table.Cell className='router-table-dropdown-cell'>
                   {row.type === 'text' || row.type === 'image' ? (
                     <Dropdown
                       selection
-                      className='router-mini-dropdown'
+                      className='router-mini-dropdown router-table-dropdown-fluid'
                       options={getEndpointOptionsForModel(row)}
                       disabled={disabledBase}
                       value={normalizedEndpoint}
@@ -182,23 +195,36 @@ const CreateChannelModelTestSection = ({
                     {t(`channel.edit.model_tester.status.${effectiveStatus}`)}
                   </Label>
                 </Table.Cell>
-                <Table.Cell>
+                <Table.Cell className='router-nowrap'>
                   {displayItem?.latency_ms > 0 ? `${displayItem.latency_ms} ms` : '-'}
                 </Table.Cell>
-                <Table.Cell>
+                <Table.Cell className='router-nowrap'>
                   {displayItem?.tested_at > 0
                     ? timestamp2string(displayItem.tested_at)
                     : '-'}
                 </Table.Cell>
-                <Table.Cell>
-                  {useLatestResult
-                    ? t('channel.edit.model_tester.latest_result_from_endpoint', {
-                        endpoint: displayItem?.endpoint || '-',
-                      })
-                    : displayItem?.message ||
-                      (effectiveStatus === 'untested'
-                        ? t('channel.edit.model_tester.untested')
-                        : '-')}
+                <Table.Cell
+                  title={
+                    useLatestResult
+                      ? t('channel.edit.model_tester.latest_result_from_endpoint', {
+                          endpoint: displayItem?.endpoint || '-',
+                        })
+                      : displayItem?.message ||
+                        (effectiveStatus === 'untested'
+                          ? t('channel.edit.model_tester.untested')
+                          : '-')
+                  }
+                >
+                  <span className='router-cell-truncate'>
+                    {useLatestResult
+                      ? t('channel.edit.model_tester.latest_result_from_endpoint', {
+                          endpoint: displayItem?.endpoint || '-',
+                        })
+                      : displayItem?.message ||
+                        (effectiveStatus === 'untested'
+                          ? t('channel.edit.model_tester.untested')
+                          : '-')}
+                  </span>
                 </Table.Cell>
                 <Table.Cell collapsing>
                   <div className='router-inline-actions'>

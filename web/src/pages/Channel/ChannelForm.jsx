@@ -79,6 +79,66 @@ const normalizeBaseURL = (baseURL) =>
 
 const CHANNEL_IDENTIFIER_PATTERN = /^[a-z0-9-]+$/;
 const CHANNEL_IDENTIFIER_MAX_LENGTH = 64;
+const CREATE_MODEL_SELECTION_COLUMN_WIDTHS = [
+  '8%',
+  '20%',
+  '5%',
+  '14%',
+  '20%',
+  '11%',
+  '11%',
+  '11%',
+];
+const CHANNEL_DETAIL_MODEL_COLUMN_WIDTHS = [
+  '8%',
+  '18%',
+  '6%',
+  '16%',
+  '18%',
+  '10%',
+  '9%',
+  '9%',
+  '6%',
+];
+const CHANNEL_ENDPOINT_CAPABILITY_COLUMN_WIDTHS = [
+  '22%',
+  '24%',
+  '14%',
+  '10%',
+  '14%',
+  '16%',
+];
+const CHANNEL_ENDPOINT_POLICY_COLUMN_WIDTHS = [
+  '18%',
+  '20%',
+  '12%',
+  '12%',
+  '22%',
+  '10%',
+  '6%',
+];
+const CHANNEL_MODEL_TEST_GROUP_COLUMN_WIDTHS = [
+  '4%',
+  '15%',
+  '22%',
+  '6%',
+  '8%',
+  '9%',
+  '14%',
+  '12%',
+  '10%',
+];
+const CHANNEL_CREATE_REVIEW_COLUMN_WIDTHS = [
+  '14%',
+  '7%',
+  '16%',
+  '14%',
+  '18%',
+  '8%',
+  '8%',
+  '7%',
+  '8%',
+];
 
 const normalizeChannelIdentifier = (value) =>
   (value || '').toString().trim().toLowerCase();
@@ -5240,7 +5300,19 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
             </span>
           </div>
         </div>
-        <Table celled stackable className='router-detail-table'>
+        <Table
+          celled
+          stackable
+          className='router-detail-table router-model-test-table'
+        >
+          <colgroup>
+            {CHANNEL_MODEL_TEST_GROUP_COLUMN_WIDTHS.map((width, index) => (
+              <col
+                key={`channel-model-test-group-col-${index}`}
+                style={{ width }}
+              />
+            ))}
+          </colgroup>
           <Table.Header>
             <Table.Row>
               <Table.HeaderCell collapsing textAlign='center'>
@@ -5337,12 +5409,16 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                       }
                     />
                   </Table.Cell>
-                  <Table.Cell>{row.model || '-'}</Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell title={row.model || '-'}>
+                    <span className='router-cell-truncate'>
+                      {row.model || '-'}
+                    </span>
+                  </Table.Cell>
+                  <Table.Cell className='router-table-dropdown-cell'>
                     {row.type === 'text' || row.type === 'image' ? (
                       <Dropdown
                         selection
-                        className='router-mini-dropdown'
+                        className='router-mini-dropdown router-table-dropdown-fluid'
                         options={getEndpointOptionsForModel(row)}
                         disabled={disabledBase}
                         value={normalizedEndpoint}
@@ -5368,25 +5444,44 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                       {t(`channel.edit.model_tester.status.${effectiveStatus}`)}
                     </Label>
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell className='router-nowrap'>
                     {displayItem?.latency_ms > 0
                       ? `${displayItem.latency_ms} ms`
                       : '-'}
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell className='router-nowrap'>
                     {displayItem?.tested_at > 0
                       ? timestamp2string(displayItem.tested_at)
                       : '-'}
                   </Table.Cell>
-                  <Table.Cell>
-                    {useLatestResult
-                      ? t('channel.edit.model_tester.latest_result_from_endpoint', {
-                          endpoint: displayItem?.endpoint || '-',
-                        })
-                      : displayItem?.message ||
-                        (effectiveStatus === 'untested'
-                          ? t('channel.edit.model_tester.untested')
-                          : '-')}
+                  <Table.Cell
+                    title={
+                      useLatestResult
+                        ? t(
+                            'channel.edit.model_tester.latest_result_from_endpoint',
+                            {
+                              endpoint: displayItem?.endpoint || '-',
+                            },
+                          )
+                        : displayItem?.message ||
+                          (effectiveStatus === 'untested'
+                            ? t('channel.edit.model_tester.untested')
+                            : '-')
+                    }
+                  >
+                    <span className='router-cell-truncate'>
+                      {useLatestResult
+                        ? t(
+                            'channel.edit.model_tester.latest_result_from_endpoint',
+                            {
+                              endpoint: displayItem?.endpoint || '-',
+                            },
+                          )
+                        : displayItem?.message ||
+                          (effectiveStatus === 'untested'
+                            ? t('channel.edit.model_tester.untested')
+                            : '-')}
+                    </span>
                   </Table.Cell>
                   <Table.Cell collapsing>
                     <div className='router-inline-actions'>
@@ -7003,44 +7098,53 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                       <Table
                         celled
                         stackable
-                        className='router-detail-table'
+                        className='router-detail-table router-channel-detail-model-table'
                         compact='very'
-                        style={{ tableLayout: 'fixed' }}
                       >
-                      <Table.Header>
+                        <colgroup>
+                          {CHANNEL_DETAIL_MODEL_COLUMN_WIDTHS.map(
+                            (width, index) => (
+                              <col
+                                key={`channel-detail-model-col-${index}`}
+                                style={{ width }}
+                              />
+                            ),
+                          )}
+                        </colgroup>
+                        <Table.Header>
                         <Table.Row>
                           <Table.HeaderCell
                             textAlign='center'
                             className='router-create-model-selected-col'
                           >
-                              {t('channel.edit.model_selector.table.selected')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell width={3}>
-                              {t('channel.edit.model_selector.table.name')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
-                              {t('channel.edit.model_selector.table.type')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell width={6}>
-                              {t('channel.edit.model_selector.table.providers')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell width={3}>
-                              {t('channel.edit.model_selector.table.alias')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
-                              {t('channel.edit.model_selector.table.price_unit')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
-                              {t('channel.edit.model_selector.table.input_price')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
-                              {t('channel.edit.model_selector.table.output_price')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
-                              {t('channel.table.actions')}
-                            </Table.HeaderCell>
-                          </Table.Row>
-                        </Table.Header>
+                            {t('channel.edit.model_selector.table.selected')}
+                          </Table.HeaderCell>
+                          <Table.HeaderCell>
+                            {t('channel.edit.model_selector.table.name')}
+                          </Table.HeaderCell>
+                          <Table.HeaderCell>
+                            {t('channel.edit.model_selector.table.type')}
+                          </Table.HeaderCell>
+                          <Table.HeaderCell>
+                            {t('channel.edit.model_selector.table.providers')}
+                          </Table.HeaderCell>
+                          <Table.HeaderCell>
+                            {t('channel.edit.model_selector.table.alias')}
+                          </Table.HeaderCell>
+                          <Table.HeaderCell>
+                            {t('channel.edit.model_selector.table.price_unit')}
+                          </Table.HeaderCell>
+                          <Table.HeaderCell>
+                            {t('channel.edit.model_selector.table.input_price')}
+                          </Table.HeaderCell>
+                          <Table.HeaderCell>
+                            {t('channel.edit.model_selector.table.output_price')}
+                          </Table.HeaderCell>
+                          <Table.HeaderCell>
+                            {t('channel.table.actions')}
+                          </Table.HeaderCell>
+                        </Table.Row>
+                      </Table.Header>
                         <Table.Body>
                           {searchedModelConfigs.length === 0 ? (
                             <Table.Row>
@@ -7119,6 +7223,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                                     )}
                                   </Table.Cell>
                                   <Table.Cell>
+                                    <div className='router-create-model-provider-list'>
                                     {selectedProviderItems.length > 0 ? (
                                       selectedProviderItems.map((provider) => (
                                         <Label
@@ -7151,6 +7256,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                                     ) : (
                                       '-'
                                     )}
+                                    </div>
                                   </Table.Cell>
                                   <Table.Cell
                                     title={row.model}
@@ -7307,37 +7413,47 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                       <Table
                         celled
                         stackable
-                        className='router-detail-table'
+                        className='router-detail-table router-channel-endpoint-capability-table'
                         compact='very'
                       >
+                        <colgroup>
+                          {CHANNEL_ENDPOINT_CAPABILITY_COLUMN_WIDTHS.map(
+                            (width, index) => (
+                              <col
+                                key={`channel-endpoint-capability-col-${index}`}
+                                style={{ width }}
+                              />
+                            ),
+                          )}
+                        </colgroup>
                         <Table.Header>
                           <Table.Row>
-                            <Table.HeaderCell width={3}>
+                            <Table.HeaderCell>
                               {t(
                                 'channel.edit.endpoint_capabilities.table.model',
                               )}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={3}>
+                            <Table.HeaderCell>
                               {t(
                                 'channel.edit.endpoint_capabilities.table.endpoint',
                               )}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
+                            <Table.HeaderCell>
                               {t(
                                 'channel.edit.endpoint_capabilities.table.source',
                               )}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={2} textAlign='center'>
+                            <Table.HeaderCell textAlign='center'>
                               {t(
                                 'channel.edit.endpoint_capabilities.table.enabled',
                               )}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
+                            <Table.HeaderCell>
                               {t(
                                 'channel.edit.endpoint_capabilities.table.latest_test',
                               )}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
+                            <Table.HeaderCell>
                               {t(
                                 'channel.edit.endpoint_capabilities.table.updated_at',
                               )}
@@ -7378,9 +7494,13 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                                 endpointMutatingKey === endpointKey;
                               return (
                                 <Table.Row key={endpointKey}>
-                                  <Table.Cell>{row.model}</Table.Cell>
-                                  <Table.Cell>
-                                    <span className='router-nowrap'>
+                                  <Table.Cell title={row.model}>
+                                    <span className='router-cell-truncate'>
+                                      {row.model}
+                                    </span>
+                                  </Table.Cell>
+                                  <Table.Cell title={row.endpoint}>
+                                    <span className='router-cell-truncate'>
                                       {row.endpoint}
                                     </span>
                                   </Table.Cell>
@@ -7401,12 +7521,18 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                                       }
                                     />
                                   </Table.Cell>
-                                  <Table.Cell>
-                                    {t(
+                                  <Table.Cell
+                                    title={t(
                                       `channel.edit.model_tester.status.${latestStatusKey}`,
                                     )}
+                                  >
+                                    <span className='router-cell-truncate'>
+                                      {t(
+                                        `channel.edit.model_tester.status.${latestStatusKey}`,
+                                      )}
+                                    </span>
                                   </Table.Cell>
-                                  <Table.Cell>
+                                  <Table.Cell className='router-nowrap'>
                                     {row.updated_at > 0
                                       ? timestamp2string(row.updated_at)
                                       : '-'}
@@ -7480,34 +7606,44 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                       <Table
                         celled
                         stackable
-                        className='router-detail-table'
+                        className='router-detail-table router-channel-endpoint-policy-table'
                         compact='very'
                       >
+                        <colgroup>
+                          {CHANNEL_ENDPOINT_POLICY_COLUMN_WIDTHS.map(
+                            (width, index) => (
+                              <col
+                                key={`channel-endpoint-policy-col-${index}`}
+                                style={{ width }}
+                              />
+                            ),
+                          )}
+                        </colgroup>
                         <Table.Header>
                           <Table.Row>
-                            <Table.HeaderCell width={3}>
+                            <Table.HeaderCell>
                               {t('channel.edit.endpoint_policies.table.model')}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={3}>
+                            <Table.HeaderCell>
                               {t(
                                 'channel.edit.endpoint_policies.table.endpoint',
                               )}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
+                            <Table.HeaderCell>
                               {t('channel.edit.endpoint_policies.table.status')}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
+                            <Table.HeaderCell>
                               {t('channel.edit.endpoint_policies.table.source')}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={3}>
+                            <Table.HeaderCell>
                               {t('channel.edit.endpoint_policies.table.reason')}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
+                            <Table.HeaderCell>
                               {t(
                                 'channel.edit.endpoint_policies.table.updated_at',
                               )}
                             </Table.HeaderCell>
-                            <Table.HeaderCell width={2}>
+                            <Table.HeaderCell>
                               {t(
                                 'channel.edit.endpoint_policies.table.actions',
                               )}
@@ -7540,9 +7676,13 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                                 ) || null;
                               return (
                                 <Table.Row key={`policy-${endpointKey}`}>
-                                  <Table.Cell>{endpointRow.model}</Table.Cell>
-                                  <Table.Cell>
-                                    <span className='router-nowrap'>
+                                  <Table.Cell title={endpointRow.model}>
+                                    <span className='router-cell-truncate'>
+                                      {endpointRow.model}
+                                    </span>
+                                  </Table.Cell>
+                                  <Table.Cell title={endpointRow.endpoint}>
+                                    <span className='router-cell-truncate'>
                                       {endpointRow.endpoint}
                                     </span>
                                   </Table.Cell>
@@ -7582,11 +7722,12 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                                   </Table.Cell>
                                   <Table.Cell
                                     title={(policyRow?.reason || '').toString()}
-                                    className='router-cell-truncate'
                                   >
-                                    {policyRow?.reason || '-'}
+                                    <span className='router-cell-truncate'>
+                                      {policyRow?.reason || '-'}
+                                    </span>
                                   </Table.Cell>
-                                  <Table.Cell>
+                                  <Table.Cell className='router-nowrap'>
                                     {policyRow?.updated_at > 0
                                       ? timestamp2string(policyRow.updated_at)
                                       : '-'}
@@ -7671,7 +7812,12 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                       stackable
                       className='router-detail-table router-create-model-table'
                     >
-                        <Table.Header>
+                      <colgroup>
+                        {CREATE_MODEL_SELECTION_COLUMN_WIDTHS.map((width, index) => (
+                          <col key={`create-model-col-${index}`} style={{ width }} />
+                        ))}
+                      </colgroup>
+                      <Table.Header>
                         <Table.Row>
                           <Table.HeaderCell
                             textAlign='center'
@@ -7814,46 +7960,47 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                                   }
                                 >
                                   <div className='router-create-model-provider-list'>
-                                  {selectedProviderItems.length > 0 ? (
-                                    selectedProviderItems.map((provider) => (
-                                      <Label
-                                        key={`${row.upstream_model}-${provider.key}`}
-                                        basic
-                                        className='router-tag'
-                                        title={provider.text}
-                                      >
-                                        {provider.text}
+                                    {selectedProviderItems.length > 0 ? (
+                                      selectedProviderItems.map((provider) => (
+                                        <Label
+                                          key={`${row.upstream_model}-${provider.key}`}
+                                          basic
+                                          className='router-tag'
+                                          title={provider.text}
+                                        >
+                                          {provider.text}
+                                        </Label>
+                                      ))
+                                    ) : providerOwners.length > 0 ? (
+                                      providerOwners.map((providerId) => (
+                                        <Label
+                                          key={`${row.upstream_model}-${providerId}`}
+                                          basic
+                                          className='router-tag'
+                                          title={providerId}
+                                        >
+                                          {providerId}
+                                        </Label>
+                                      ))
+                                    ) : providerCatalogLoading ? (
+                                      <Label basic className='router-tag'>
+                                        {t(
+                                          'channel.edit.model_selector.provider_loading',
+                                        )}
                                       </Label>
-                                    ))
-                                  ) : providerOwners.length > 0 ? (
-                                    providerOwners.map((providerId) => (
-                                      <Label
-                                        key={`${row.upstream_model}-${providerId}`}
+                                    ) : (
+                                      <Button
+                                        type='button'
+                                        className='router-inline-button'
                                         basic
-                                        className='router-tag'
+                                        disabled={providerCatalogLoading}
+                                        onClick={() => openAppendProviderModal(row)}
                                       >
-                                        {providerId}
-                                      </Label>
-                                    ))
-                                  ) : providerCatalogLoading ? (
-                                    <Label basic className='router-tag'>
-                                      {t(
-                                        'channel.edit.model_selector.provider_loading',
-                                      )}
-                                    </Label>
-                                  ) : (
-                                    <Button
-                                      type='button'
-                                      className='router-inline-button'
-                                      basic
-                                      disabled={providerCatalogLoading}
-                                      onClick={() => openAppendProviderModal(row)}
-                                    >
-                                      {t(
-                                        'channel.edit.model_selector.provider_add',
-                                      )}
-                                    </Button>
-                                  )}
+                                        {t(
+                                          'channel.edit.model_selector.provider_add',
+                                        )}
+                                      </Button>
+                                    )}
                                   </div>
                                 </Table.Cell>
                                 <Table.Cell className='router-create-model-alias-col'>
@@ -8115,7 +8262,19 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                     })}
                   </Message>
                 )}
-                <Table celled stackable className='router-detail-table'>
+                <Table
+                  celled
+                  stackable
+                  className='router-detail-table router-channel-create-review-table'
+                >
+                  <colgroup>
+                    {CHANNEL_CREATE_REVIEW_COLUMN_WIDTHS.map((width, index) => (
+                      <col
+                        key={`channel-create-review-col-${index}`}
+                        style={{ width }}
+                      />
+                    ))}
+                  </colgroup>
                   <Table.Header>
                     <Table.Row>
                       <Table.HeaderCell>
@@ -8184,7 +8343,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                         return (
                           <Table.Row key={`${row.upstream_model}-${row.model}`}>
                             <Table.Cell title={row.upstream_model}>
-                              <span className='router-nowrap'>
+                              <span className='router-cell-truncate'>
                                 {row.upstream_model}
                               </span>
                             </Table.Cell>
@@ -8197,8 +8356,9 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                             </Table.Cell>
                             <Table.Cell>
                               <Form.Input
-                                className='router-inline-input router-inline-input-wide'
+                                className='router-inline-input router-create-model-alias-input'
                                 transparent
+                                title={row.model}
                                 value={row.model}
                                 onChange={(e, { value }) =>
                                   updateModelConfigField(
@@ -8209,11 +8369,11 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                                 }
                               />
                             </Table.Cell>
-                            <Table.Cell>
+                            <Table.Cell className='router-table-dropdown-cell'>
                               {row.type === 'text' ? (
                                 <Dropdown
                                   selection
-                                  className='router-mini-dropdown'
+                                  className='router-mini-dropdown router-table-dropdown-fluid'
                                   options={getEndpointOptionsForModel(row)}
                                   value={normalizedEndpoint}
                                   onChange={(e, { value }) =>
@@ -8227,7 +8387,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                               ) : row.type === 'image' ? (
                                 <Dropdown
                                   selection
-                                  className='router-mini-dropdown'
+                                  className='router-mini-dropdown router-table-dropdown-fluid'
                                   options={getEndpointOptionsForModel(row)}
                                   value={normalizedEndpoint}
                                   onChange={(e, { value }) =>
@@ -8244,15 +8404,18 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                             </Table.Cell>
                             <Table.Cell>
                               {supportedEndpoints.length > 0 ? (
-                                supportedEndpoints.map((endpoint) => (
-                                  <Label
-                                    key={`${row.model}-${endpoint}`}
-                                    basic
-                                    className='router-tag'
-                                  >
-                                    {endpoint}
-                                  </Label>
-                                ))
+                                <div className='router-create-model-provider-list'>
+                                  {supportedEndpoints.map((endpoint) => (
+                                    <Label
+                                      key={`${row.model}-${endpoint}`}
+                                      basic
+                                      className='router-tag'
+                                      title={endpoint}
+                                    >
+                                      {endpoint}
+                                    </Label>
+                                  ))}
+                                </div>
                               ) : (
                                 <span className='router-text-muted'>-</span>
                               )}
