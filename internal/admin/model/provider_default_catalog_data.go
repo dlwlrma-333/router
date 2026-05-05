@@ -365,7 +365,7 @@ func DefaultProviderModelSupportedEndpoints(provider string, modelType string, m
 	case "anthropic":
 		return []string{ChannelModelEndpointMessages}
 	case "openai":
-		return []string{ChannelModelEndpointResponses}
+		return []string{ChannelModelEndpointResponses, ChannelModelEndpointChat}
 	default:
 		return []string{ChannelModelEndpointChat}
 	}

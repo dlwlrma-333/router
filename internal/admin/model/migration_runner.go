@@ -614,8 +614,58 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		{
+			Version:     "202605051030_openai_text_model_endpoint_candidates",
+			Description: "backfill openai text provider models with responses and chat completion endpoint candidates",
+			Up: func(tx *gorm.DB) error {
+				if err := syncDefaultProviderCatalogWithDB(tx); err != nil {
+					return err
+				}
+				return backfillOpenAITextProviderModelEndpointCandidatesWithDB(tx)
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
+}
+
+func backfillOpenAITextProviderModelEndpointCandidatesWithDB(db *gorm.DB) error {
+	if db == nil {
+		return fmt.Errorf("database handle is nil")
+	}
+	if err := db.AutoMigrate(&ProviderModel{}); err != nil {
+		return err
+	}
+	rows := make([]ProviderModel, 0)
+	if err := db.
+		Where("provider = ?", "openai").
+		Find(&rows).Error; err != nil {
+		return err
+	}
+	now := helper.GetTimestamp()
+	for _, row := range rows {
+		if normalizeModelType(row.Type, row.Model) != ProviderModelTypeText {
+			continue
+		}
+		nextEndpoints := openAITextProviderModelEndpointCandidates(row.SupportedEndpoints)
+		if strings.TrimSpace(row.SupportedEndpoints) == nextEndpoints {
+			continue
+		}
+		if err := db.Model(&ProviderModel{}).
+			Where("provider = ? AND model = ?", row.Provider, row.Model).
+			Updates(map[string]interface{}{
+				"supported_endpoints": nextEndpoints,
+				"updated_at":          now,
+			}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func openAITextProviderModelEndpointCandidates(raw string) string {
+	endpoints := splitProviderModelSupportedEndpoints(raw)
+	endpoints = append(endpoints, ChannelModelEndpointResponses, ChannelModelEndpointChat)
+	return joinProviderModelSupportedEndpoints(ProviderModelTypeText, endpoints)
 }
 
 func runLogVersionedMigrations(db *gorm.DB) error {

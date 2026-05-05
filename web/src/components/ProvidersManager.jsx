@@ -475,6 +475,38 @@ const MODEL_TYPE_OPTIONS = [
   { key: 'video', value: 'video', text: 'video' },
 ];
 
+const PROVIDER_ENDPOINT_OPTIONS = [
+  {
+    key: '/v1/chat/completions',
+    value: '/v1/chat/completions',
+    text: '/v1/chat/completions',
+  },
+  { key: '/v1/responses', value: '/v1/responses', text: '/v1/responses' },
+  { key: '/v1/messages', value: '/v1/messages', text: '/v1/messages' },
+  {
+    key: '/v1/images/generations',
+    value: '/v1/images/generations',
+    text: '/v1/images/generations',
+  },
+  {
+    key: '/v1/images/edits',
+    value: '/v1/images/edits',
+    text: '/v1/images/edits',
+  },
+  { key: '/v1/batches', value: '/v1/batches', text: '/v1/batches' },
+  {
+    key: '/v1/audio/speech',
+    value: '/v1/audio/speech',
+    text: '/v1/audio/speech',
+  },
+  { key: '/v1/videos', value: '/v1/videos', text: '/v1/videos' },
+];
+
+const providerEndpointOptionsForType = (type) =>
+  PROVIDER_ENDPOINT_OPTIONS.filter((option) =>
+    isProviderEndpointAllowedForType(type, option.value),
+  );
+
 const PRICE_UNIT_OPTIONS = [
   { key: 'per_1k_tokens', value: 'per_1k_tokens', text: 'per_1k_tokens' },
   { key: 'per_1k_chars', value: 'per_1k_chars', text: 'per_1k_chars' },
@@ -1419,7 +1451,7 @@ const ProvidersManager = () => {
         <Table compact celled className='router-detail-table'>
           <Table.Header>
             <Table.Row>
-              <Table.HeaderCell width={4}>
+              <Table.HeaderCell width={2}>
                 {t('channel.providers.model_detail_table.model')}
               </Table.HeaderCell>
               <Table.HeaderCell width={2}>
@@ -1471,7 +1503,7 @@ const ProvidersManager = () => {
                   key={`${detail.model || 'model'}-${detailIndex}`}
                 >
                   <Table.Row>
-                    <Table.Cell className='router-cell-min-260'>
+                    <Table.Cell className='router-cell-min-130'>
                       <Form.Input
                         className='router-inline-input'
                         fluid
@@ -1529,15 +1561,17 @@ const ProvidersManager = () => {
                       />
                     </Table.Cell>
                     <Table.Cell className='router-cell-min-240'>
-                      <Form.Input
-                        className='router-inline-input'
+                      <Form.Dropdown
+                        className='router-inline-dropdown'
                         fluid
-                        placeholder='/v1/responses, /v1/chat/completions'
-                        value={
-                          Array.isArray(detail.supported_endpoints)
-                            ? detail.supported_endpoints.join(', ')
-                            : ''
-                        }
+                        multiple
+                        selection
+                        clearable
+                        options={providerEndpointOptionsForType(detail.type)}
+                        placeholder={t(
+                          'channel.providers.model_detail_table.supported_endpoints',
+                        )}
+                        value={detail.supported_endpoints || []}
                         disabled={disabled}
                         onChange={(e, { value }) =>
                           setModelDetailField(
@@ -1545,7 +1579,7 @@ const ProvidersManager = () => {
                             row,
                             detailIndex,
                             'supported_endpoints',
-                            value || '',
+                            Array.isArray(value) ? value : [],
                           )
                         }
                       />
@@ -2047,7 +2081,7 @@ const ProvidersManager = () => {
         <Table compact celled className='router-detail-table'>
           <Table.Header>
             <Table.Row>
-              <Table.HeaderCell width={4}>
+              <Table.HeaderCell width={2}>
                 {t('channel.providers.model_detail_table.model')}
               </Table.HeaderCell>
               <Table.HeaderCell width={1}>
@@ -2096,7 +2130,7 @@ const ProvidersManager = () => {
                 const showOutputDetail = hasComplexOutputPricing(detail);
                 return (
                   <Table.Row key={`${detail.model || 'model'}-${detailIndex}`}>
-                    <Table.Cell className='router-cell-min-260'>
+                    <Table.Cell className='router-cell-min-130'>
                       {detail.model || '-'}
                     </Table.Cell>
                     <Table.Cell className='router-cell-min-80'>
@@ -2266,8 +2300,6 @@ const ProvidersManager = () => {
                   )
                 }
               />
-            </Form.Group>
-            <Form.Group widths='equal'>
               <Form.Input
                 className='router-section-input'
                 label={t('channel.providers.model_detail_table.capabilities')}
@@ -2283,27 +2315,6 @@ const ProvidersManager = () => {
                     detailModelsDraft,
                     detailEditingModelIndex,
                     'capabilities',
-                    value || '',
-                  )
-                }
-              />
-              <Form.Input
-                className='router-section-input'
-                label={t(
-                  'channel.providers.model_detail_table.supported_endpoints',
-                )}
-                placeholder='/v1/responses, /v1/chat/completions'
-                value={
-                  Array.isArray(detail.supported_endpoints)
-                    ? detail.supported_endpoints.join(', ')
-                    : ''
-                }
-                onChange={(e, { value }) =>
-                  setModelDetailField(
-                    setDetailModelsValue,
-                    detailModelsDraft,
-                    detailEditingModelIndex,
-                    'supported_endpoints',
                     value || '',
                   )
                 }
@@ -2324,6 +2335,28 @@ const ProvidersManager = () => {
                 }
               />
             </Form.Group>
+            <Form.Dropdown
+              className='router-section-dropdown'
+              label={t('channel.providers.model_detail_table.supported_endpoints')}
+              fluid
+              multiple
+              selection
+              clearable
+              options={providerEndpointOptionsForType(detail.type)}
+              placeholder={t(
+                'channel.providers.model_detail_table.supported_endpoints',
+              )}
+              value={detail.supported_endpoints || []}
+              onChange={(e, { value }) =>
+                setModelDetailField(
+                  setDetailModelsValue,
+                  detailModelsDraft,
+                  detailEditingModelIndex,
+                  'supported_endpoints',
+                  Array.isArray(value) ? value : [],
+                )
+              }
+            />
             <Form.Group widths='equal'>
               <Form.Input
                 className='router-section-input'

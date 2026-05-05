@@ -2008,6 +2008,10 @@ code {
     min-width: 120px;
 }
 
+.router-cell-min-130 {
+    min-width: 130px;
+}
+
 .router-cell-min-80 {
     min-width: 80px;
 }

@@ -14,6 +14,26 @@ func TestNormalizeProviderModelSupportedEndpointsFiltersByModelType(t *testing.T
 	}
 }
 
+func TestDefaultProviderModelSupportedEndpointsByProvider(t *testing.T) {
+	openai := DefaultProviderModelSupportedEndpoints("openai", ProviderModelTypeText, "gpt-5.4")
+	if len(openai) != 2 || openai[0] != ChannelModelEndpointResponses || openai[1] != ChannelModelEndpointChat {
+		t.Fatalf("openai default endpoints = %#v, want responses+chat", openai)
+	}
+
+	anthropic := DefaultProviderModelSupportedEndpoints("anthropic", ProviderModelTypeText, "claude-opus-4-6")
+	if len(anthropic) != 1 || anthropic[0] != ChannelModelEndpointMessages {
+		t.Fatalf("anthropic default endpoints = %#v, want messages", anthropic)
+	}
+}
+
+func TestOpenAITextProviderModelEndpointCandidatesBackfillsChat(t *testing.T) {
+	got := openAITextProviderModelEndpointCandidates(ChannelModelEndpointResponses)
+	want := ChannelModelEndpointChat + "," + ChannelModelEndpointResponses
+	if got != want {
+		t.Fatalf("openAITextProviderModelEndpointCandidates = %q, want %q", got, want)
+	}
+}
+
 func TestBuildChannelModelEndpointRowsUsesProviderCatalogCandidates(t *testing.T) {
 	rows := []ChannelModel{
 		{
