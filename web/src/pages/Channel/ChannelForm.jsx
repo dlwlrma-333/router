@@ -1442,6 +1442,9 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     return normalizeDetailTab(query.get('tab'));
   }, [isDetailMode, location.search]);
   const [channelKeySet, setChannelKeySet] = useState(false);
+  const handleBackToChannelList = useCallback(() => {
+    navigate('/admin/channel');
+  }, [navigate]);
   const handleCancel = () => {
     if (isDetailMode && returnPath !== '') {
       navigate(-1);
@@ -4341,7 +4344,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
           {isDetailMode && (
             <div className='router-entity-detail-breadcrumb router-block-gap-sm'>
               <Breadcrumb size='small'>
-                <Breadcrumb.Section link onClick={handleCancel}>
+                <Breadcrumb.Section link onClick={handleBackToChannelList}>
                   {t('header.channel')}
                 </Breadcrumb.Section>
                 <Breadcrumb.Divider icon='right chevron' />
