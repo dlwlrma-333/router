@@ -1108,6 +1108,13 @@ func parseTextModelTestResponseByEndpoint(path string, resp string) (string, err
 		if messagesErr == nil {
 			return messagesText, nil
 		}
+		if isLikelySSEPayload(resp) {
+			streamText, streamErr := parseTextModelTestStreamResponse(resp)
+			if streamErr == nil {
+				return streamText, nil
+			}
+			return "", fmt.Errorf("parse as messages failed: %v; parse as stream failed: %v", messagesErr, streamErr)
+		}
 		return "", fmt.Errorf("parse as messages failed: %v", messagesErr)
 	case model.ChannelModelEndpointChat:
 		_, chatText, chatErr := parseChatModelTestResponse(resp)

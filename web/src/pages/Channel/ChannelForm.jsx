@@ -1308,29 +1308,6 @@ const normalizeAsyncTasks = (items) => {
     }));
 };
 
-const mergeModelTestResults = (previousResults, nextResults) => {
-  const merged = new Map();
-  normalizeModelTestResults(previousResults).forEach((item) => {
-    const key = buildModelTestResultKey(item.model, item.endpoint);
-    if (!item.model || !item.endpoint || key === '::') {
-      return;
-    }
-    merged.set(key, item);
-  });
-  normalizeModelTestResults(nextResults).forEach((item) => {
-    const key = buildModelTestResultKey(item.model, item.endpoint);
-    if (!item.model || !item.endpoint || key === '::') {
-      return;
-    }
-    merged.set(key, item);
-  });
-  return Array.from(merged.values()).sort((a, b) =>
-    buildModelTestResultKey(a.model, a.endpoint).localeCompare(
-      buildModelTestResultKey(b.model, b.endpoint),
-    ),
-  );
-};
-
 const sanitizeCreateInputsForLocalStorage = (inputs) => {
   if (!inputs || typeof inputs !== 'object') {
     return CHANNEL_ORIGIN_INPUTS;
@@ -2597,9 +2574,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         modelConfigs: nextInputs.model_configs,
       });
       setInputs(nextInputs);
-      setModelTestResults((prev) =>
-        mergeModelTestResults(prev, nextTests.items),
-      );
+      setModelTestResults(normalizeModelTestResults(nextTests.items));
       setModelTestError('');
       setModelTestedAt(
         Number(nextTests.lastTestedAt || 0) > 0
@@ -3848,9 +3823,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
           try {
             const nextTests = await loadChannelTestsFromServer(targetChannelId);
             if (Array.isArray(nextTests?.items) && nextTests.items.length > 0) {
-              setModelTestResults((prev) =>
-                mergeModelTestResults(prev, nextTests.items),
-              );
+              setModelTestResults(normalizeModelTestResults(nextTests.items));
             }
             const nextLastTestedAt = Number(nextTests?.lastTestedAt || 0);
             if (nextLastTestedAt > 0) {
