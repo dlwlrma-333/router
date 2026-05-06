@@ -206,13 +206,21 @@ const ChannelDetailEndpointsTab = ({
                           {t('channel.edit.endpoint_policies.loading')}
                         </Label>
                       ) : policyRow ? (
-                        policyRow.enabled ? (
-                          <Label basic color='green' className='router-tag'>
-                            {t('channel.edit.endpoint_policies.status.enabled')}
+                        policyRow.template_key ? (
+                          <Label
+                            basic
+                            color={policyRow.enabled ? 'green' : 'grey'}
+                            className='router-tag'
+                          >
+                            {policyRow.template_key}
                           </Label>
                         ) : (
-                          <Label basic color='grey' className='router-tag'>
-                            {t('channel.edit.endpoint_policies.status.disabled')}
+                          <Label
+                            basic
+                            color={policyRow.enabled ? 'blue' : 'grey'}
+                            className='router-tag'
+                          >
+                            MANUAL
                           </Label>
                         )
                       ) : (

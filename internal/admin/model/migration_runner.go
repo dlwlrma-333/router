@@ -645,6 +645,30 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return backfillOpenAITextProviderModelEndpointCandidatesWithDB(tx)
 			},
 		},
+		{
+			Version:     "202605061700_channel_endpoint_policy_template_key",
+			Description: "add template key column to channel endpoint policies",
+			Up: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&ChannelModelEndpointPolicy{})
+			},
+		},
+		{
+			Version:     "202605061830_drop_legacy_and_reject_endpoint_policies",
+			Description: "delete deprecated drop_fields and reject_unsupported_input endpoint policies",
+			Up: func(tx *gorm.DB) error {
+				if err := tx.Where("template_key IN ?", []string{
+					"DROP_LEGACY_PENALTIES",
+					"REJECT_ANTHROPIC_IMAGE_URL",
+				}).Delete(&ChannelModelEndpointPolicy{}).Error; err != nil {
+					return err
+				}
+				return tx.Where(
+					"request_policy LIKE ? OR request_policy LIKE ?",
+					"%\"type\":\"drop_fields\"%",
+					"%\"type\":\"reject_unsupported_input\"%",
+				).Delete(&ChannelModelEndpointPolicy{}).Error
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }

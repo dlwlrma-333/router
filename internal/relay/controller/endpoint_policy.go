@@ -157,54 +157,11 @@ func applyEndpointPolicyAction(
 	switch actionType {
 	case "":
 		return false, nil
-	case adminmodel.ChannelEndpointPolicyActionDropFields:
-		return applyEndpointPolicyDropFields(payload, action, report), nil
-	case adminmodel.ChannelEndpointPolicyActionRejectUnsupportedInput:
-		return false, applyEndpointPolicyRejectUnsupportedInput(payload, action, report)
 	case adminmodel.ChannelEndpointPolicyActionImageURLToBase64:
 		return applyEndpointPolicyImageURLToBase64(c, meta, payload, action, report, mediaCache)
 	default:
 		return false, newEndpointPolicyError("invalid_policy", http.StatusInternalServerError, "unsupported endpoint policy action %q", actionType)
 	}
-}
-
-func applyEndpointPolicyDropFields(payload map[string]any, action adminmodel.ChannelModelEndpointPolicyAction, report *endpointPolicyReport) bool {
-	if payload == nil || len(action.Fields) == 0 {
-		return false
-	}
-	changed := false
-	for _, field := range action.Fields {
-		if _, ok := payload[field]; !ok {
-			continue
-		}
-		delete(payload, field)
-		report.addChangedField(field)
-		changed = true
-	}
-	if changed {
-		report.addAction(action.Type, action.Reason)
-	}
-	return changed
-}
-
-func applyEndpointPolicyRejectUnsupportedInput(payload map[string]any, action adminmodel.ChannelModelEndpointPolicyAction, report *endpointPolicyReport) error {
-	inputTypes := normalizePolicyInputTypes(action.InputTypes)
-	if len(inputTypes) == 0 {
-		return nil
-	}
-	for _, detected := range collectPolicyInputKinds(payload) {
-		if _, ok := inputTypes[detected]; ok {
-			report.addAction(action.Type, action.Reason)
-			return newEndpointPolicyError(
-				"unsupported_input",
-				http.StatusBadRequest,
-				"endpoint policy rejected unsupported input %q: %s",
-				detected,
-				strings.TrimSpace(action.Reason),
-			)
-		}
-	}
-	return nil
 }
 
 func applyEndpointPolicyImageURLToBase64(

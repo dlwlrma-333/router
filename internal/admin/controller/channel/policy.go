@@ -14,6 +14,7 @@ type updateChannelEndpointPolicyRequest struct {
 	Model          string `json:"model"`
 	Endpoint       string `json:"endpoint"`
 	Enabled        *bool  `json:"enabled"`
+	TemplateKey    string `json:"template_key"`
 	Capabilities   string `json:"capabilities"`
 	RequestPolicy  string `json:"request_policy"`
 	ResponsePolicy string `json:"response_policy"`
@@ -136,6 +137,7 @@ func UpdateChannelEndpointPolicy(c *gin.Context) {
 		Model:          modelName,
 		Endpoint:       endpoint,
 		Enabled:        enabled,
+		TemplateKey:    strings.TrimSpace(req.TemplateKey),
 		Capabilities:   strings.TrimSpace(req.Capabilities),
 		RequestPolicy:  strings.TrimSpace(req.RequestPolicy),
 		ResponsePolicy: strings.TrimSpace(req.ResponsePolicy),

@@ -15,9 +15,7 @@ import (
 const (
 	ChannelModelEndpointPoliciesTableName = "channel_model_endpoint_policies"
 
-	ChannelEndpointPolicyActionDropFields             = "drop_fields"
-	ChannelEndpointPolicyActionImageURLToBase64       = "image_url_to_base64"
-	ChannelEndpointPolicyActionRejectUnsupportedInput = "reject_unsupported_input"
+	ChannelEndpointPolicyActionImageURLToBase64 = "image_url_to_base64"
 )
 
 type ChannelModelEndpointPolicy struct {
@@ -26,6 +24,7 @@ type ChannelModelEndpointPolicy struct {
 	Model          string `json:"model" gorm:"type:varchar(255);index:idx_channel_model_endpoint_policy,priority:2"`
 	Endpoint       string `json:"endpoint" gorm:"type:varchar(255);index:idx_channel_model_endpoint_policy,priority:3"`
 	Enabled        bool   `json:"enabled" gorm:"not null;default:true;index"`
+	TemplateKey    string `json:"template_key,omitempty" gorm:"type:varchar(128);default:''"`
 	Capabilities   string `json:"capabilities,omitempty" gorm:"type:text;default:''"`
 	RequestPolicy  string `json:"request_policy,omitempty" gorm:"type:text;default:''"`
 	ResponsePolicy string `json:"response_policy,omitempty" gorm:"type:text;default:''"`
@@ -56,7 +55,6 @@ type ChannelModelEndpointRequestPolicy struct {
 
 type ChannelModelEndpointPolicyAction struct {
 	Type       string                                 `json:"type"`
-	Fields     []string                               `json:"fields,omitempty"`
 	InputTypes []string                               `json:"input_types,omitempty"`
 	Limits     *ChannelModelEndpointPolicyActionLimit `json:"limits,omitempty"`
 	Reason     string                                 `json:"reason,omitempty"`
@@ -76,11 +74,37 @@ func NormalizeChannelModelEndpointPolicyRow(row *ChannelModelEndpointPolicy) {
 	row.ChannelId = strings.TrimSpace(row.ChannelId)
 	row.Model = strings.TrimSpace(row.Model)
 	row.Endpoint = NormalizeRequestedChannelModelEndpoint(row.Endpoint)
+	row.TemplateKey = NormalizeChannelEndpointPolicyTemplateKey(row.TemplateKey)
 	row.Capabilities = strings.TrimSpace(row.Capabilities)
 	row.RequestPolicy = strings.TrimSpace(row.RequestPolicy)
 	row.ResponsePolicy = strings.TrimSpace(row.ResponsePolicy)
 	row.Reason = strings.TrimSpace(row.Reason)
 	row.Source = strings.TrimSpace(row.Source)
+}
+
+func NormalizeChannelEndpointPolicyTemplateKey(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	var builder strings.Builder
+	lastUnderscore := false
+	for _, r := range strings.ToUpper(trimmed) {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			builder.WriteRune(r)
+			lastUnderscore = false
+			continue
+		}
+		if !lastUnderscore {
+			builder.WriteRune('_')
+			lastUnderscore = true
+		}
+	}
+	normalized := strings.Trim(builder.String(), "_")
+	if normalized == "" {
+		return ""
+	}
+	return normalized
 }
 
 func (row ChannelModelEndpointPolicy) ParseRequestPolicy() (ChannelModelEndpointRequestPolicy, error) {
@@ -93,7 +117,6 @@ func (row ChannelModelEndpointPolicy) ParseRequestPolicy() (ChannelModelEndpoint
 	}
 	for i := range policy.Actions {
 		policy.Actions[i].Type = strings.TrimSpace(policy.Actions[i].Type)
-		policy.Actions[i].Fields = normalizeTrimmedValuesPreserveOrder(policy.Actions[i].Fields)
 		policy.Actions[i].InputTypes = normalizeTrimmedValuesPreserveOrder(policy.Actions[i].InputTypes)
 		policy.Actions[i].Reason = strings.TrimSpace(policy.Actions[i].Reason)
 		if policy.Actions[i].Limits != nil {
@@ -234,6 +257,7 @@ func UpsertChannelModelEndpointPolicyWithDB(dbHandle *gorm.DB, row ChannelModelE
 			DoUpdates: clause.AssignmentColumns([]string{
 				"id",
 				"enabled",
+				"template_key",
 				"capabilities",
 				"request_policy",
 				"response_policy",

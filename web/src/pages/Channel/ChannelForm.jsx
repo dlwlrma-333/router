@@ -444,6 +444,7 @@ const normalizeChannelEndpointPolicyRows = (items) => {
       model,
       endpoint,
       enabled: item.enabled === true,
+      template_key: (item.template_key || '').toString().trim(),
       capabilities: prettyJSONString(item.capabilities),
       request_policy: prettyJSONString(item.request_policy),
       response_policy: prettyJSONString(item.response_policy),
@@ -476,6 +477,7 @@ const buildEmptyEndpointPolicyDraft = (channelId, modelName, endpoint) => ({
   model: (modelName || '').toString().trim(),
   endpoint: (endpoint || '').toString().trim(),
   enabled: true,
+  template_key: '',
   capabilities: '',
   request_policy: '',
   response_policy: '',
@@ -487,65 +489,11 @@ const buildEmptyEndpointPolicyDraft = (channelId, modelName, endpoint) => ({
 
 const ENDPOINT_POLICY_TEMPLATES = [
   {
-    key: 'drop_legacy_penalties',
-    value: 'drop_legacy_penalties',
-    text: 'drop_fields: 删除 legacy penalties',
+    key: 'ANTHROPIC_IMAGE_URL_TO_BASE64',
+    value: 'ANTHROPIC_IMAGE_URL_TO_BASE64',
+    text: 'ANTHROPIC_IMAGE_URL_TO_BASE64',
     buildDraft: () => ({
-      capabilities: '',
-      request_policy: JSON.stringify(
-        {
-          actions: [
-            {
-              type: 'drop_fields',
-              fields: ['presence_penalty', 'frequency_penalty'],
-              reason: 'drop legacy penalties not accepted by upstream',
-            },
-          ],
-        },
-        null,
-        2,
-      ),
-      response_policy: '',
-      reason: '上游不接受 legacy penalties 字段，需在请求前移除',
-      source: 'manual',
-    }),
-  },
-  {
-    key: 'reject_anthropic_image_url',
-    value: 'reject_anthropic_image_url',
-    text: 'reject_unsupported_input: 拒绝图片 URL',
-    buildDraft: () => ({
-      capabilities: JSON.stringify(
-        {
-          input_image_url: false,
-          input_image_base64: true,
-        },
-        null,
-        2,
-      ),
-      request_policy: JSON.stringify(
-        {
-          actions: [
-            {
-              type: 'reject_unsupported_input',
-              input_types: ['anthropic.image_url'],
-              reason: 'image url is unsupported by the upstream channel',
-            },
-          ],
-        },
-        null,
-        2,
-      ),
-      response_policy: '',
-      reason: '该上游不支持图片 URL，需明确拒绝避免误判为可用',
-      source: 'manual',
-    }),
-  },
-  {
-    key: 'anthropic_image_url_to_base64',
-    value: 'anthropic_image_url_to_base64',
-    text: 'image_url_to_base64: 图片 URL 转 base64',
-    buildDraft: () => ({
+      template_key: 'ANTHROPIC_IMAGE_URL_TO_BASE64',
       capabilities: JSON.stringify(
         {
           input_image_url: false,
@@ -3426,7 +3374,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
             }
           : buildEmptyEndpointPolicyDraft(targetChannelId, modelName, endpoint),
       );
-      setSelectedPolicyTemplate('');
+      setSelectedPolicyTemplate(existingPolicy?.template_key || '');
       setPolicyEditorOpen(true);
     },
     [channelEndpointPolicies, channelId],
@@ -3476,6 +3424,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
           model: modelName,
           endpoint,
           enabled: !!policyDraft.enabled,
+          template_key: (policyDraft.template_key || '').toString().trim(),
           capabilities: (policyDraft.capabilities || '').toString().trim(),
           request_policy: (policyDraft.request_policy || '')
             .toString()

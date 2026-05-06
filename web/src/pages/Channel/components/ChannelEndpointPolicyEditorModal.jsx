@@ -45,6 +45,10 @@ const ChannelEndpointPolicyEditorModal = ({
                   const nextValue = (value || '').toString();
                   if (nextValue === '') {
                     setSelectedPolicyTemplate('');
+                    setPolicyDraft((prev) => ({
+                      ...prev,
+                      template_key: '',
+                    }));
                     return;
                   }
                   applyEndpointPolicyTemplate(nextValue);
@@ -65,6 +69,19 @@ const ChannelEndpointPolicyEditorModal = ({
               value={policyDraft.endpoint}
               readOnly
             />
+          </Form.Group>
+          <Form.Group widths='equal'>
+            <Form.Field>
+              <label>{t('channel.edit.endpoint_policies.editor.template_key')}</label>
+              <Form.Input
+                className='router-modal-input'
+                value={policyDraft.template_key || ''}
+                readOnly
+                placeholder={t(
+                  'channel.edit.endpoint_policies.editor.template_key_placeholder',
+                )}
+              />
+            </Form.Field>
           </Form.Group>
           <Form.Group widths='equal'>
             <Form.Field>
@@ -107,7 +124,7 @@ const ChannelEndpointPolicyEditorModal = ({
           <Form.TextArea
             className='router-section-textarea router-code-textarea router-code-textarea-md'
             label={t('channel.edit.endpoint_policies.editor.request_policy')}
-            placeholder='{"actions":[{"type":"drop_fields","fields":["presence_penalty"]}]}'
+            placeholder='{"actions":[{"type":"image_url_to_base64","input_types":["anthropic.image_url"]}]}'
             value={policyDraft.request_policy}
             onChange={(e, { value }) =>
               setPolicyDraft((prev) => ({

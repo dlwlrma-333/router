@@ -622,7 +622,7 @@
           "endpoint": "端点",
           "status": "状态",
           "reason": "原因",
-          "policy": "策略",
+          "policy": "策略标识",
           "policy_note": "策略说明",
           "updated_at": "更新时间",
           "actions": "操作"
@@ -632,6 +632,8 @@
           "hint": "这里仅编辑端点策略。JSON 文本会按后端规则校验：`capabilities` 描述能力，`request_policy` 描述请求侧动作，`response_policy` 暂为预留字段。",
           "template": "策略模板",
           "template_placeholder": "选择常用模板快速填充",
+          "template_key": "策略标识",
+          "template_key_placeholder": "未选择模板时留空，手工策略将显示为 MANUAL",
           "capabilities": "能力声明 JSON",
           "request_policy": "请求策略 JSON",
           "response_policy": "响应策略 JSON"

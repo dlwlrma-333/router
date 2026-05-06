@@ -622,7 +622,7 @@
           "endpoint": "Endpoint",
           "status": "Status",
           "reason": "Reason",
-          "policy": "Policy",
+          "policy": "Policy Key",
           "policy_note": "Policy Note",
           "updated_at": "Updated At",
           "actions": "Actions"
@@ -632,6 +632,8 @@
           "hint": "Only endpoint policy is edited here. JSON text is validated by backend rules: `capabilities` describes support, `request_policy` describes request-side actions, and `response_policy` is reserved for now.",
           "template": "Policy Template",
           "template_placeholder": "Choose a common template for quick fill",
+          "template_key": "Policy Key",
+          "template_key_placeholder": "Leave empty without a template; custom policies are shown as MANUAL",
           "capabilities": "Capabilities JSON",
           "request_policy": "Request Policy JSON",
           "response_policy": "Response Policy JSON"
