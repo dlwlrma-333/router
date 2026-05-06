@@ -1635,7 +1635,7 @@ func buildChannelModelListData(channelID string, page int, pageSize int, keyword
 }
 
 func buildChannelTestListData(channelID string) (channelTestListData, error) {
-	rows, err := model.ListLatestChannelTestsByChannelIDWithDB(model.DB, channelID)
+	rows, err := model.ListChannelTestsByChannelIDWithDB(model.DB, channelID)
 	if err != nil {
 		return channelTestListData{}, err
 	}

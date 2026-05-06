@@ -745,7 +745,7 @@
       },
       "model_tester": {
         "title": "Model Test",
-        "hint": "This section shows the models selected in step 2 and lets you choose the real upstream endpoint for each model. Text models default to /v1/responses and can be switched to /v1/chat/completions or /v1/messages. Other model types use fixed endpoints. Supports both single-row and batch testing. Results here are used for publish confirmation, and only tested-and-supported model endpoints should be published.",
+        "hint": "This section shows the selected models and lets you confirm the test endpoint for each model. Supports both single-row and batch testing. Only publish model endpoints that pass testing.",
         "button_enter_batch": "Batch Test",
         "button_run_batch": "Run Batch Test",
         "settings_button": "Settings",
