@@ -34,7 +34,14 @@ import {
   getChannelProtocolOptions,
   loadChannelProtocolOptions,
 } from '../../helpers/helper';
-import CreateChannelModelTestSection from './CreateChannelModelTestSection';
+import ChannelDetailEndpointsTab from './components/ChannelDetailEndpointsTab';
+import ChannelDetailModelsTab from './components/ChannelDetailModelsTab';
+import ChannelDetailOverviewTab from './components/ChannelDetailOverviewTab';
+import ChannelDetailTestsTab from './components/ChannelDetailTestsTab';
+import ChannelAppendProviderModal from './components/ChannelAppendProviderModal';
+import ChannelComplexPricingModal from './components/ChannelComplexPricingModal';
+import ChannelModelEditorModal from './components/ChannelModelEditorModal';
+import ChannelEndpointPolicyEditorModal from './components/ChannelEndpointPolicyEditorModal';
 
 const normalizeModelId = (model) => {
   if (typeof model === 'string') return model;
@@ -79,16 +86,6 @@ const normalizeBaseURL = (baseURL) =>
 
 const CHANNEL_IDENTIFIER_PATTERN = /^[a-z0-9-]+$/;
 const CHANNEL_IDENTIFIER_MAX_LENGTH = 64;
-const CREATE_MODEL_SELECTION_COLUMN_WIDTHS = [
-  '8%',
-  '20%',
-  '5%',
-  '14%',
-  '20%',
-  '11%',
-  '11%',
-  '11%',
-];
 const CHANNEL_DETAIL_MODEL_COLUMN_WIDTHS = [
   '8%',
   '18%',
@@ -128,18 +125,6 @@ const CHANNEL_MODEL_TEST_GROUP_COLUMN_WIDTHS = [
   '12%',
   '10%',
 ];
-const CHANNEL_CREATE_REVIEW_COLUMN_WIDTHS = [
-  '14%',
-  '7%',
-  '16%',
-  '14%',
-  '18%',
-  '8%',
-  '8%',
-  '7%',
-  '8%',
-];
-
 const normalizeChannelIdentifier = (value) =>
   (value || '').toString().trim().toLowerCase();
 
@@ -1439,24 +1424,6 @@ const sanitizeCreateConfigForLocalStorage = (config) => {
   };
 };
 
-const CHANNEL_CREATE_CACHE_KEY = 'router.channel.create.v3';
-const CREATE_CHANNEL_STEP_MIN = 1;
-const CREATE_CHANNEL_STEP_MAX = 5;
-
-const parseCreateStep = (rawStep) => {
-  const step = Number(rawStep);
-  if (!Number.isInteger(step)) {
-    return CREATE_CHANNEL_STEP_MIN;
-  }
-  if (step < CREATE_CHANNEL_STEP_MIN) {
-    return CREATE_CHANNEL_STEP_MIN;
-  }
-  if (step > CREATE_CHANNEL_STEP_MAX) {
-    return CREATE_CHANNEL_STEP_MAX;
-  }
-  return step;
-};
-
 const CHANNEL_ORIGIN_INPUTS = {
   id: '',
   name: '',
@@ -1508,34 +1475,6 @@ const resolveProtocolFromChannelPayload = (payload) => {
   return 'openai';
 };
 
-const inferCreatingChannelStepFromPayload = (payload) => {
-  const protocol = resolveProtocolFromChannelPayload(payload);
-  if (protocol === 'proxy') {
-    return 1;
-  }
-  const selectedModels = Array.isArray(payload?.model_configs)
-    ? payload.model_configs
-        .filter((row) => row && row.selected === true)
-        .map((row) => (row.model || '').toString().trim())
-        .filter((row) => row !== '')
-    : (payload?.models || '')
-        .toString()
-        .split(',')
-        .map((item) => item.trim())
-        .filter((item) => item !== '');
-  if (selectedModels.length === 0) {
-    return 2;
-  }
-  const testedAt = Number(payload?.channel_tests_last_tested_at || 0);
-  const results = Array.isArray(payload?.channel_tests)
-    ? payload.channel_tests
-    : [];
-  if (testedAt > 0 || results.length > 0) {
-    return 5;
-  }
-  return 3;
-};
-
 const ChannelForm = ({ mode = 'auto' } = {}) => {
   const { t } = useTranslation();
   const params = useParams();
@@ -1563,18 +1502,9 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     const query = new URLSearchParams(location.search);
     return (query.get('copy_from') || '').trim();
   }, [hasChannelID, location.search]);
-  const creatingChannelIdFromQuery = useMemo(() => {
-    if (hasChannelID) return '';
-    const query = new URLSearchParams(location.search);
-    return (query.get('channel_id') || '').trim();
-  }, [hasChannelID, location.search]);
   const [loading, setLoading] = useState(
-    hasChannelID || copyFromId !== '' || creatingChannelIdFromQuery !== '',
+    hasChannelID || copyFromId !== '',
   );
-  const [createStep, setCreateStep] = useState(() => {
-    const query = new URLSearchParams(location.search);
-    return parseCreateStep(query.get('step'));
-  });
   const activeDetailTab = useMemo(() => {
     if (!isDetailMode) {
       return 'overview';
@@ -1582,9 +1512,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     const query = new URLSearchParams(location.search);
     return normalizeDetailTab(query.get('tab'));
   }, [isDetailMode, location.search]);
-  const [creatingChannelId, setCreatingChannelId] = useState(
-    creatingChannelIdFromQuery,
-  );
   const [channelKeySet, setChannelKeySet] = useState(false);
   const handleCancel = () => {
     if (isDetailMode && returnPath !== '') {
@@ -1595,7 +1522,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   };
   const openChannelTaskView = useCallback(
     (extraParams = {}) => {
-      const targetChannelId = (channelId || creatingChannelId || '')
+      const targetChannelId = (channelId || '')
         .toString()
         .trim();
       const query = new URLSearchParams();
@@ -1611,7 +1538,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       const search = query.toString();
       navigate(`/admin/channel/tasks${search ? `?${search}` : ''}`);
     },
-    [channelId, creatingChannelId, navigate],
+    [channelId, navigate],
   );
   const goToDetailTab = useCallback(
     (nextTab) => {
@@ -1668,9 +1595,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   const [modelTestedAt, setModelTestedAt] = useState(0);
   const [modelTestedSignature, setModelTestedSignature] = useState('');
   const [modelTestTargetModels, setModelTestTargetModels] = useState([]);
-  const [createModelTestProviderFilter, setCreateModelTestProviderFilter] =
-    useState('');
-  const [createModelTestTypeFilter, setCreateModelTestTypeFilter] = useState('');
   const [detailModelMutating, setDetailModelMutating] = useState(false);
   const [detailBasicEditing, setDetailBasicEditing] = useState(false);
   const [detailEditingModelKey, setDetailEditingModelKey] = useState('');
@@ -1700,13 +1624,8 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   const [detailModelFilter, setDetailModelFilter] = useState('all');
   const [detailModelPage, setDetailModelPage] = useState(1);
   const fetchingModelsRef = useRef(false);
-  const creatingChannelIdRef = useRef(creatingChannelIdFromQuery);
-  const creatingStepProvidedRef = useRef(false);
-  const skipNextCreatingReloadRef = useRef('');
   const pendingRefreshTaskIdRef = useRef('');
   const pendingRefreshSignatureRef = useRef('');
-  const forcedProviderCatalogStepThreeRef = useRef(false);
-  const forcedProviderCatalogStepFourRef = useRef(false);
   const deferredModelSearchKeyword = useDeferredValue(modelSearchKeyword);
   const currentProtocolOption = useMemo(() => {
     const normalizedProtocol = (inputs.protocol || '')
@@ -1753,13 +1672,9 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     [buildEffectiveKey],
   );
   const previewChannelID = useMemo(
-    () => ((hasChannelID ? channelId : creatingChannelId) || '').trim(),
-    [channelId, creatingChannelId, hasChannelID],
+    () => ((hasChannelID ? channelId : '') || '').trim(),
+    [channelId, hasChannelID],
   );
-  const hasModelPreviewCredentials =
-    effectivePreviewKey !== '' || (previewChannelID !== '' && channelKeySet);
-  const canReuseStoredKeyForCreate =
-    isCreateMode && previewChannelID !== '' && channelKeySet;
   const currentModelSignature = useMemo(
     () =>
       buildChannelConnectionSignature({
@@ -1770,44 +1685,16 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       }),
     [effectivePreviewKey, inputs.base_url, inputs.protocol, previewChannelID],
   );
-  const currentModelTestSignature = useMemo(
-    () =>
-      buildChannelModelTestSignature({
-        protocol: inputs.protocol,
-        key: effectivePreviewKey,
-        baseURL: inputs.base_url,
-        channelID: previewChannelID,
-        models: inputs.models,
-        modelConfigs: inputs.model_configs,
-      }),
-    [
-      effectivePreviewKey,
-      inputs.base_url,
-      inputs.model_configs,
-      inputs.models,
-      inputs.protocol,
-      previewChannelID,
-    ],
-  );
-  const requiresConnectionVerification =
-    isCreateMode && inputs.protocol !== 'proxy';
-  const showAllSections = hasChannelID;
-  const showStepOne = showAllSections || createStep === 1;
-  const showStepTwo = showAllSections || createStep === 2;
-  const showStepThree = showAllSections || createStep === 3;
-  const showStepFour = showAllSections || createStep === 4;
-  const showStepFive = showAllSections || createStep === 5;
+  const requiresConnectionVerification = false;
+  const showStepOne = isDetailMode ? activeDetailTab === 'overview' : true;
+  const showStepTwo =
+    isDetailMode &&
+    (activeDetailTab === 'models' || activeDetailTab === 'endpoints');
+  const showAdvancedSection = isDetailMode && activeDetailTab === 'overview';
   const showDetailOverviewTab = isDetailMode && activeDetailTab === 'overview';
   const showDetailModelsTab = isDetailMode && activeDetailTab === 'models';
   const showDetailEndpointsTab = isDetailMode && activeDetailTab === 'endpoints';
   const showDetailTestsTab = isDetailMode && activeDetailTab === 'tests';
-  const isCurrentSignatureVerified =
-    requiresConnectionVerification &&
-    verifiedModelSignature !== '' &&
-    currentModelSignature === verifiedModelSignature;
-  const requireVerificationBeforeProceed =
-    requiresConnectionVerification && inputs.models.length === 0;
-  const fetchModelsButtonText = t('channel.edit.buttons.fetch_models');
   const detailBasicReadonly = isDetailMode && !detailBasicEditing;
   const detailModelsEditing =
     isDetailMode && detailEditingModelKey.toString().trim() !== '';
@@ -1890,9 +1777,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       return modelTestResultsByKey.has(resultKey);
     });
   }, [modelTestResultsByKey, visibleModelConfigs]);
-  const isModelTestSignatureFresh =
-    modelTestedSignature !== '' &&
-    modelTestedSignature === currentModelTestSignature;
   const modelTestingTargetSet = useMemo(
     () => new Set(modelTestingTargets),
     [modelTestingTargets],
@@ -2204,143 +2088,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     modelTestRows,
     resolvePreferredProviderForModel,
   ]);
-  const createModelTestProviderOptions = useMemo(() => {
-    const options = modelTestGroups
-      .map((group) => (group?.provider || '').toString().trim())
-      .filter(Boolean)
-      .filter((value, index, list) => list.indexOf(value) === index)
-      .sort((a, b) => a.localeCompare(b))
-      .map((value) => ({
-        key: value,
-        value,
-        text: value,
-      }));
-    return [
-      {
-        key: '__all__',
-        value: '',
-        text: t('channel.edit.model_selector.filters.all'),
-      },
-      ...options,
-    ];
-  }, [modelTestGroups, t]);
-  const createModelTestTypeOptions = useMemo(() => {
-    const options = modelTestGroups
-      .map((group) => normalizeChannelModelType(group?.type))
-      .filter(Boolean)
-      .filter((value, index, list) => list.indexOf(value) === index)
-      .sort((a, b) => a.localeCompare(b))
-      .map((value) => ({
-        key: value,
-        value,
-        text: t(`channel.model_types.${value}`),
-      }));
-    return [
-      {
-        key: '__all__',
-        value: '',
-        text: t('channel.edit.model_selector.filters.all'),
-      },
-      ...options,
-    ];
-  }, [modelTestGroups, t]);
-  const createFilteredModelTestGroups = useMemo(
-    () =>
-      modelTestGroups.filter((group) => {
-        if (
-          createModelTestProviderFilter !== '' &&
-          group.provider !== createModelTestProviderFilter
-        ) {
-          return false;
-        }
-        if (
-          createModelTestTypeFilter !== '' &&
-          normalizeChannelModelType(group.type) !== createModelTestTypeFilter
-        ) {
-          return false;
-        }
-        return true;
-      }),
-    [
-      createModelTestProviderFilter,
-      createModelTestTypeFilter,
-      modelTestGroups,
-    ],
-  );
-  const createFilteredModelTestRows = useMemo(
-    () =>
-      createFilteredModelTestGroups
-        .flatMap((group) =>
-          (Array.isArray(group?.rows) ? group.rows : []).map((row) => ({
-            ...row,
-            __group_provider: group.provider || '',
-            __group_type: normalizeChannelModelType(group.type),
-          })),
-        )
-        .sort((left, right) => {
-          const providerOrder = (left.__group_provider || '').localeCompare(
-            right.__group_provider || '',
-          );
-          if (providerOrder !== 0) {
-            return providerOrder;
-          }
-          const typeOrder = (left.__group_type || '').localeCompare(
-            right.__group_type || '',
-          );
-          if (typeOrder !== 0) {
-            return typeOrder;
-          }
-          return (left.model || '').localeCompare(right.model || '');
-        }),
-    [createFilteredModelTestGroups],
-  );
-  const createModelTestBulkEndpointOptions = useMemo(() => {
-    const labelByValue = new Map();
-    let commonValues = null;
-    createFilteredModelTestGroups.forEach((group) => {
-      const values = new Set();
-      (Array.isArray(group?.endpointOptions) ? group.endpointOptions : []).forEach(
-        (option) => {
-          const normalizedValue = (option?.value || '').toString().trim();
-          if (normalizedValue === '') {
-            return;
-          }
-          values.add(normalizedValue);
-          if (!labelByValue.has(normalizedValue)) {
-            labelByValue.set(
-              normalizedValue,
-              option?.text || normalizedValue,
-            );
-          }
-        },
-      );
-      if (commonValues === null) {
-        commonValues = values;
-        return;
-      }
-      commonValues = new Set(
-        Array.from(commonValues).filter((value) => values.has(value)),
-      );
-    });
-    return Array.from(commonValues || [])
-      .sort((a, b) => a.localeCompare(b))
-      .map((value) => ({
-        key: value,
-        value,
-        text: labelByValue.get(value) || value,
-      }));
-  }, [createFilteredModelTestGroups]);
-  const createModelTestBulkEndpointValue = useMemo(() => {
-    const endpointSet = new Set(
-      createFilteredModelTestRows
-        .map((row) => getEffectiveModelEndpoint(row))
-        .filter(Boolean),
-    );
-    if (endpointSet.size !== 1) {
-      return '';
-    }
-    return Array.from(endpointSet)[0] || '';
-  }, [createFilteredModelTestRows, getEffectiveModelEndpoint]);
   const openComplexPricingModal = useCallback(
     (row) => {
       const details = getComplexPricingDetailsForModel(row);
@@ -2541,117 +2288,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   const endpointPolicyReadonly =
     !isDetailMode || isAnyDetailSectionEditing || policyEditorSaving;
 
-  const createStepCurrentPageSelectableModels = useMemo(() => {
-    if (isDetailMode) {
-      return [];
-    }
-    return renderedModelConfigs.filter((row) => canSelectChannelModel(row));
-  }, [canSelectChannelModel, isDetailMode, renderedModelConfigs]);
-  const createStepCurrentPageBlockedModels = useMemo(() => {
-    if (isDetailMode) {
-      return [];
-    }
-    return renderedModelConfigs.filter(
-      (row) => row.inactive !== true && !canSelectChannelModel(row),
-    );
-  }, [canSelectChannelModel, isDetailMode, renderedModelConfigs]);
-
-  const createStepCurrentPageAllSelected = useMemo(() => {
-    return (
-      createStepCurrentPageSelectableModels.length > 0 &&
-      createStepCurrentPageSelectableModels.every((row) => row.selected === true)
-    );
-  }, [createStepCurrentPageSelectableModels]);
-
-  const createStepCurrentPagePartiallySelected = useMemo(() => {
-    if (createStepCurrentPageAllSelected) {
-      return false;
-    }
-    return createStepCurrentPageSelectableModels.some(
-      (row) => row.selected === true,
-    );
-  }, [
-    createStepCurrentPageAllSelected,
-    createStepCurrentPageSelectableModels,
-  ]);
-
-  const createReviewRows = useMemo(() => {
-    if (!isCreateMode) {
-      return [];
-    }
-    return visibleModelConfigs.filter(
-      (row) => row.selected === true && row.inactive !== true,
-    );
-  }, [isCreateMode, visibleModelConfigs]);
-
-  const createReviewSupportedEndpointsByModel = useMemo(() => {
-    const index = new Map();
-    normalizeModelTestResults(modelTestResults).forEach((item) => {
-      const modelName = (item.model || '').toString().trim();
-      const endpoint = (item.endpoint || '').toString().trim();
-      if (modelName === '' || endpoint === '') {
-        return;
-      }
-      if (item.status !== 'supported' || item.supported !== true) {
-        return;
-      }
-      const existing = index.get(modelName) || new Set();
-      existing.add(endpoint);
-      index.set(modelName, existing);
-    });
-    return index;
-  }, [modelTestResults]);
-
-  const createReviewPendingRows = useMemo(() => {
-    if (inputs.protocol === 'proxy') {
-      return [];
-    }
-    return createReviewRows.filter((row) => {
-      const modelName = (row.model || '').toString().trim();
-      const endpoint = getEffectiveModelEndpoint(row);
-      if (modelName === '' || endpoint === '') {
-        return true;
-      }
-      const result = modelTestResultsByKey.get(
-        buildModelTestResultKey(modelName, endpoint),
-      );
-      return !(result?.status === 'supported' && result?.supported === true);
-    });
-  }, [
-    createReviewRows,
-    getEffectiveModelEndpoint,
-    inputs.protocol,
-    modelTestResultsByKey,
-  ]);
-
-  const ensureModelTestsReadyForReview = useCallback(() => {
-    if (inputs.protocol === 'proxy') {
-      return true;
-    }
-    if (createReviewRows.length === 0) {
-      showInfo(t('channel.edit.messages.models_required'));
-      return false;
-    }
-    if (createReviewPendingRows.length === 0) {
-      return true;
-    }
-    const pendingNames = createReviewPendingRows
-      .slice(0, 6)
-      .map(
-        (row) =>
-          (row.model || '').toString().trim() ||
-          (row.upstream_model || '').toString().trim() ||
-          '-',
-      )
-      .join(', ');
-    showInfo(
-      t('channel.edit.messages.model_tests_required', {
-        models: pendingNames,
-      }),
-    );
-    return false;
-  }, [createReviewPendingRows, createReviewRows.length, inputs.protocol, t]);
-
   const handleInputChange = (e, { name, value }) => {
     const nextValue = name === 'id' ? normalizeChannelIdentifier(value) : value;
     setInputs((inputs) => ({ ...inputs, [name]: nextValue }));
@@ -2767,7 +2403,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
           label={t('channel.edit.key')}
           name='key'
           type='password'
-          required={isCreateMode && !canReuseStoredKeyForCreate}
+          required={isCreateMode}
           placeholder={
             channelKeySet && (inputs.key || '').trim() === ''
               ? '********'
@@ -2781,7 +2417,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       </Form.Field>
     );
   }, [
-    canReuseStoredKeyForCreate,
     channelKeySet,
     handleInputChange,
     inputReadonlyProps,
@@ -2790,131 +2425,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     isCreateMode,
     t,
   ]);
-
-  const clearCreateChannelCache = useCallback(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    localStorage.removeItem(CHANNEL_CREATE_CACHE_KEY);
-  }, []);
-
-  const restoreCreateChannelCache = useCallback(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-    const raw = localStorage.getItem(CHANNEL_CREATE_CACHE_KEY);
-    if (!raw) {
-      return false;
-    }
-    try {
-      const cachedState = JSON.parse(raw);
-      if (!cachedState || typeof cachedState !== 'object') {
-        return false;
-      }
-      if (!cachedState.inputs || typeof cachedState.inputs !== 'object') {
-        return false;
-      }
-
-      setInputs({
-        ...CHANNEL_ORIGIN_INPUTS,
-        ...sanitizeCreateInputsForLocalStorage(cachedState.inputs),
-      });
-      if (cachedState.config && typeof cachedState.config === 'object') {
-        setConfig({
-          ...CHANNEL_DEFAULT_CONFIG,
-          ...sanitizeCreateConfigForLocalStorage(cachedState.config),
-        });
-      }
-      if (typeof cachedState.modelsSyncError === 'string') {
-        setModelsSyncError(cachedState.modelsSyncError);
-      }
-      if (Number.isFinite(cachedState.modelsLastSyncedAt)) {
-        setModelsLastSyncedAt(cachedState.modelsLastSyncedAt);
-      }
-      if (typeof cachedState.verifiedModelSignature === 'string') {
-        setVerifiedModelSignature(cachedState.verifiedModelSignature);
-      }
-      const restoredModelTestResults = Array.isArray(
-        cachedState.modelTestResults,
-      )
-        ? cachedState.modelTestResults
-        : Array.isArray(cachedState.capabilityResults)
-          ? cachedState.capabilityResults
-          : [];
-      const restoredModelTestTargetModels = Array.isArray(
-        cachedState.modelTestTargetModels,
-      )
-        ? cachedState.modelTestTargetModels
-        : Array.isArray(cachedState.capabilityTargetModels)
-          ? cachedState.capabilityTargetModels
-          : [];
-      const restoredModelTestError =
-        typeof cachedState.modelTestError === 'string'
-          ? cachedState.modelTestError
-          : typeof cachedState.capabilityTestError === 'string'
-            ? cachedState.capabilityTestError
-            : '';
-      const restoredModelTestedAt = Number.isFinite(cachedState.modelTestedAt)
-        ? cachedState.modelTestedAt
-        : Number.isFinite(cachedState.capabilityTestedAt)
-          ? cachedState.capabilityTestedAt
-          : 0;
-      const restoredModelTestedSignature =
-        typeof cachedState.modelTestedSignature === 'string'
-          ? cachedState.modelTestedSignature
-          : typeof cachedState.capabilityTestedSignature === 'string'
-            ? cachedState.capabilityTestedSignature
-            : '';
-      if (restoredModelTestResults.length > 0) {
-        setModelTestResults(
-          normalizeModelTestResults(restoredModelTestResults),
-        );
-      }
-      if (restoredModelTestTargetModels.length > 0) {
-        setModelTestTargetModels(
-          normalizeModelIDs(restoredModelTestTargetModels),
-        );
-      }
-      if (restoredModelTestError !== '') {
-        setModelTestError(restoredModelTestError);
-      }
-      if (restoredModelTestedAt > 0) {
-        setModelTestedAt(restoredModelTestedAt);
-      }
-      if (restoredModelTestedSignature !== '') {
-        setModelTestedSignature(restoredModelTestedSignature);
-      }
-      if (typeof cachedState.channel_id === 'string') {
-        const restoredChannelID = cachedState.channel_id.trim();
-        setCreatingChannelId(restoredChannelID);
-        creatingChannelIdRef.current = restoredChannelID;
-        skipNextCreatingReloadRef.current = restoredChannelID;
-      }
-      if (typeof cachedState.channel_key_set === 'boolean') {
-        setChannelKeySet(cachedState.channel_key_set);
-      } else {
-        setChannelKeySet(false);
-      }
-      setCreateStep(parseCreateStep(cachedState.step));
-      return true;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  const goToCreateStep = useCallback(
-    (targetStep) => {
-      if (!isCreateMode) {
-        return;
-      }
-      setCreateStep(parseCreateStep(targetStep));
-    },
-    [isCreateMode],
-  );
-
-  const moveToPreviousCreateStep = useCallback(() => {
-    goToCreateStep(createStep - 1);
-  }, [createStep, goToCreateStep]);
 
   const buildChannelPayloadFromState = useCallback(
     (baseInputs, baseConfig) => {
@@ -2951,96 +2461,12 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     return buildChannelPayloadFromState(inputs, config);
   }, [buildChannelPayloadFromState, config, inputs]);
 
-  const createChannelRecord = useCallback(async () => {
-    const payload = buildChannelPayload();
-    const res = await API.post('/api/v1/admin/channel/create', {
-      name: payload.name,
-      protocol: payload.protocol,
-      key: payload.key,
-      base_url: payload.base_url,
-      config: payload.config,
-    });
-    const { success, message, data } = res.data || {};
-    if (!success) {
-      showError(message || t('channel.edit.messages.create_channel_failed'));
-      return '';
-    }
-    const id = (data?.id || '').toString();
-    if (id === '') {
-      showError(t('channel.edit.messages.create_channel_failed'));
-      return '';
-    }
-    setCreatingChannelId(id);
-    creatingChannelIdRef.current = id;
-    skipNextCreatingReloadRef.current = id;
-    if ((payload.key || '').trim() !== '') {
-      setChannelKeySet(true);
-    }
-    return id;
-  }, [buildChannelPayload, t]);
-
-  const persistWorkingChannel = useCallback(
-    async ({ status } = {}) => {
-      let targetChannelID = (
-        (hasChannelID
-          ? channelId
-          : creatingChannelIdRef.current || creatingChannelId) || ''
-      ).trim();
-      if (targetChannelID === '') {
-        if (!isCreateMode) {
-          return '';
-        }
-        const createdID = await createChannelRecord();
-        if (createdID === '') {
-          return '';
-        }
-        targetChannelID = createdID;
-      }
-      const payload = buildChannelPayload();
-      const requestBody = {
-        ...payload,
-        id: targetChannelID,
-      };
-      if (typeof status === 'number') {
-        requestBody.status = status;
-      } else if (isCreateMode) {
-        requestBody.status = 4;
-      }
-      const res = await API.put('/api/v1/admin/channel/', requestBody);
-      const { success, message } = res.data || {};
-      if (!success) {
-        showError(message || t('channel.edit.messages.save_channel_failed'));
-        return '';
-      }
-      if ((payload.key || '').trim() !== '') {
-        setChannelKeySet(true);
-      }
-      return targetChannelID;
-    },
-    [
-      buildChannelPayload,
-      channelId,
-      createChannelRecord,
-      creatingChannelId,
-      hasChannelID,
-      isCreateMode,
-      t,
-    ],
-  );
-
-  const saveCreatingChannel = useCallback(async () => {
-    const targetChannelID = await persistWorkingChannel({ status: 4 });
-    return targetChannelID !== '';
-  }, [persistWorkingChannel]);
-
   const persistDetailModelConfigs = useCallback(
     async (nextModelConfigs) => {
       if (!isDetailMode) {
         return true;
       }
-      const targetChannelID = (channelId || creatingChannelId || '')
-        .toString()
-        .trim();
+      const targetChannelID = (channelId || '').toString().trim();
       if (targetChannelID === '') {
         return false;
       }
@@ -3076,7 +2502,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       buildChannelPayloadFromState,
       channelId,
       config,
-      creatingChannelId,
       inputs,
       isDetailMode,
       t,
@@ -3183,236 +2608,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     }
   }, [persistDetailChannel, t]);
 
-  const verifyChannelModelsPersisted = useCallback(
-    async (expectedModels) => {
-      const targetChannelID = (
-        creatingChannelIdRef.current ||
-        creatingChannelId ||
-        ''
-      ).trim();
-      if (targetChannelID === '') {
-        return false;
-      }
-      try {
-        const remoteConfigs =
-          await fetchAllChannelModelConfigs(targetChannelID, inputs.protocol);
-        const remoteModels = normalizeModelIDs(
-          remoteConfigs
-            .filter((row) => row && row.selected === true)
-            .map((row) => row.model),
-        );
-        const localModels = normalizeModelIDs(expectedModels);
-        if (remoteModels.length !== localModels.length) {
-          return false;
-        }
-        for (let i = 0; i < localModels.length; i += 1) {
-          if (localModels[i] !== remoteModels[i]) {
-            return false;
-          }
-        }
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [creatingChannelId],
-  );
-
-  const ensureCreatingChannel = useCallback(async () => {
-    if (!isCreateMode) {
-      return true;
-    }
-    if (creatingChannelId) {
-      return saveCreatingChannel();
-    }
-    const createdID = await createChannelRecord();
-    return createdID !== '';
-  }, [
-    createChannelRecord,
-    creatingChannelId,
-    isCreateMode,
-    saveCreatingChannel,
-  ]);
-
-  const moveToStepTwo = useCallback(async () => {
-    const effectiveKey = buildEffectiveKey();
-    const identifierError = validateChannelIdentifier(inputs.name, t);
-    if (identifierError) {
-      showInfo(identifierError);
-      return;
-    }
-    if (effectiveKey.trim() === '' && !canReuseStoredKeyForCreate) {
-      showInfo(t('channel.edit.messages.key_required'));
-      return;
-    }
-    if (isCreateMode) {
-      const ok = await ensureCreatingChannel();
-      if (!ok) {
-        return;
-      }
-    }
-    goToCreateStep(2);
-  }, [
-    buildEffectiveKey,
-    canReuseStoredKeyForCreate,
-    ensureCreatingChannel,
-    goToCreateStep,
-    inputs.name,
-    isCreateMode,
-    t,
-  ]);
-
-  const ensureModelsStepCompleted = useCallback(async () => {
-    const modelConfigError = validateModelConfigs(visibleModelConfigs, t);
-    if (modelConfigError) {
-      showInfo(modelConfigError);
-      return false;
-    }
-    if (requireVerificationBeforeProceed) {
-      if (!hasModelPreviewCredentials) {
-        showInfo(t('channel.edit.model_selector.verify_prerequisite'));
-        return false;
-      }
-      if (!isCurrentSignatureVerified) {
-        showInfo(t('channel.edit.model_selector.verify_required'));
-        return false;
-      }
-    }
-    if (inputs.protocol !== 'proxy' && inputs.models.length === 0) {
-      showInfo(t('channel.edit.messages.models_required'));
-      return false;
-    }
-    if (isCreateMode) {
-      const ok = await saveCreatingChannel();
-      if (!ok) {
-        return false;
-      }
-      const expectedModels = [...inputs.models];
-      const persisted = await verifyChannelModelsPersisted(expectedModels);
-      if (!persisted) {
-        showError(t('channel.edit.messages.save_channel_failed'));
-        return false;
-      }
-    }
-    return true;
-  }, [
-    creatingChannelId,
-    hasModelPreviewCredentials,
-    inputs.models.length,
-    inputs.models,
-    inputs.protocol,
-    isCreateMode,
-    isCurrentSignatureVerified,
-    requireVerificationBeforeProceed,
-    requiresConnectionVerification,
-    saveCreatingChannel,
-    t,
-    verifyChannelModelsPersisted,
-    visibleModelConfigs,
-  ]);
-
-  const moveToStepThree = useCallback(async () => {
-    const ok = await ensureModelsStepCompleted();
-    if (!ok) {
-      return;
-    }
-    goToCreateStep(3);
-  }, [ensureModelsStepCompleted, goToCreateStep]);
-
-  const moveToStepFour = useCallback(async () => {
-    if (createStep <= 2) {
-      const ok = await ensureModelsStepCompleted();
-      if (!ok) {
-        return;
-      }
-    }
-    if (!ensureModelTestsReadyForReview()) {
-      return;
-    }
-    goToCreateStep(4);
-  }, [
-    createStep,
-    ensureModelTestsReadyForReview,
-    ensureModelsStepCompleted,
-    goToCreateStep,
-  ]);
-
-  const moveToStepFive = useCallback(async () => {
-    if (createStep <= 2) {
-      const ok = await ensureModelsStepCompleted();
-      if (!ok) {
-        return;
-      }
-    }
-    if (!ensureModelTestsReadyForReview()) {
-      return;
-    }
-    goToCreateStep(5);
-  }, [
-    createStep,
-    ensureModelTestsReadyForReview,
-    ensureModelsStepCompleted,
-    goToCreateStep,
-  ]);
-
-  const persistConfirmedCreateChannelEndpoints = useCallback(
-    async (targetChannelId) => {
-      const normalizedChannelId = (targetChannelId || '').toString().trim();
-      if (
-        !isCreateMode ||
-        inputs.protocol === 'proxy' ||
-        normalizedChannelId === ''
-      ) {
-        return;
-      }
-      const rows = [];
-      createReviewRows.forEach((row) => {
-        const modelName = (row.model || '').toString().trim();
-        if (modelName === '') {
-          return;
-        }
-        const supportedEndpoints =
-          createReviewSupportedEndpointsByModel.get(modelName) || new Set();
-        supportedEndpoints.forEach((endpoint) => {
-          const normalizedEndpoint = normalizeChannelModelEndpoint(
-            row.type,
-            endpoint,
-            inputs.protocol,
-          );
-          if (normalizedEndpoint === '') {
-            return;
-          }
-          rows.push({
-            model: modelName,
-            endpoint: normalizedEndpoint,
-          });
-        });
-      });
-      for (const row of rows) {
-        const res = await API.put(
-          `/api/v1/admin/channel/${normalizedChannelId}/endpoints`,
-          {
-            model: row.model,
-            endpoint: row.endpoint,
-            enabled: true,
-          },
-        );
-        const { success, message } = res.data || {};
-        if (!success) {
-          throw new Error(
-            message || t('channel.edit.endpoint_capabilities.update_failed'),
-          );
-        }
-      }
-    },
-    [
-      createReviewRows,
-      createReviewSupportedEndpointsByModel,
-      inputs.protocol,
-      isCreateMode,
-      t,
-    ],
-  );
 
   const loadChannelModelConfigsFromServer = useCallback(
     async (targetChannelId, protocol) => {
@@ -3644,20 +2839,10 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
             ...prev,
             ...parsedConfig,
           }));
-          if (fromCreating || hasChannelID) {
+          if (hasChannelID) {
             setChannelKeySet(!!data.key_set);
           } else {
             setChannelKeySet(false);
-          }
-          if (fromCreating && !creatingStepProvidedRef.current) {
-            setCreateStep(
-              inferCreatingChannelStepFromPayload({
-                ...data,
-                model_configs: modelState.modelConfigs,
-                channel_tests: storedModelTestResults,
-                channel_tests_last_tested_at: channelTestsData.lastTestedAt,
-              }),
-            );
           }
         } else {
           showError(message);
@@ -3724,31 +2909,17 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
 
   const handleFetchModels = useCallback(
     async ({ silent = false } = {}) => {
+      if (!isDetailMode) {
+        return false;
+      }
       if (fetchingModelsRef.current) {
         return false;
       }
       fetchingModelsRef.current = true;
       setFetchModelsLoading(true);
       try {
-        const persistedChannelId = await persistWorkingChannel({
-          status: isCreateMode ? 4 : undefined,
-        });
-        if (persistedChannelId === '') {
-          return false;
-        }
-        const targetChannelId = (
-          persistedChannelId ||
-          previewChannelID ||
-          creatingChannelIdRef.current ||
-          creatingChannelId ||
-          ''
-        ).trim();
+        const targetChannelId = (channelId || '').toString().trim();
         if (targetChannelId === '') {
-          const errorMessage = t('channel.edit.messages.save_channel_failed');
-          setModelsSyncError(errorMessage);
-          if (!silent) {
-            showError(errorMessage);
-          }
           return false;
         }
         const normalizedBaseURL = normalizeBaseURL(inputs.base_url);
@@ -3809,15 +2980,11 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     },
     [
       buildEffectiveKey,
-      creatingChannelId,
+      channelId,
       inputs.base_url,
       inputs,
       inputs.protocol,
-      isCreateMode,
-      loadChannelModelConfigsFromServer,
-      loadChannelTasksFromServer,
-      persistWorkingChannel,
-      previewChannelID,
+      isDetailMode,
       t,
     ],
   );
@@ -4034,6 +3201,9 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
 
   const handleRunModelTests = useCallback(
     async ({ targetModels = [], scope = 'batch' } = {}) => {
+      if (!isDetailMode) {
+        return;
+      }
       if (detailTestingReadonly) {
         return;
       }
@@ -4049,19 +3219,10 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         showInfo(t('channel.edit.messages.models_required'));
         return;
       }
-      const persistedChannelId = await persistWorkingChannel({
-        status: isCreateMode ? 4 : undefined,
-      });
-      if (persistedChannelId === '') {
+      const targetChannelId = (channelId || '').toString().trim();
+      if (targetChannelId === '') {
         return;
       }
-      const targetChannelId = (
-        persistedChannelId ||
-        previewChannelID ||
-        creatingChannelIdRef.current ||
-        creatingChannelId ||
-        ''
-      ).trim();
       const targetConfigs = visibleModelConfigs
         .filter((row) => normalizedTargets.includes(row.model))
         .map((row) => ({
@@ -4112,18 +3273,14 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       }
     },
     [
+      channelId,
       modelTestTargetModels,
-      creatingChannelId,
       getEffectiveModelEndpoint,
-      inputs.base_url,
       inputs,
-      inputs.models,
       inputs.protocol,
       inputs.test_model,
       detailTestingReadonly,
-      isCreateMode,
-      persistWorkingChannel,
-      previewChannelID,
+      isDetailMode,
       t,
       visibleModelConfigs,
     ],
@@ -4253,41 +3410,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       visibleModelConfigs,
     ],
   );
-  useEffect(() => {
-    if (isDetailMode) {
-      return;
-    }
-    if (
-      createModelTestProviderFilter === '' ||
-      createModelTestTypeFilter === '' ||
-      createFilteredModelTestRows.length === 0 ||
-      createModelTestBulkEndpointOptions.length !== 1
-    ) {
-      return;
-    }
-    const targetEndpoint = (
-      createModelTestBulkEndpointOptions[0]?.value || ''
-    ).toString();
-    if (
-      targetEndpoint === '' ||
-      createModelTestBulkEndpointValue === targetEndpoint
-    ) {
-      return;
-    }
-    void updateAllModelTestEndpoints(
-      targetEndpoint,
-      createFilteredModelTestRows.map((row) => row.model),
-    );
-  }, [
-    createFilteredModelTestRows,
-    createModelTestBulkEndpointOptions,
-    createModelTestBulkEndpointValue,
-    createModelTestProviderFilter,
-    createModelTestTypeFilter,
-    isDetailMode,
-    updateAllModelTestEndpoints,
-  ]);
-
   const updateModelTestStream = useCallback(
     async (modelName, isStream) => {
       if (detailTestingReadonly) {
@@ -4396,9 +3518,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       if (!isDetailMode || endpointCapabilityReadonly) {
         return;
       }
-      const targetChannelId = (
-        row?.channel_id || channelId || creatingChannelId || ''
-      )
+      const targetChannelId = (row?.channel_id || channelId || '')
         .toString()
         .trim();
       const modelName = (row?.model || '').toString().trim();
@@ -4442,7 +3562,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     },
     [
       channelId,
-      creatingChannelId,
       endpointCapabilityReadonly,
       isDetailMode,
       loadChannelEndpointsFromServer,
@@ -4471,9 +3590,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
 
   const openEndpointPolicyEditor = useCallback(
     (row) => {
-      const targetChannelId = (
-        row?.channel_id || channelId || creatingChannelId || ''
-      )
+      const targetChannelId = (row?.channel_id || channelId || '')
         .toString()
         .trim();
       const modelName = (row?.model || '').toString().trim();
@@ -4499,7 +3616,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       setSelectedPolicyTemplate('');
       setPolicyEditorOpen(true);
     },
-    [channelEndpointPolicies, channelId, creatingChannelId],
+    [channelEndpointPolicies, channelId],
   );
 
   const closeEndpointPolicyEditor = useCallback(() => {
@@ -4762,38 +3879,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     [t, toggleModelSelection],
   );
 
-  const toggleCreateStepCurrentPageSelections = useCallback(
-    (checked) => {
-      if (checked && createStepCurrentPageBlockedModels.length > 0) {
-        showInfo(
-          t('channel.edit.model_selector.selection_skipped_unassigned', {
-            count: createStepCurrentPageBlockedModels.length,
-          }),
-        );
-      }
-      const targetIDs = new Set(
-        createStepCurrentPageSelectableModels.map((row) => row.upstream_model),
-      );
-      if (targetIDs.size === 0) {
-        return;
-      }
-      const nextConfigs = visibleModelConfigs.map((row) =>
-        targetIDs.has(row.upstream_model)
-          ? { ...row, selected: !!checked }
-          : row,
-      );
-      setInputs((prev) =>
-        buildNextInputsWithModelConfigs(prev, nextConfigs, prev.protocol),
-      );
-    },
-    [
-      createStepCurrentPageBlockedModels.length,
-      createStepCurrentPageSelectableModels,
-      t,
-      visibleModelConfigs,
-    ],
-  );
-
   useEffect(() => {
     const selectedModels = visibleModelConfigs
       .filter((row) => row.selected)
@@ -4809,15 +3894,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   }, [inputs.test_model, visibleModelConfigs]);
 
   useEffect(() => {
-    if (hasChannelID) {
-      creatingStepProvidedRef.current = false;
-      return;
-    }
-    const query = new URLSearchParams(location.search);
-    creatingStepProvidedRef.current = query.get('step') !== null;
-  }, [hasChannelID, location.search]);
-
-  useEffect(() => {
     if (!isDetailMode) {
       setDetailBasicEditing(false);
       setDetailEditingModelKey('');
@@ -4825,17 +3901,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       setDetailAdvancedEditing(false);
     }
   }, [isDetailMode]);
-
-  useEffect(() => {
-    if (hasChannelID) {
-      return;
-    }
-    if (creatingChannelIdFromQuery === creatingChannelId) {
-      return;
-    }
-    setCreatingChannelId(creatingChannelIdFromQuery);
-    creatingChannelIdRef.current = creatingChannelIdFromQuery;
-  }, [creatingChannelIdFromQuery, creatingChannelId, hasChannelID]);
 
   useEffect(() => {
     if (hasChannelID) {
@@ -4848,26 +3913,13 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       loadChannelById(copyFromId, true, false).then();
       return;
     }
-    if (creatingChannelIdFromQuery !== '') {
-      if (skipNextCreatingReloadRef.current === creatingChannelIdFromQuery) {
-        skipNextCreatingReloadRef.current = '';
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      loadChannelById(creatingChannelIdFromQuery, false, true).then();
-      return;
-    }
     setChannelKeySet(false);
-    restoreCreateChannelCache();
     setLoading(false);
   }, [
     channelId,
     copyFromId,
-    creatingChannelIdFromQuery,
     hasChannelID,
     loadChannelById,
-    restoreCreateChannelCache,
   ]);
 
   useEffect(() => {
@@ -4945,9 +3997,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   }, [channelId, isDetailMode, loadChannelEndpointPoliciesFromServer, t]);
 
   useEffect(() => {
-    const targetChannelId = (
-      (hasChannelID ? channelId : creatingChannelId) || ''
-    )
+    const targetChannelId = ((hasChannelID ? channelId : '') || '')
       .toString()
       .trim();
     if (targetChannelId === '') {
@@ -5024,122 +4074,10 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   }, [
     channelId,
     channelTasks,
-    creatingChannelId,
     hasChannelID,
     loadChannelTasksFromServer,
     loadChannelTestsFromServer,
     refreshChannelRuntimeState,
-  ]);
-
-  useEffect(() => {
-    if (hasChannelID) {
-      return;
-    }
-    const query = new URLSearchParams(location.search);
-    const stepParam = query.get('step');
-    if (stepParam === null) {
-      return;
-    }
-    const queryStep = parseCreateStep(stepParam);
-    setCreateStep((prev) => (prev === queryStep ? prev : queryStep));
-  }, [hasChannelID, location.search]);
-
-  useEffect(() => {
-    if (hasChannelID) {
-      return;
-    }
-    const query = new URLSearchParams(location.search);
-    const stepParam = query.get('step');
-    if (createStep <= CREATE_CHANNEL_STEP_MIN) {
-      if (stepParam === null) {
-        return;
-      }
-      query.delete('step');
-    } else {
-      const nextStep = String(createStep);
-      if (stepParam === nextStep) {
-        return;
-      }
-      query.set('step', nextStep);
-    }
-    const nextSearch = query.toString();
-    navigate(
-      {
-        pathname: location.pathname,
-        search: nextSearch ? `?${nextSearch}` : '',
-      },
-      { replace: true },
-    );
-  }, [createStep, hasChannelID, location.pathname, location.search, navigate]);
-
-  useEffect(() => {
-    if (hasChannelID) {
-      return;
-    }
-    const query = new URLSearchParams(location.search);
-    const currentChannelID = (query.get('channel_id') || '').trim();
-    const nextChannelID = (creatingChannelId || '').trim();
-    if (currentChannelID === nextChannelID) {
-      return;
-    }
-    if (nextChannelID === '') {
-      query.delete('channel_id');
-    } else {
-      query.set('channel_id', nextChannelID);
-    }
-    const nextSearch = query.toString();
-    navigate(
-      {
-        pathname: location.pathname,
-        search: nextSearch ? `?${nextSearch}` : '',
-      },
-      { replace: true },
-    );
-  }, [
-    creatingChannelId,
-    hasChannelID,
-    location.pathname,
-    location.search,
-    navigate,
-  ]);
-
-  useEffect(() => {
-    if (hasChannelID || loading || typeof window === 'undefined') {
-      return;
-    }
-    const payload = {
-      step: createStep,
-      inputs: sanitizeCreateInputsForLocalStorage(inputs),
-      config: sanitizeCreateConfigForLocalStorage(config),
-      modelsSyncError,
-      modelsLastSyncedAt,
-      verifiedModelSignature,
-      modelTestResults,
-      modelTestTargetModels,
-      modelTestError,
-      modelTestedAt,
-      modelTestedSignature,
-      channel_id: creatingChannelId,
-      channel_key_set: channelKeySet,
-      savedAt: Date.now(),
-    };
-    localStorage.setItem(CHANNEL_CREATE_CACHE_KEY, JSON.stringify(payload));
-  }, [
-    channelKeySet,
-    config,
-    createStep,
-    creatingChannelId,
-    inputs,
-    hasChannelID,
-    loading,
-    modelTestResults,
-    modelTestTargetModels,
-    modelTestError,
-    modelTestedAt,
-    modelTestedSignature,
-    modelsLastSyncedAt,
-    modelsSyncError,
-    verifiedModelSignature,
   ]);
 
   useEffect(() => {
@@ -5183,30 +4121,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   }, [loadProviderCatalogIndex, showStepTwo]);
 
   useEffect(() => {
-    if (!showStepThree || inputs.protocol === 'proxy') {
-      forcedProviderCatalogStepThreeRef.current = false;
-      return;
-    }
-    if (forcedProviderCatalogStepThreeRef.current) {
-      return;
-    }
-    forcedProviderCatalogStepThreeRef.current = true;
-    loadProviderCatalogIndex({ silent: true, force: true }).then();
-  }, [inputs.protocol, loadProviderCatalogIndex, showStepThree]);
-
-  useEffect(() => {
-    if (!showStepFour || !isCreateMode || inputs.protocol === 'proxy') {
-      forcedProviderCatalogStepFourRef.current = false;
-      return;
-    }
-    if (forcedProviderCatalogStepFourRef.current) {
-      return;
-    }
-    forcedProviderCatalogStepFourRef.current = true;
-    loadProviderCatalogIndex({ silent: true, force: true }).then();
-  }, [inputs.protocol, isCreateMode, loadProviderCatalogIndex, showStepFour]);
-
-  useEffect(() => {
     if (detailModelPage <= detailModelTotalPages) {
       return;
     }
@@ -5230,66 +4144,31 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
 
   const submit = async () => {
     const effectiveKey = buildEffectiveKey();
-    const modelConfigError = validateModelConfigs(visibleModelConfigs, t);
     const identifierError = validateChannelIdentifier(inputs.name, t);
     if (!isDetailMode && identifierError !== '') {
       showInfo(identifierError);
       return;
     }
-    if (
-      isCreateMode &&
-      effectiveKey.trim() === '' &&
-      !canReuseStoredKeyForCreate
-    ) {
+    if (isCreateMode && effectiveKey.trim() === '') {
       showInfo(t('channel.edit.messages.key_required'));
       return;
     }
-    if (requireVerificationBeforeProceed) {
-      if (!hasModelPreviewCredentials) {
-        showInfo(t('channel.edit.model_selector.verify_prerequisite'));
-        return;
-      }
-      if (!isCurrentSignatureVerified) {
-        showInfo(t('channel.edit.model_selector.verify_required'));
-        return;
-      }
-    }
-    if (inputs.protocol !== 'proxy' && inputs.models.length === 0) {
-      showInfo(t('channel.edit.messages.models_required'));
-      return;
-    }
-    if (isCreateMode && !ensureModelTestsReadyForReview()) {
-      return;
-    }
-    if (modelConfigError) {
-      showInfo(modelConfigError);
-      return;
-    }
     let localInputs = buildChannelPayload();
-    let res;
-    if (creatingChannelId) {
-      res = await API.put(`/api/v1/admin/channel/`, {
-        ...localInputs,
-        id: creatingChannelId,
-        status: 1,
-      });
-    } else {
-      res = await API.post(`/api/v1/admin/channel/`, localInputs);
-    }
+    const res = await API.post(`/api/v1/admin/channel/`, localInputs);
     const { success, message, data } = res.data;
     if (success) {
-      try {
-        await persistConfirmedCreateChannelEndpoints(
-          creatingChannelId || data?.id || localInputs.id,
-        );
-      } catch (error) {
-        showError(
-          error?.message || t('channel.edit.endpoint_capabilities.update_failed'),
-        );
+      showSuccess(t('channel.edit.messages.create_success'));
+      const targetChannelID = (
+        data?.id ||
+        localInputs.id ||
+        ''
+      ).toString().trim();
+      if (targetChannelID !== '') {
+        navigate(`/admin/channel/detail/${targetChannelID}`, {
+          replace: true,
+        });
         return;
       }
-      showSuccess(t('channel.edit.messages.create_success'));
-      clearCreateChannelCache();
       navigate('/admin/channel', { replace: true });
       return;
     } else {
@@ -5297,971 +4176,340 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     }
   };
 
-  const renderModelTestGroupTable = (group, readonly = false) => {
-    const rows = Array.isArray(group?.rows) ? group.rows : [];
-    const groupModelIDs = rows.map((row) => row.model);
-    const groupAllSelected =
-      rows.length > 0 &&
-      rows.every((row) => modelTestTargetModels.includes(row.model));
-    const groupPartiallySelected =
-      !groupAllSelected &&
-      rows.some((row) => modelTestTargetModels.includes(row.model));
-    const disabledBase = readonly || detailModelMutating;
+  const renderCreateStepNavigation = () => {
+    return null;
+  };
+
+  const renderConnectionFields = () => {
+    if (baseURLField && keyField) {
+      return (
+        <Form.Group widths='equal'>
+          {baseURLField}
+          {keyField}
+        </Form.Group>
+      );
+    }
     return (
-      <div className='router-block-gap-md' key={group.key}>
-        <div className='router-toolbar router-block-gap-xs'>
-          <div className='router-toolbar-start'>
-            <Label basic className='router-tag'>
-              {group.provider || '-'}
-            </Label>
-            <Label basic className='router-tag'>
-              {t('channel.edit.model_tester.group_type', {
-                type: t(`channel.model_types.${group.type || 'text'}`),
-              })}
-            </Label>
-            <span className='router-toolbar-meta'>
-              {t('channel.edit.model_tester.group_count', {
-                count: rows.length,
-              })}
-            </span>
-          </div>
-        </div>
-        <Table
-          celled
-          stackable
-          className='router-detail-table router-model-test-table'
-        >
-          <colgroup>
-            {CHANNEL_MODEL_TEST_GROUP_COLUMN_WIDTHS.map((width, index) => (
-              <col
-                key={`channel-model-test-group-col-${index}`}
-                style={{ width }}
-              />
-            ))}
-          </colgroup>
-          <Table.Header>
-            <Table.Row>
-              <Table.HeaderCell collapsing textAlign='center'>
-                <Checkbox
-                  checked={groupAllSelected}
-                  indeterminate={groupPartiallySelected}
-                  disabled={disabledBase}
-                  onChange={(e, { checked }) =>
-                    toggleModelTestGroupTargets(rows, !!checked)
-                  }
-                />
-              </Table.HeaderCell>
-              <Table.HeaderCell>
-                {t('channel.edit.model_tester.table.model')}
-              </Table.HeaderCell>
-              <Table.HeaderCell>
-                <div className='router-table-header-with-control'>
-                  <span>{t('channel.edit.model_tester.table.endpoint')}</span>
-                  <Dropdown
-                    selection
-                    compact
-                    className='router-inline-dropdown'
-                    placeholder={t(
-                      'channel.edit.model_tester.table.batch_set',
-                    )}
-                    options={group.endpointOptions}
-                    disabled={disabledBase || group.endpointOptions.length === 0}
-                    value={group.endpointValue || undefined}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                    }}
-                    onChange={(e, { value }) => {
-                      updateAllModelTestEndpoints(value, groupModelIDs);
-                    }}
-                  />
-                </div>
-              </Table.HeaderCell>
-              <Table.HeaderCell collapsing>
-                {t('channel.edit.model_tester.table.is_stream')}
-              </Table.HeaderCell>
-              <Table.HeaderCell collapsing>
-                {t('channel.edit.model_tester.table.status')}
-              </Table.HeaderCell>
-              <Table.HeaderCell collapsing>
-                {t('channel.edit.model_tester.table.latency')}
-              </Table.HeaderCell>
-              <Table.HeaderCell collapsing>
-                {t('channel.edit.model_tester.table.tested_at')}
-              </Table.HeaderCell>
-              <Table.HeaderCell>
-                {t('channel.edit.model_tester.table.message')}
-              </Table.HeaderCell>
-              <Table.HeaderCell collapsing>
-                {t('channel.edit.model_tester.table.actions')}
-              </Table.HeaderCell>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {rows.map((row) => {
-              const normalizedEndpoint = getEffectiveModelEndpoint(row);
-              const item = modelTestResultsByKey.get(
-                buildModelTestResultKey(row.model, normalizedEndpoint),
-              );
-              const latestItemForModel =
-                latestModelTestResultByModel.get(row.model) || null;
-              const displayItem = item || latestItemForModel;
-              const activeTask =
-                activeChannelTasksByModel.get(row.model) || null;
-              const useLatestResult = !activeTask && !item && !!latestItemForModel;
-              const canDownloadArtifact =
-                !!displayItem?.artifact_path || !!displayItem?.artifact_name;
-              const effectiveStatus =
-                activeTask?.status || displayItem?.status || 'untested';
-              const labelColor =
-                effectiveStatus === 'running'
-                  ? 'blue'
-                  : effectiveStatus === 'pending'
-                    ? 'orange'
-                    : effectiveStatus === 'untested'
-                      ? undefined
-                      : effectiveStatus === 'supported'
-                        ? 'green'
-                        : effectiveStatus === 'skipped'
-                          ? 'grey'
-                          : 'red';
-              return (
-                <Table.Row key={row.model}>
-                  <Table.Cell textAlign='center'>
-                    <Checkbox
-                      checked={modelTestTargetModels.includes(row.model)}
-                      disabled={disabledBase}
-                      onChange={(e, { checked }) =>
-                        toggleModelTestTarget(row.model, !!checked)
-                      }
-                    />
-                  </Table.Cell>
-                  <Table.Cell title={row.model || '-'}>
-                    <span className='router-cell-truncate'>
-                      {row.model || '-'}
-                    </span>
-                  </Table.Cell>
-                  <Table.Cell className='router-table-dropdown-cell'>
-                    {row.type === 'text' || row.type === 'image' ? (
-                      <Dropdown
-                        selection
-                        className='router-mini-dropdown router-table-dropdown-fluid'
-                        options={getEndpointOptionsForModel(row)}
-                        disabled={disabledBase}
-                        value={normalizedEndpoint}
-                        onChange={(e, { value }) =>
-                          updateModelTestEndpoint(row.model, value)
-                        }
-                      />
-                    ) : (
-                      normalizedEndpoint || row.endpoint || '-'
-                    )}
-                  </Table.Cell>
-                  <Table.Cell textAlign='center'>
-                    <Checkbox
-                      checked={!!row.is_stream}
-                      disabled={disabledBase}
-                      onChange={(e, { checked }) =>
-                        updateModelTestStream(row.model, !!checked)
-                      }
-                    />
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Label basic color={labelColor} className='router-tag'>
-                      {t(`channel.edit.model_tester.status.${effectiveStatus}`)}
-                    </Label>
-                  </Table.Cell>
-                  <Table.Cell className='router-nowrap'>
-                    {displayItem?.latency_ms > 0
-                      ? `${displayItem.latency_ms} ms`
-                      : '-'}
-                  </Table.Cell>
-                  <Table.Cell className='router-nowrap'>
-                    {displayItem?.tested_at > 0
-                      ? timestamp2string(displayItem.tested_at)
-                      : '-'}
-                  </Table.Cell>
-                  <Table.Cell
-                    title={
-                      useLatestResult
-                        ? t(
-                            'channel.edit.model_tester.latest_result_from_endpoint',
-                            {
-                              endpoint: displayItem?.endpoint || '-',
-                            },
-                          )
-                        : displayItem?.message ||
-                          (effectiveStatus === 'untested'
-                            ? t('channel.edit.model_tester.untested')
-                            : '-')
-                    }
-                  >
-                    <span className='router-cell-truncate'>
-                      {useLatestResult
-                        ? t(
-                            'channel.edit.model_tester.latest_result_from_endpoint',
-                            {
-                              endpoint: displayItem?.endpoint || '-',
-                            },
-                          )
-                        : displayItem?.message ||
-                          (effectiveStatus === 'untested'
-                            ? t('channel.edit.model_tester.untested')
-                            : '-')}
-                    </span>
-                  </Table.Cell>
-                  <Table.Cell collapsing>
-                    <div className='router-inline-actions'>
-                      <Button
-                        type='button'
-                        className='router-inline-button'
-                        basic
-                        loading={
-                          (modelTesting &&
-                            modelTestingScope === 'single' &&
-                            modelTestingTargetSet.has(row.model)) ||
-                          !!activeTask
-                        }
-                        disabled={
-                          disabledBase ||
-                          modelTesting ||
-                          activeChannelTasksByModel.has(row.model)
-                        }
-                        onClick={() =>
-                          handleRunModelTests({
-                            targetModels: [row.model],
-                            scope: 'single',
-                          })
-                        }
-                      >
-                        {t('channel.edit.model_tester.single')}
-                      </Button>
-                      <Button
-                        type='button'
-                        className='router-inline-button'
-                        basic
-                        disabled={!canDownloadArtifact}
-                        onClick={() =>
-                          handleDownloadModelTestArtifact(displayItem)
-                        }
-                      >
-                        {t('common.download')}
-                      </Button>
-                    </div>
-                  </Table.Cell>
-                </Table.Row>
-              );
-            })}
-          </Table.Body>
-        </Table>
-      </div>
+      <>
+        {baseURLField}
+        {keyField}
+      </>
     );
   };
 
-  const renderModelTestGroups = (readonly = false, groups = modelTestGroups) => {
-    if (modelTestRows.length === 0 || groups.length === 0) {
-      return (
-        <Table celled stackable className='router-detail-table'>
-          <Table.Body>
-            <Table.Row>
-              <Table.Cell className='router-empty-cell' colSpan='10'>
-                {t(
-                  modelTestRows.length === 0
-                    ? 'channel.edit.model_tester.empty'
-                    : 'channel.edit.model_selector.empty_filtered',
-                )}
-              </Table.Cell>
-            </Table.Row>
-          </Table.Body>
-        </Table>
-      );
+  const renderProtocolSpecificFields = () => {
+    return (
+      <>
+        {inputs.protocol === 'azure' && (
+          <>
+            <Message className='router-section-message'>
+              注意，<strong>模型部署名称必须和模型名称保持一致</strong>
+              ，因为 Router 会把请求体中的 model
+              参数替换为你的部署名称（模型名称中的点会被剔除），
+              <a
+                target='_blank'
+                rel='noreferrer'
+                href='https://github.com/yeying-community/router/issues/133?notification_referrer_id=NT_kwDOAmJSYrM2NjIwMzI3NDgyOjM5OTk4MDUw#issuecomment-1571602271'
+              >
+                图片演示
+              </a>
+              。
+            </Message>
+            <Form.Field>
+              <Form.Input
+                className='router-section-input'
+                label='默认 API 版本'
+                name='other'
+                placeholder='请输入默认 API 版本，例如：2024-03-01-preview，该配置可以被实际的请求查询参数所覆盖'
+                onChange={handleInputChange}
+                value={inputs.other}
+                autoComplete='new-password'
+                {...inputReadonlyProps}
+              />
+            </Form.Field>
+          </>
+        )}
+        {inputs.protocol === 'xunfei' && (
+          <Form.Field>
+            <Form.Input
+              className='router-section-input'
+              label={t('channel.edit.spark_version')}
+              name='other'
+              placeholder={t('channel.edit.spark_version_placeholder')}
+              onChange={handleInputChange}
+              value={inputs.other}
+              autoComplete='new-password'
+              {...inputReadonlyProps}
+            />
+          </Form.Field>
+        )}
+        {inputs.protocol === 'aiproxy-library' && (
+          <Form.Field>
+            <Form.Input
+              className='router-section-input'
+              label={t('channel.edit.knowledge_id')}
+              name='other'
+              placeholder={t('channel.edit.knowledge_id_placeholder')}
+              onChange={handleInputChange}
+              value={inputs.other}
+              autoComplete='new-password'
+              {...inputReadonlyProps}
+            />
+          </Form.Field>
+        )}
+        {inputs.protocol === 'ali' && (
+          <Form.Field>
+            <Form.Input
+              className='router-section-input'
+              label={t('channel.edit.plugin_param')}
+              name='other'
+              placeholder={t('channel.edit.plugin_param_placeholder')}
+              onChange={handleInputChange}
+              value={inputs.other}
+              autoComplete='new-password'
+              {...inputReadonlyProps}
+            />
+          </Form.Field>
+        )}
+        {inputs.protocol === 'coze' && (
+          <Message className='router-section-message'>
+            {t('channel.edit.coze_notice')}
+          </Message>
+        )}
+        {inputs.protocol === 'doubao' && (
+          <Message className='router-section-message'>
+            {t('channel.edit.douban_notice')}
+            <a
+              target='_blank'
+              rel='noreferrer'
+              href='https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint'
+            >
+              {t('channel.edit.douban_notice_link')}
+            </a>
+            {t('channel.edit.douban_notice_2')}
+          </Message>
+        )}
+        {inputs.protocol === 'awsclaude' && (
+          <Form.Field>
+            <Form.Input
+              className='router-section-input'
+              label='Region'
+              name='region'
+              required
+              placeholder={t('channel.edit.aws_region_placeholder')}
+              onChange={handleConfigChange}
+              value={config.region}
+              autoComplete=''
+              {...inputReadonlyProps}
+            />
+            <Form.Input
+              className='router-section-input'
+              label='AK'
+              name='ak'
+              required
+              placeholder={t('channel.edit.aws_ak_placeholder')}
+              onChange={handleConfigChange}
+              value={config.ak}
+              autoComplete=''
+              {...inputReadonlyProps}
+            />
+            <Form.Input
+              className='router-section-input'
+              label='SK'
+              name='sk'
+              required
+              placeholder={t('channel.edit.aws_sk_placeholder')}
+              onChange={handleConfigChange}
+              value={config.sk}
+              autoComplete=''
+              {...inputReadonlyProps}
+            />
+          </Form.Field>
+        )}
+        {inputs.protocol === 'vertexai' && (
+          <Form.Field>
+            <Form.Input
+              className='router-section-input'
+              label='Region'
+              name='region'
+              required
+              placeholder={t('channel.edit.vertex_region_placeholder')}
+              onChange={handleConfigChange}
+              value={config.region}
+              autoComplete=''
+              {...inputReadonlyProps}
+            />
+            <Form.Input
+              className='router-section-input'
+              label={t('channel.edit.vertex_project_id')}
+              name='vertex_ai_project_id'
+              required
+              placeholder={t('channel.edit.vertex_project_id_placeholder')}
+              onChange={handleConfigChange}
+              value={config.vertex_ai_project_id}
+              autoComplete=''
+              {...inputReadonlyProps}
+            />
+            <Form.Input
+              className='router-section-input'
+              label={t('channel.edit.vertex_credentials')}
+              name='vertex_ai_adc'
+              required
+              placeholder={t('channel.edit.vertex_credentials_placeholder')}
+              onChange={handleConfigChange}
+              value={config.vertex_ai_adc}
+              autoComplete=''
+              {...inputReadonlyProps}
+            />
+          </Form.Field>
+        )}
+        {inputs.protocol === 'coze' && (
+          <Form.Input
+            className='router-section-input'
+            label={t('channel.edit.user_id')}
+            name='user_id'
+            required
+            placeholder={t('channel.edit.user_id_placeholder')}
+            onChange={handleConfigChange}
+            value={config.user_id}
+            autoComplete=''
+            {...inputReadonlyProps}
+          />
+        )}
+        {inputs.protocol === 'cloudflare' && (
+          <Form.Field>
+            <Form.Input
+              className='router-section-input'
+              label='Account ID'
+              name='user_id'
+              required
+              placeholder='请输入 Account ID，例如：d8d7c61dbc334c32d3ced580e4bf42b4'
+              onChange={handleConfigChange}
+              value={config.user_id}
+              autoComplete=''
+              {...inputReadonlyProps}
+            />
+          </Form.Field>
+        )}
+      </>
+    );
+  };
+
+  const renderBasicInfoSection = () => {
+    if (!showStepOne) {
+      return null;
     }
-    return groups.map((group) => renderModelTestGroupTable(group, readonly));
+    return !isDetailMode ? (
+      <>
+        <Form.Group widths='equal'>
+          <Form.Input
+            className='router-section-input'
+            label={t('channel.edit.identifier')}
+            name='name'
+            placeholder={t('channel.edit.identifier_placeholder')}
+            onChange={handleInputChange}
+            value={inputs.name}
+            required
+            maxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
+            readOnly={detailBasicReadonly}
+          />
+          <Form.Field>
+            {detailBasicReadonly ? (
+              <Form.Input
+                className='router-section-input'
+                label={t('channel.edit.type')}
+                value={currentProtocolOption?.text || inputs.protocol || '-'}
+                readOnly
+              />
+            ) : (
+              <Form.Select
+                className='router-section-dropdown'
+                label={t('channel.edit.type')}
+                name='protocol'
+                required
+                search
+                options={channelProtocolOptions}
+                value={inputs.protocol}
+                onChange={handleInputChange}
+              />
+            )}
+          </Form.Field>
+        </Form.Group>
+        {!detailBasicReadonly && (
+          <div
+            style={{
+              marginTop: '-6px',
+              marginBottom: '12px',
+              color: 'var(--router-text-muted, rgba(0,0,0,0.45))',
+              fontSize: '12px',
+              lineHeight: 1.5,
+            }}
+          >
+            {protocolSelectionHint(t)}
+          </div>
+        )}
+        {renderConnectionFields()}
+        {renderProtocolSpecificFields()}
+      </>
+    ) : null;
   };
 
   return (
     <div className='dashboard-container'>
-      <Modal
-        size='small'
+      <ChannelModelEditorModal
+        t={t}
         open={detailModelsEditing}
         onClose={cancelDetailModelsEdit}
-        closeOnDimmerClick={!detailModelMutating}
-        closeOnEscape={!detailModelMutating}
-        className='router-channel-model-editor-modal'
-      >
-        <Modal.Header>
-          {`${t('common.edit')} · ${
-            detailEditingModelRow?.upstream_model || '-'
-          }`}
-        </Modal.Header>
-        <Modal.Content>
-          {detailEditingModelRow ? (
-            <Form className='router-channel-model-editor-form'>
-              <div className='router-channel-model-editor-card'>
-                <div className='router-channel-model-editor-section-title'>
-                  {t('channel.edit.model_selector.editor.info_title')}
-                </div>
-                <Form.Group widths='equal'>
-                  <Form.Input
-                    className='router-modal-input'
-                    label={t('channel.edit.model_selector.table.name')}
-                    value={detailEditingModelRow.upstream_model || '-'}
-                    readOnly
-                  />
-                  <Form.Input
-                    className='router-modal-input'
-                    label={t('channel.edit.model_selector.table.type')}
-                    value={t(
-                      `channel.model_types.${normalizeChannelModelType(
-                        detailEditingModelRow.type,
-                      )}`,
-                    )}
-                    readOnly
-                  />
-                </Form.Group>
-                <Form.Group widths='equal'>
-                  <Form.Input
-                    className='router-modal-input'
-                    label={t('channel.edit.model_selector.table.alias')}
-                    value={detailEditingModelRow.model || ''}
-                    onChange={(e, { value }) =>
-                      updateModelConfigField(
-                        detailEditingModelRow.upstream_model,
-                        'model',
-                        value || detailEditingModelRow.upstream_model,
-                      )
-                    }
-                  />
-                  <Form.Input
-                    className='router-modal-input'
-                    label={t('channel.edit.model_selector.table.price_unit')}
-                    value={detailEditingModelRow.price_unit || '-'}
-                    readOnly
-                  />
-                </Form.Group>
-                {(detailEditingModelRow.type === 'text' ||
-                  detailEditingModelRow.type === 'image') && (
-                  <Form.Field>
-                    <label>{t('channel.edit.model_tester.table.endpoint')}</label>
-                    <Dropdown
-                      selection
-                      fluid
-                      multiple
-                      className='router-modal-dropdown'
-                      options={endpointOptionsForModelType(
-                        detailEditingModelRow.type,
-                      )}
-                      value={normalizeChannelModelEndpoints(
-                        detailEditingModelRow.type,
-                        detailEditingModelRow.endpoints,
-                        detailEditingModelRow.endpoint,
-                        inputs.protocol,
-                      )}
-                      disabled={detailModelMutating}
-                      onChange={(e, { value }) =>
-                        updateModelConfigField(
-                          detailEditingModelRow.upstream_model,
-                          'endpoints',
-                          value,
-                        )
-                      }
-                    />
-                  </Form.Field>
-                )}
-                <Form.Field>
-                  <label>{t('channel.edit.model_selector.table.providers')}</label>
-                  <div className='router-channel-model-editor-provider-row'>
-                    <Dropdown
-                      selection
-                      fluid
-                      className='router-modal-dropdown'
-                      placeholder={t(
-                        'channel.edit.model_selector.editor.provider_placeholder',
-                      )}
-                      options={getProviderSelectOptionsForModel(
-                        detailEditingModelRow,
-                      )}
-                      value={resolvePreferredProviderForModel(
-                        detailEditingModelRow,
-                      )}
-                      disabled={
-                        providerCatalogLoading ||
-                        getProviderSelectOptionsForModel(detailEditingModelRow)
-                          .length === 0
-                      }
-                      onChange={(e, { value }) =>
-                        updateModelConfigField(
-                          detailEditingModelRow.upstream_model,
-                          'provider',
-                          value || '',
-                        )
-                      }
-                    />
-                    {getProviderSelectOptionsForModel(detailEditingModelRow)
-                      .length === 0 ? (
-                      <>
-                        <span className='router-text-meta'>
-                          {t(
-                            'channel.edit.model_selector.editor.provider_empty',
-                          )}
-                        </span>
-                        <Button
-                          type='button'
-                          className='router-inline-button'
-                          basic
-                          onClick={() =>
-                            openAppendProviderModal(detailEditingModelRow)
-                          }
-                        >
-                          {t('channel.edit.model_selector.provider_add')}
-                        </Button>
-                      </>
-                    ) : null}
-                  </div>
-                </Form.Field>
-              </div>
-
-              <div className='router-channel-model-editor-card'>
-                <div className='router-channel-model-editor-section-title'>
-                  {t('channel.edit.model_selector.editor.status_title')}
-                </div>
-                <div className='router-channel-model-editor-toggle-row'>
-                  <div className='router-channel-model-editor-toggle-copy'>
-                    <div className='router-channel-model-editor-toggle-label'>
-                      {t('channel.edit.model_selector.table.selected')}
-                    </div>
-                    <div className='router-channel-model-editor-toggle-hint'>
-                      {t('channel.edit.model_selector.editor.status_hint')}
-                    </div>
-                  </div>
-                  <Checkbox
-                    toggle
-                    checked={!!detailEditingModelRow.selected}
-                    disabled={
-                      detailModelMutating ||
-                      providerCatalogLoading ||
-                      (!canSelectChannelModel(detailEditingModelRow) &&
-                        !detailEditingModelRow.selected)
-                    }
-                    onChange={(e, { checked }) =>
-                      toggleModelSelection(
-                        detailEditingModelRow.upstream_model,
-                        checked,
-                      )
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className='router-channel-model-editor-card'>
-                <div className='router-channel-model-editor-section-title'>
-                  {t('channel.edit.model_selector.editor.pricing_title')}
-                </div>
-                <Form.Group widths='equal'>
-                  <Form.Field>
-                    <label>{t('channel.edit.model_selector.table.input_price')}</label>
-                    {getComplexPricingDetailsForModel(detailEditingModelRow).some(
-                      (detail) =>
-                        (detail.price_components || []).some(
-                          (component) => Number(component.input_price || 0) > 0,
-                        ),
-                    ) ? (
-                      <Button
-                        type='button'
-                        basic
-                        className='router-inline-button'
-                        onClick={() => openComplexPricingModal(detailEditingModelRow)}
-                      >
-                        {t('channel.edit.model_selector.pricing_detail_button')}
-                      </Button>
-                    ) : (
-                      <Form.Input
-                        className='router-modal-input'
-                        type='number'
-                        min='0'
-                        step='0.01'
-                        placeholder='-'
-                        value={detailEditingModelRow.input_price ?? ''}
-                        onChange={(e, { value }) =>
-                          updateModelConfigField(
-                            detailEditingModelRow.upstream_model,
-                            'input_price',
-                            value,
-                          )
-                        }
-                      />
-                    )}
-                  </Form.Field>
-                  <Form.Field>
-                    <label>{t('channel.edit.model_selector.table.output_price')}</label>
-                    {getComplexPricingDetailsForModel(detailEditingModelRow).some(
-                      (detail) =>
-                        (detail.price_components || []).some(
-                          (component) => Number(component.output_price || 0) > 0,
-                        ),
-                    ) ? (
-                      <Button
-                        type='button'
-                        basic
-                        className='router-inline-button'
-                        onClick={() => openComplexPricingModal(detailEditingModelRow)}
-                      >
-                        {t('channel.edit.model_selector.pricing_detail_button')}
-                      </Button>
-                    ) : (
-                      <Form.Input
-                        className='router-modal-input'
-                        type='number'
-                        min='0'
-                        step='0.01'
-                        placeholder='-'
-                        value={detailEditingModelRow.output_price ?? ''}
-                        onChange={(e, { value }) =>
-                          updateModelConfigField(
-                            detailEditingModelRow.upstream_model,
-                            'output_price',
-                            value,
-                          )
-                        }
-                      />
-                    )}
-                  </Form.Field>
-                </Form.Group>
-              </div>
-            </Form>
-          ) : null}
-        </Modal.Content>
-        <Modal.Actions>
-          <Button
-            type='button'
-            className='router-modal-button'
-            onClick={cancelDetailModelsEdit}
-            disabled={detailModelMutating}
-          >
-            {t('channel.edit.buttons.cancel')}
-          </Button>
-          <Button
-            type='button'
-            className='router-modal-button'
-            color='blue'
-            loading={detailModelMutating}
-            disabled={detailModelMutating}
-            onClick={saveDetailModelsConfig}
-          >
-            {t('channel.edit.buttons.save')}
-          </Button>
-        </Modal.Actions>
-      </Modal>
-      <Modal
-        size='large'
+        detailModelMutating={detailModelMutating}
+        detailEditingModelRow={detailEditingModelRow}
+        normalizeChannelModelType={normalizeChannelModelType}
+        updateModelConfigField={updateModelConfigField}
+        endpointOptionsForModelType={endpointOptionsForModelType}
+        normalizeChannelModelEndpoints={normalizeChannelModelEndpoints}
+        protocol={inputs.protocol}
+        providerCatalogLoading={providerCatalogLoading}
+        getProviderSelectOptionsForModel={getProviderSelectOptionsForModel}
+        resolvePreferredProviderForModel={resolvePreferredProviderForModel}
+        openAppendProviderModal={openAppendProviderModal}
+        canSelectChannelModel={canSelectChannelModel}
+        toggleModelSelection={toggleModelSelection}
+        getComplexPricingDetailsForModel={getComplexPricingDetailsForModel}
+        openComplexPricingModal={openComplexPricingModal}
+        saveDetailModelsConfig={saveDetailModelsConfig}
+      />
+      <ChannelComplexPricingModal
+        t={t}
         open={complexPricingModalOpen}
         onClose={closeComplexPricingModal}
-      >
-        <Modal.Header>
-          {t('channel.edit.model_selector.pricing_detail_title')}
-        </Modal.Header>
-        <Modal.Content scrolling>
-          <div className='router-block-gap-sm'>
-            <div className='router-text-meta'>
-              {t('channel.edit.model_selector.pricing_detail_model', {
-                model:
-                  complexPricingModalData?.model ||
-                  complexPricingModalData?.alias ||
-                  '-',
-              })}
-            </div>
-            {complexPricingModalData?.alias &&
-            complexPricingModalData.alias !== complexPricingModalData.model ? (
-              <div className='router-text-meta'>
-                {t('channel.edit.model_selector.pricing_detail_alias', {
-                  alias: complexPricingModalData.alias,
-                })}
-              </div>
-            ) : null}
-          </div>
-          {(complexPricingModalData?.details || []).length === 0 ? (
-            <div className='router-empty-cell'>
-              {t('channel.edit.model_selector.pricing_detail_empty')}
-            </div>
-          ) : (
-            (complexPricingModalData?.details || []).map((detail, index) => (
-              <div
-                key={`${detail.provider || 'provider'}-${detail.model || 'model'}-${index}`}
-                className='router-block-gap-sm'
-                style={{ marginBottom: '1rem' }}
-              >
-                <div className='router-toolbar router-block-gap-sm'>
-                  <div className='router-toolbar-start'>
-                    <Label basic className='router-tag'>
-                      {detail.provider || '-'}
-                    </Label>
-                    <Label basic className='router-tag'>
-                      {detail.model || '-'}
-                    </Label>
-                    <Label basic className='router-tag'>
-                      {t(
-                        `channel.model_types.${normalizeChannelModelType(
-                          detail.type,
-                        )}`,
-                      )}
-                    </Label>
-                    {(detail.supported_endpoints || []).map((endpoint) => (
-                      <Label
-                        key={`${detail.provider || 'provider'}-${detail.model || 'model'}-${endpoint}`}
-                        basic
-                        className='router-tag'
-                      >
-                        {endpoint}
-                      </Label>
-                    ))}
-                  </div>
-                </div>
-                <Table celled compact className='router-detail-subtable'>
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.input_price',
-                        )}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.output_price',
-                        )}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.price_unit',
-                        )}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.currency',
-                        )}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.source',
-                        )}
-                      </Table.HeaderCell>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    <Table.Row>
-                      <Table.Cell>{detail.input_price || 0}</Table.Cell>
-                      <Table.Cell>{detail.output_price || 0}</Table.Cell>
-                      <Table.Cell>{detail.price_unit || '-'}</Table.Cell>
-                      <Table.Cell>{detail.currency || 'USD'}</Table.Cell>
-                      <Table.Cell>{detail.source || 'manual'}</Table.Cell>
-                    </Table.Row>
-                  </Table.Body>
-                </Table>
-                <Table celled compact className='router-detail-subtable'>
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.component',
-                        )}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.condition',
-                        )}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.input_price',
-                        )}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.output_price',
-                        )}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.price_unit',
-                        )}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.currency',
-                        )}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.source',
-                        )}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t(
-                          'channel.edit.model_selector.pricing_detail_table.source_url',
-                        )}
-                      </Table.HeaderCell>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    {detail.price_components.map(
-                      (component, componentIndex) => (
-                        <Table.Row
-                          key={`${detail.provider || 'provider'}-${detail.model || 'model'}-${component.component || 'component'}-${component.condition || 'condition'}-${componentIndex}`}
-                        >
-                          <Table.Cell>{component.component || '-'}</Table.Cell>
-                          <Table.Cell>{component.condition || '-'}</Table.Cell>
-                          <Table.Cell>{component.input_price || 0}</Table.Cell>
-                          <Table.Cell>{component.output_price || 0}</Table.Cell>
-                          <Table.Cell>{component.price_unit || '-'}</Table.Cell>
-                          <Table.Cell>{component.currency || 'USD'}</Table.Cell>
-                          <Table.Cell>
-                            {component.source || 'manual'}
-                          </Table.Cell>
-                          <Table.Cell>{component.source_url || '-'}</Table.Cell>
-                        </Table.Row>
-                      ),
-                    )}
-                  </Table.Body>
-                </Table>
-              </div>
-            ))
-          )}
-        </Modal.Content>
-        <Modal.Actions>
-          <Button
-            type='button'
-            className='router-modal-button'
-            onClick={closeComplexPricingModal}
-          >
-            {t('channel.edit.buttons.cancel')}
-          </Button>
-        </Modal.Actions>
-      </Modal>
-      <Modal
-        size='large'
+        data={complexPricingModalData}
+        normalizeChannelModelType={normalizeChannelModelType}
+      />
+      <ChannelEndpointPolicyEditorModal
+        t={t}
         open={policyEditorOpen}
         onClose={closeEndpointPolicyEditor}
-        closeOnDimmerClick={!policyEditorSaving}
-      >
-        <Modal.Header>
-          {t('channel.edit.endpoint_policies.editor.title')}
-        </Modal.Header>
-        <Modal.Content scrolling>
-          <Form>
-            <Message info className='router-section-message'>
-              {t('channel.edit.endpoint_policies.editor.hint')}
-            </Message>
-            <Form.Group widths='equal'>
-              <Form.Field>
-                <label>
-                  {t('channel.edit.endpoint_policies.editor.template')}
-                </label>
-                <Dropdown
-                  selection
-                  clearable
-                  className='router-modal-dropdown'
-                  options={ENDPOINT_POLICY_TEMPLATES}
-                  value={selectedPolicyTemplate}
-                  placeholder={t(
-                    'channel.edit.endpoint_policies.editor.template_placeholder',
-                  )}
-                  onChange={(e, { value }) => {
-                    const nextValue = (value || '').toString();
-                    if (nextValue === '') {
-                      setSelectedPolicyTemplate('');
-                      return;
-                    }
-                    applyEndpointPolicyTemplate(nextValue);
-                  }}
-                />
-              </Form.Field>
-            </Form.Group>
-            <Form.Group widths='equal'>
-              <Form.Input
-                className='router-modal-input'
-                label={t('channel.edit.endpoint_policies.table.model')}
-                value={policyDraft.model}
-                readOnly
-              />
-              <Form.Input
-                className='router-modal-input'
-                label={t('channel.edit.endpoint_policies.table.endpoint')}
-                value={policyDraft.endpoint}
-                readOnly
-              />
-            </Form.Group>
-            <Form.Group widths='equal'>
-              <Form.Field>
-                <label>{t('channel.edit.endpoint_policies.table.status')}</label>
-                <Checkbox
-                  toggle
-                  checked={policyDraft.enabled === true}
-                  onChange={(e, { checked }) =>
-                    setPolicyDraft((prev) => ({
-                      ...prev,
-                      enabled: !!checked,
-                    }))
-                  }
-                />
-              </Form.Field>
-              <Form.Input
-                className='router-modal-input'
-                label={t('channel.edit.endpoint_policies.table.source')}
-                value={policyDraft.source}
-                onChange={(e, { value }) =>
-                  setPolicyDraft((prev) => ({
-                    ...prev,
-                    source: value || 'manual',
-                  }))
-                }
-              />
-            </Form.Group>
-            <Form.TextArea
-              className='router-section-textarea router-code-textarea router-code-textarea-sm'
-              label={t('channel.edit.endpoint_policies.table.reason')}
-              value={policyDraft.reason}
-              onChange={(e, { value }) =>
-                setPolicyDraft((prev) => ({
-                  ...prev,
-                  reason: value || '',
-                }))
-              }
-            />
-            <Form.TextArea
-              className='router-section-textarea router-code-textarea router-code-textarea-md'
-              label={t('channel.edit.endpoint_policies.editor.capabilities')}
-              placeholder='{"input_image_url": false}'
-              value={policyDraft.capabilities}
-              onChange={(e, { value }) =>
-                setPolicyDraft((prev) => ({
-                  ...prev,
-                  capabilities: value || '',
-                }))
-              }
-            />
-            <Form.TextArea
-              className='router-section-textarea router-code-textarea router-code-textarea-md'
-              label={t('channel.edit.endpoint_policies.editor.request_policy')}
-              placeholder='{"actions":[{"type":"drop_fields","fields":["presence_penalty"]}]}'
-              value={policyDraft.request_policy}
-              onChange={(e, { value }) =>
-                setPolicyDraft((prev) => ({
-                  ...prev,
-                  request_policy: value || '',
-                }))
-              }
-            />
-            <Form.TextArea
-              className='router-section-textarea router-code-textarea router-code-textarea-md'
-              label={t('channel.edit.endpoint_policies.editor.response_policy')}
-              placeholder='{}'
-              value={policyDraft.response_policy}
-              onChange={(e, { value }) =>
-                setPolicyDraft((prev) => ({
-                  ...prev,
-                  response_policy: value || '',
-                }))
-              }
-            />
-          </Form>
-        </Modal.Content>
-        <Modal.Actions>
-          <Button
-            type='button'
-            className='router-modal-button'
-            onClick={closeEndpointPolicyEditor}
-            disabled={policyEditorSaving}
-          >
-            {t('channel.edit.buttons.cancel')}
-          </Button>
-          <Button
-            type='button'
-            className='router-modal-button'
-            color='blue'
-            loading={policyEditorSaving}
-            disabled={policyEditorSaving}
-            onClick={saveEndpointPolicy}
-          >
-            {t('channel.edit.buttons.save')}
-          </Button>
-        </Modal.Actions>
-      </Modal>
-      <Modal
-        size='tiny'
+        policyEditorSaving={policyEditorSaving}
+        endpointPolicyTemplates={ENDPOINT_POLICY_TEMPLATES}
+        selectedPolicyTemplate={selectedPolicyTemplate}
+        setSelectedPolicyTemplate={setSelectedPolicyTemplate}
+        applyEndpointPolicyTemplate={applyEndpointPolicyTemplate}
+        policyDraft={policyDraft}
+        setPolicyDraft={setPolicyDraft}
+        saveEndpointPolicy={saveEndpointPolicy}
+      />
+      <ChannelAppendProviderModal
+        t={t}
         open={appendProviderModalOpen}
         onClose={closeAppendProviderModal}
-        closeOnDimmerClick={!appendingProviderModel}
-      >
-        <Modal.Header>
-          {t('channel.edit.model_selector.append_dialog.title')}
-        </Modal.Header>
-        <Modal.Content>
-          <Form>
-            <Form.Field>
-              <label>
-                {t('channel.edit.model_selector.append_dialog.provider')}
-              </label>
-              <Dropdown
-                selection
-                search={filterProviderOptionsByQuery}
-                className='router-modal-dropdown'
-                placeholder={t(
-                  'channel.edit.model_selector.append_dialog.provider_placeholder',
-                )}
-                options={providerOptions}
-                value={appendProviderForm.provider}
-                noResultsMessage={t('common.no_data')}
-                onChange={(e, { value }) =>
-                  setAppendProviderForm((prev) => ({
-                    ...prev,
-                    provider: (value || '').toString(),
-                  }))
-                }
-              />
-            </Form.Field>
-            <Form.Input
-              className='router-modal-input'
-              label={t('channel.edit.model_selector.append_dialog.model')}
-              value={appendProviderForm.model}
-              onChange={(e, { value }) =>
-                setAppendProviderForm((prev) => ({
-                  ...prev,
-                  model: value || '',
-                }))
-              }
-            />
-            <Form.Select
-              className='router-modal-dropdown'
-              label={t('channel.edit.model_selector.append_dialog.type')}
-              options={CHANNEL_MODEL_TYPE_OPTIONS}
-              value={appendProviderForm.type}
-              onChange={(e, { value }) =>
-                setAppendProviderForm((prev) => ({
-                  ...prev,
-                  type: normalizeChannelModelType(value),
-                }))
-              }
-            />
-          </Form>
-        </Modal.Content>
-        <Modal.Actions>
-          <Button
-            type='button'
-            className='router-modal-button'
-            onClick={closeAppendProviderModal}
-          >
-            {t('channel.edit.model_selector.append_dialog.cancel')}
-          </Button>
-          <Button
-            type='button'
-            className='router-modal-button'
-            color='blue'
-            loading={appendingProviderModel}
-            disabled={appendingProviderModel}
-            onClick={handleAppendModelToProvider}
-          >
-            {t('channel.edit.model_selector.append_dialog.confirm')}
-          </Button>
-        </Modal.Actions>
-      </Modal>
+        appendingProviderModel={appendingProviderModel}
+        filterProviderOptionsByQuery={filterProviderOptionsByQuery}
+        providerOptions={providerOptions}
+        appendProviderForm={appendProviderForm}
+        setAppendProviderForm={setAppendProviderForm}
+        channelModelTypeOptions={CHANNEL_MODEL_TYPE_OPTIONS}
+        normalizeChannelModelType={normalizeChannelModelType}
+        handleAppendModelToProvider={handleAppendModelToProvider}
+      />
       <Card fluid className='chart-card'>
         <Card.Content>
           {isDetailMode && (
@@ -6328,2258 +4576,189 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
               >
                 {t('channel.edit.buttons.cancel')}
               </Button>
-              {createStep > CREATE_CHANNEL_STEP_MIN && (
-                <Button
-                  type='button'
-                  className='router-page-button'
-                  onClick={moveToPreviousCreateStep}
-                >
-                  {t('channel.edit.buttons.previous_step')}
-                </Button>
-              )}
-              {createStep < CREATE_CHANNEL_STEP_MAX ? (
-                <Button
-                  type='button'
-                  className='router-page-button'
-                  positive
-                  onClick={
-                    createStep === 1
-                      ? moveToStepTwo
-                      : createStep === 2
-                        ? moveToStepThree
-                        : createStep === 3
-                          ? moveToStepFour
-                          : moveToStepFive
-                  }
-                >
-                  {t('channel.edit.buttons.next_step')}
-                </Button>
-              ) : (
-                <Button
-                  type='button'
-                  className='router-page-button'
-                  positive
-                  onClick={submit}
-                  disabled={
-                    requireVerificationBeforeProceed &&
-                    !isCurrentSignatureVerified
-                  }
-                >
-                  {t('channel.edit.buttons.submit')}
-                </Button>
-              )}
+              <Button
+                type='button'
+                className='router-page-button'
+                positive
+                onClick={submit}
+              >
+                {t('channel.edit.buttons.submit')}
+              </Button>
             </div>
           )}
           <Form loading={loading} autoComplete='new-password'>
-            {isCreateMode && (
-              <div className='router-block-gap-sm'>
-                <div className='router-toolbar-start'>
-                  <Button
-                    type='button'
-                    className='router-page-button'
-                    basic={createStep !== 1}
-                    color={createStep === 1 ? 'blue' : undefined}
-                    onClick={() => goToCreateStep(1)}
-                  >
-                    {t('channel.edit.wizard.step_basic')}
-                  </Button>
-                  <Button
-                    type='button'
-                    className='router-page-button'
-                    basic={createStep !== 2}
-                    color={createStep === 2 ? 'blue' : undefined}
-                    onClick={moveToStepTwo}
-                  >
-                    {t('channel.edit.wizard.step_models')}
-                  </Button>
-                  <Button
-                    type='button'
-                    className='router-page-button'
-                    basic={createStep !== 3}
-                    color={createStep === 3 ? 'blue' : undefined}
-                    onClick={moveToStepThree}
-                  >
-                    {t('channel.edit.wizard.step_model_tests')}
-                  </Button>
-                  <Button
-                    type='button'
-                    className='router-page-button'
-                    basic={createStep !== 4}
-                    color={createStep === 4 ? 'blue' : undefined}
-                    onClick={moveToStepFour}
-                  >
-                    {t('channel.edit.wizard.step_review')}
-                  </Button>
-                  <Button
-                    type='button'
-                    className='router-page-button'
-                    basic={createStep !== 5}
-                    color={createStep === 5 ? 'blue' : undefined}
-                    onClick={moveToStepFive}
-                  >
-                    {t('channel.edit.wizard.step_advanced')}
-                  </Button>
-                </div>
-              </div>
+            {renderCreateStepNavigation()}
+            {renderBasicInfoSection()}
+            {showDetailOverviewTab && showStepOne && (
+              <ChannelDetailOverviewTab
+                t={t}
+                inputs={inputs}
+                currentProtocolOption={currentProtocolOption}
+                channelProtocolOptions={channelProtocolOptions}
+                detailBasicEditing={detailBasicEditing}
+                detailBasicSaving={detailBasicSaving}
+                detailBasicEditLocked={detailBasicEditLocked}
+                detailBasicReadonly={detailBasicReadonly}
+                detailAdvancedEditing={detailAdvancedEditing}
+                detailAdvancedSaving={detailAdvancedSaving}
+                detailAdvancedEditLocked={detailAdvancedEditLocked}
+                detailAdvancedReadonly={detailAdvancedReadonly}
+                channelIdentifierMaxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
+                handleInputChange={handleInputChange}
+                cancelDetailBasicEdit={cancelDetailBasicEdit}
+                saveDetailBasicInfo={saveDetailBasicInfo}
+                setDetailBasicEditing={setDetailBasicEditing}
+                cancelDetailAdvancedEdit={cancelDetailAdvancedEdit}
+                saveDetailAdvancedConfig={saveDetailAdvancedConfig}
+                setDetailAdvancedEditing={setDetailAdvancedEditing}
+                basicConnectionFields={renderConnectionFields()}
+                protocolSelectionHintContent={
+                  !detailBasicReadonly ? (
+                    <div
+                      style={{
+                        marginTop: '-6px',
+                        marginBottom: '12px',
+                        color: 'var(--router-text-muted, rgba(0,0,0,0.45))',
+                        fontSize: '12px',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {protocolSelectionHint(t)}
+                    </div>
+                  ) : null
+                }
+                protocolSpecificFields={renderProtocolSpecificFields()}
+                timestamp2string={timestamp2string}
+              />
             )}
-            {showStepOne &&
-              (showDetailOverviewTab ? (
-                <section className='router-entity-detail-section'>
-                  <div className='router-entity-detail-section-header'>
-                    <div className='router-toolbar-start'>
-                      <span className='router-entity-detail-section-title'>
-                        {t('channel.edit.detail_basic_title')}
-                      </span>
-                    </div>
-                    <div className='router-toolbar-end'>
-                      {detailBasicEditing ? (
-                        <>
-                          <Button
-                            type='button'
-                            className='router-page-button'
-                            onClick={cancelDetailBasicEdit}
-                            disabled={detailBasicSaving}
-                          >
-                            {t('channel.edit.buttons.cancel')}
-                          </Button>
-                          <Button
-                            type='button'
-                            className='router-page-button'
-                            color='blue'
-                            loading={detailBasicSaving}
-                            disabled={detailBasicSaving}
-                            onClick={saveDetailBasicInfo}
-                          >
-                            {t('channel.edit.buttons.save')}
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          type='button'
-                          className='router-page-button'
-                          color='blue'
-                          disabled={detailBasicEditLocked}
-                          onClick={() => setDetailBasicEditing(true)}
-                        >
-                          {t('common.edit')}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  <Form.Group widths='equal'>
-                    <Form.Input
-                      className='router-section-input'
-                      label={t('channel.edit.id')}
-                      value={inputs.id || '-'}
-                      readOnly
-                    />
-                    <Form.Input
-                      className='router-section-input'
-                      label={t('channel.edit.identifier')}
-                      name='name'
-                      placeholder={t('channel.edit.identifier_placeholder')}
-                      onChange={handleInputChange}
-                      value={inputs.name}
-                      required
-                      maxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
-                      readOnly={detailBasicReadonly}
-                    />
-                    <Form.Field>
-                      {detailBasicReadonly ? (
-                        <Form.Input
-                          className='router-section-input'
-                          label={t('channel.edit.type')}
-                          value={
-                            currentProtocolOption?.text ||
-                            inputs.protocol ||
-                            '-'
-                          }
-                          readOnly
-                        />
-                      ) : (
-                        <Form.Select
-                          className='router-section-dropdown'
-                          label={t('channel.edit.type')}
-                          name='protocol'
-                          required
-                          search
-                          options={channelProtocolOptions}
-                          value={inputs.protocol}
-                          onChange={handleInputChange}
-                        />
-                      )}
-                    </Form.Field>
-                  </Form.Group>
-                  {!detailBasicReadonly && (
-                    <div
-                      style={{
-                        marginTop: '-6px',
-                        marginBottom: '12px',
-                        color: 'var(--router-text-muted, rgba(0,0,0,0.45))',
-                        fontSize: '12px',
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      {protocolSelectionHint(t)}
-                    </div>
-                  )}
-                  {baseURLField && keyField ? (
-                    <Form.Group widths='equal'>
-                      {baseURLField}
-                      {keyField}
-                    </Form.Group>
-                  ) : (
-                    <>
-                      {baseURLField}
-                      {keyField}
-                    </>
-                  )}
-                  {inputs.protocol === 'azure' && (
-                    <>
-                      <Message className='router-section-message'>
-                        注意，<strong>模型部署名称必须和模型名称保持一致</strong>
-                        ，因为 Router 会把请求体中的 model
-                        参数替换为你的部署名称（模型名称中的点会被剔除），
-                        <a
-                          target='_blank'
-                          rel='noreferrer'
-                          href='https://github.com/yeying-community/router/issues/133?notification_referrer_id=NT_kwDOAmJSYrM2NjIwMzI3NDgyOjM5OTk4MDUw#issuecomment-1571602271'
-                        >
-                          图片演示
-                        </a>
-                        。
-                      </Message>
-                      <Form.Field>
-                        <Form.Input
-                          className='router-section-input'
-                          label='默认 API 版本'
-                          name='other'
-                          placeholder='请输入默认 API 版本，例如：2024-03-01-preview，该配置可以被实际的请求查询参数所覆盖'
-                          onChange={handleInputChange}
-                          value={inputs.other}
-                          autoComplete='new-password'
-                          {...inputReadonlyProps}
-                        />
-                      </Form.Field>
-                    </>
-                  )}
-                  {inputs.protocol === 'xunfei' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label={t('channel.edit.spark_version')}
-                        name='other'
-                        placeholder={t('channel.edit.spark_version_placeholder')}
-                        onChange={handleInputChange}
-                        value={inputs.other}
-                        autoComplete='new-password'
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                  {inputs.protocol === 'aiproxy-library' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label={t('channel.edit.knowledge_id')}
-                        name='other'
-                        placeholder={t('channel.edit.knowledge_id_placeholder')}
-                        onChange={handleInputChange}
-                        value={inputs.other}
-                        autoComplete='new-password'
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                  {inputs.protocol === 'ali' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label={t('channel.edit.plugin_param')}
-                        name='other'
-                        placeholder={t('channel.edit.plugin_param_placeholder')}
-                        onChange={handleInputChange}
-                        value={inputs.other}
-                        autoComplete='new-password'
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                  {inputs.protocol === 'coze' && (
-                    <Message className='router-section-message'>
-                      {t('channel.edit.coze_notice')}
-                    </Message>
-                  )}
-                  {inputs.protocol === 'doubao' && (
-                    <Message className='router-section-message'>
-                      {t('channel.edit.douban_notice')}
-                      <a
-                        target='_blank'
-                        rel='noreferrer'
-                        href='https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint'
-                      >
-                        {t('channel.edit.douban_notice_link')}
-                      </a>
-                      {t('channel.edit.douban_notice_2')}
-                    </Message>
-                  )}
-                  {inputs.protocol === 'awsclaude' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label='Region'
-                        name='region'
-                        required
-                        placeholder={t('channel.edit.aws_region_placeholder')}
-                        onChange={handleConfigChange}
-                        value={config.region}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                      <Form.Input
-                        className='router-section-input'
-                        label='AK'
-                        name='ak'
-                        required
-                        placeholder={t('channel.edit.aws_ak_placeholder')}
-                        onChange={handleConfigChange}
-                        value={config.ak}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                      <Form.Input
-                        className='router-section-input'
-                        label='SK'
-                        name='sk'
-                        required
-                        placeholder={t('channel.edit.aws_sk_placeholder')}
-                        onChange={handleConfigChange}
-                        value={config.sk}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                  {inputs.protocol === 'vertexai' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label='Region'
-                        name='region'
-                        required
-                        placeholder={t('channel.edit.vertex_region_placeholder')}
-                        onChange={handleConfigChange}
-                        value={config.region}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                      <Form.Input
-                        className='router-section-input'
-                        label={t('channel.edit.vertex_project_id')}
-                        name='vertex_ai_project_id'
-                        required
-                        placeholder={t(
-                          'channel.edit.vertex_project_id_placeholder',
-                        )}
-                        onChange={handleConfigChange}
-                        value={config.vertex_ai_project_id}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                      <Form.Input
-                        className='router-section-input'
-                        label={t('channel.edit.vertex_credentials')}
-                        name='vertex_ai_adc'
-                        required
-                        placeholder={t(
-                          'channel.edit.vertex_credentials_placeholder',
-                        )}
-                        onChange={handleConfigChange}
-                        value={config.vertex_ai_adc}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                  {inputs.protocol === 'coze' && (
-                    <Form.Input
-                      className='router-section-input'
-                      label={t('channel.edit.user_id')}
-                      name='user_id'
-                      required
-                      placeholder={t('channel.edit.user_id_placeholder')}
-                      onChange={handleConfigChange}
-                      value={config.user_id}
-                      autoComplete=''
-                      {...inputReadonlyProps}
-                    />
-                  )}
-                  {inputs.protocol === 'cloudflare' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label='Account ID'
-                        name='user_id'
-                        required
-                        placeholder='请输入 Account ID，例如：d8d7c61dbc334c32d3ced580e4bf42b4'
-                        onChange={handleConfigChange}
-                        value={config.user_id}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                  <Form.Group widths='equal'>
-                    <Form.Input
-                      className='router-section-input'
-                      label={t('channel.edit.created_time')}
-                      value={
-                        inputs.created_time
-                          ? timestamp2string(inputs.created_time)
-                          : '-'
-                      }
-                      readOnly
-                    />
-                    <Form.Input
-                      className='router-section-input'
-                      label={t('channel.edit.updated_at')}
-                      value={
-                        inputs.updated_at ? timestamp2string(inputs.updated_at) : '-'
-                      }
-                      readOnly
-                    />
-                  </Form.Group>
-                </section>
-              ) : !isDetailMode ? (
-                <>
-                  <Form.Group widths='equal'>
-                    <Form.Input
-                      className='router-section-input'
-                      label={t('channel.edit.identifier')}
-                      name='name'
-                      placeholder={t('channel.edit.identifier_placeholder')}
-                      onChange={handleInputChange}
-                      value={inputs.name}
-                      required
-                      maxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
-                      readOnly={detailBasicReadonly}
-                    />
-                    <Form.Field>
-                      {detailBasicReadonly ? (
-                        <Form.Input
-                          className='router-section-input'
-                          label={t('channel.edit.type')}
-                          value={
-                            currentProtocolOption?.text ||
-                            inputs.protocol ||
-                            '-'
-                          }
-                          readOnly
-                        />
-                      ) : (
-                        <Form.Select
-                          className='router-section-dropdown'
-                          label={t('channel.edit.type')}
-                          name='protocol'
-                          required
-                          search
-                          options={channelProtocolOptions}
-                          value={inputs.protocol}
-                          onChange={handleInputChange}
-                        />
-                      )}
-                    </Form.Field>
-                  </Form.Group>
-                  {!detailBasicReadonly && (
-                    <div
-                      style={{
-                        marginTop: '-6px',
-                        marginBottom: '12px',
-                        color: 'var(--router-text-muted, rgba(0,0,0,0.45))',
-                        fontSize: '12px',
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      {protocolSelectionHint(t)}
-                    </div>
-                  )}
-                  {baseURLField && keyField ? (
-                    <Form.Group widths='equal'>
-                      {baseURLField}
-                      {keyField}
-                    </Form.Group>
-                  ) : (
-                    <>
-                      {baseURLField}
-                      {keyField}
-                    </>
-                  )}
-                  {inputs.protocol === 'azure' && (
-                    <>
-                      <Message className='router-section-message'>
-                        注意，<strong>模型部署名称必须和模型名称保持一致</strong>
-                        ，因为 Router 会把请求体中的 model
-                        参数替换为你的部署名称（模型名称中的点会被剔除），
-                        <a
-                          target='_blank'
-                          rel='noreferrer'
-                          href='https://github.com/yeying-community/router/issues/133?notification_referrer_id=NT_kwDOAmJSYrM2NjIwMzI3NDgyOjM5OTk4MDUw#issuecomment-1571602271'
-                        >
-                          图片演示
-                        </a>
-                        。
-                      </Message>
-                      <Form.Field>
-                        <Form.Input
-                          className='router-section-input'
-                          label='默认 API 版本'
-                          name='other'
-                          placeholder='请输入默认 API 版本，例如：2024-03-01-preview，该配置可以被实际的请求查询参数所覆盖'
-                          onChange={handleInputChange}
-                          value={inputs.other}
-                          autoComplete='new-password'
-                          {...inputReadonlyProps}
-                        />
-                      </Form.Field>
-                    </>
-                  )}
-                  {inputs.protocol === 'xunfei' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label={t('channel.edit.spark_version')}
-                        name='other'
-                        placeholder={t('channel.edit.spark_version_placeholder')}
-                        onChange={handleInputChange}
-                        value={inputs.other}
-                        autoComplete='new-password'
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                  {inputs.protocol === 'aiproxy-library' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label={t('channel.edit.knowledge_id')}
-                        name='other'
-                        placeholder={t('channel.edit.knowledge_id_placeholder')}
-                        onChange={handleInputChange}
-                        value={inputs.other}
-                        autoComplete='new-password'
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                  {inputs.protocol === 'ali' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label={t('channel.edit.plugin_param')}
-                        name='other'
-                        placeholder={t('channel.edit.plugin_param_placeholder')}
-                        onChange={handleInputChange}
-                        value={inputs.other}
-                        autoComplete='new-password'
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                  {inputs.protocol === 'coze' && (
-                    <Message className='router-section-message'>
-                      {t('channel.edit.coze_notice')}
-                    </Message>
-                  )}
-                  {inputs.protocol === 'doubao' && (
-                    <Message className='router-section-message'>
-                      {t('channel.edit.douban_notice')}
-                      <a
-                        target='_blank'
-                        rel='noreferrer'
-                        href='https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint'
-                      >
-                        {t('channel.edit.douban_notice_link')}
-                      </a>
-                      {t('channel.edit.douban_notice_2')}
-                    </Message>
-                  )}
-                  {inputs.protocol === 'awsclaude' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label='Region'
-                        name='region'
-                        required
-                        placeholder={t('channel.edit.aws_region_placeholder')}
-                        onChange={handleConfigChange}
-                        value={config.region}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                      <Form.Input
-                        className='router-section-input'
-                        label='AK'
-                        name='ak'
-                        required
-                        placeholder={t('channel.edit.aws_ak_placeholder')}
-                        onChange={handleConfigChange}
-                        value={config.ak}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                      <Form.Input
-                        className='router-section-input'
-                        label='SK'
-                        name='sk'
-                        required
-                        placeholder={t('channel.edit.aws_sk_placeholder')}
-                        onChange={handleConfigChange}
-                        value={config.sk}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                  {inputs.protocol === 'vertexai' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label='Region'
-                        name='region'
-                        required
-                        placeholder={t('channel.edit.vertex_region_placeholder')}
-                        onChange={handleConfigChange}
-                        value={config.region}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                      <Form.Input
-                        className='router-section-input'
-                        label={t('channel.edit.vertex_project_id')}
-                        name='vertex_ai_project_id'
-                        required
-                        placeholder={t(
-                          'channel.edit.vertex_project_id_placeholder',
-                        )}
-                        onChange={handleConfigChange}
-                        value={config.vertex_ai_project_id}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                      <Form.Input
-                        className='router-section-input'
-                        label={t('channel.edit.vertex_credentials')}
-                        name='vertex_ai_adc'
-                        required
-                        placeholder={t(
-                          'channel.edit.vertex_credentials_placeholder',
-                        )}
-                        onChange={handleConfigChange}
-                        value={config.vertex_ai_adc}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                  {inputs.protocol === 'coze' && (
-                    <Form.Input
-                      className='router-section-input'
-                      label={t('channel.edit.user_id')}
-                      name='user_id'
-                      required
-                      placeholder={t('channel.edit.user_id_placeholder')}
-                      onChange={handleConfigChange}
-                      value={config.user_id}
-                      autoComplete=''
-                      {...inputReadonlyProps}
-                    />
-                  )}
-                  {inputs.protocol === 'cloudflare' && (
-                    <Form.Field>
-                      <Form.Input
-                        className='router-section-input'
-                        label='Account ID'
-                        name='user_id'
-                        required
-                        placeholder='请输入 Account ID，例如：d8d7c61dbc334c32d3ced580e4bf42b4'
-                        onChange={handleConfigChange}
-                        value={config.user_id}
-                        autoComplete=''
-                        {...inputReadonlyProps}
-                      />
-                    </Form.Field>
-                  )}
-                </>
-              ) : null)}
             {showStepTwo && inputs.protocol !== 'proxy' && (
               <>
                 {showDetailModelsTab && (
-                  <section className='router-entity-detail-section'>
-                    <div className='router-entity-detail-section-header'>
-                      <div className='router-toolbar-start router-block-gap-sm'>
-                        <span className='router-entity-detail-section-title'>
-                          {t('channel.edit.detail_models_title')}
-                        </span>
-                        <span className='router-toolbar-meta'>
-                          ({modelSectionMetaText})
-                        </span>
-                      </div>
-                      <div className='router-toolbar-end router-block-gap-sm'>
-                        <Dropdown
-                          selection
-                          className='router-section-dropdown router-dropdown-min-170 router-detail-filter-dropdown'
-                          compact
-                          disabled={detailModelsEditing}
-                          options={[
-                            {
-                              key: 'all',
-                              value: 'all',
-                              text: t('channel.edit.model_selector.filters.all'),
-                            },
-                            {
-                              key: 'enabled',
-                              value: 'enabled',
-                              text: t(
-                                'channel.edit.model_selector.filters.enabled',
-                              ),
-                            },
-                            {
-                              key: 'disabled',
-                              value: 'disabled',
-                              text: t(
-                                'channel.edit.model_selector.filters.disabled',
-                              ),
-                            },
-                          ]}
-                          value={detailModelFilter}
-                          onChange={(e, { value }) =>
-                            setDetailModelFilter((value || 'all').toString())
-                          }
-                        />
-                        <Form.Input
-                          className='router-section-input router-search-form-sm'
-                          icon='search'
-                          iconPosition='left'
-                          disabled={detailModelsEditing}
-                          placeholder={t(
-                            'channel.edit.model_selector.search_placeholder',
-                          )}
-                          value={modelSearchKeyword}
-                          onChange={(e, { value }) =>
-                            setModelSearchKeyword(value || '')
-                          }
-                        />
-                        <Button
-                          type='button'
-                          className='router-page-button'
-                          color='green'
-                          loading={fetchModelsLoading || !!activeRefreshModelsTask}
-                          disabled={
-                            detailModelsEditing ||
-                            fetchModelsLoading ||
-                            !!activeRefreshModelsTask ||
-                            detailModelMutating
-                          }
-                          onClick={() => handleFetchModels({ silent: false })}
-                        >
-                          {t('channel.edit.buttons.sync_models')}
-                        </Button>
-                      </div>
-                    </div>
-                    <Form.Field>
-                      <div className='router-detail-summary-grid'>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {detailModelStats.enabled}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t('channel.edit.model_selector.cards.enabled')}
-                          </div>
-                        </div>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {detailModelStats.assigned}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t('channel.edit.model_selector.cards.assigned')}
-                          </div>
-                        </div>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {detailModelStats.unassigned}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t('channel.edit.model_selector.cards.unassigned')}
-                          </div>
-                        </div>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {detailModelStats.inactive}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t('channel.edit.model_selector.cards.inactive')}
-                          </div>
-                        </div>
-                      </div>
-                      <Table
-                        celled
-                        stackable
-                        className='router-detail-table router-channel-detail-model-table'
-                        compact='very'
-                      >
-                        <colgroup>
-                          {CHANNEL_DETAIL_MODEL_COLUMN_WIDTHS.map(
-                            (width, index) => (
-                              <col
-                                key={`channel-detail-model-col-${index}`}
-                                style={{ width }}
-                              />
-                            ),
-                          )}
-                        </colgroup>
-                        <Table.Header>
-                        <Table.Row>
-                          <Table.HeaderCell
-                            textAlign='center'
-                            className='router-create-model-selected-col'
-                          >
-                            {t('channel.edit.model_selector.table.selected')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell>
-                            {t('channel.edit.model_selector.table.name')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell>
-                            {t('channel.edit.model_selector.table.type')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell>
-                            {t('channel.edit.model_selector.table.providers')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell>
-                            {t('channel.edit.model_selector.table.alias')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell>
-                            {t('channel.edit.model_selector.table.price_unit')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell>
-                            {t('channel.edit.model_selector.table.input_price')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell>
-                            {t('channel.edit.model_selector.table.output_price')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell>
-                            {t('channel.table.actions')}
-                          </Table.HeaderCell>
-                        </Table.Row>
-                      </Table.Header>
-                        <Table.Body>
-                          {searchedModelConfigs.length === 0 ? (
-                            <Table.Row>
-                              <Table.Cell
-                                className='router-empty-cell'
-                                colSpan={9}
-                              >
-                                {modelSearchKeyword.trim() !== ''
-                                  ? t('channel.edit.model_selector.empty_search')
-                                  : visibleModelConfigs.length > 0
-                                    ? t('channel.edit.model_selector.empty_filtered')
-                                    : t('channel.edit.model_selector.empty')}
-                              </Table.Cell>
-                            </Table.Row>
-                          ) : (
-                          renderedModelConfigs.map((row) => {
-                              const providerOwners = getProviderOwnersForModel(row);
-                              const selectedProviderItems =
-                                getSelectedProviderDisplayItems(row);
-                              const complexPricingDetails =
-                                getComplexPricingDetailsForModel(row);
-                              const hasComplexInputPricing =
-                                complexPricingDetails.some((detail) =>
-                                  (detail.price_components || []).some(
-                                    (component) =>
-                                      Number(component.input_price || 0) > 0,
-                                  ),
-                                );
-                              const hasComplexOutputPricing =
-                                complexPricingDetails.some((detail) =>
-                                  (detail.price_components || []).some(
-                                    (component) =>
-                                      Number(component.output_price || 0) > 0,
-                                  ),
-                                );
-                              const isUnassigned = providerOwners.length === 0;
-                              const rowEditDisabled =
-                                detailModelsEditLocked ||
-                                detailModelMutating ||
-                                detailModelsEditing;
-                              return (
-                                <Table.Row
-                                  key={`${row.upstream_model}-${row.model}`}
-                                >
-                                  {renderModelToggleCells({
-                                    row,
-                                    canSelect: canSelectChannelModel(row),
-                                    selectDisabled:
-                                      detailModelMutating ||
-                                      detailModelsEditing ||
-                                      providerCatalogLoading,
-                                    inDetailMode: true,
-                                  })}
-                                  <Table.Cell
-                                    title={row.upstream_model}
-                                    className='router-cell-truncate'
-                                  >
-                                    <span className='router-nowrap'>
-                                      {row.upstream_model}
-                                    </span>
-                                    {row.inactive && (
-                                      <Label
-                                        basic
-                                        color='grey'
-                                        className='router-tag'
-                                      >
-                                        {t('channel.edit.model_selector.inactive')}
-                                      </Label>
-                                    )}
-                                  </Table.Cell>
-                                  <Table.Cell>
-                                    {t(
-                                      `channel.model_types.${normalizeChannelModelType(
-                                        row.type,
-                                      )}`,
-                                    )}
-                                  </Table.Cell>
-                                  <Table.Cell>
-                                    <div className='router-create-model-provider-list'>
-                                    {selectedProviderItems.length > 0 ? (
-                                      selectedProviderItems.map((provider) => (
-                                        <Label
-                                          key={`${row.upstream_model}-${provider.key}`}
-                                          basic
-                                          className='router-tag'
-                                          title={provider.text}
-                                        >
-                                          {provider.text}
-                                        </Label>
-                                      ))
-                                    ) : providerOwners.length > 0 ? (
-                                      providerOwners.map((providerId) => (
-                                        <Label
-                                          key={`${row.upstream_model}-${providerId}`}
-                                          basic
-                                          className='router-tag'
-                                        >
-                                          {providerId}
-                                        </Label>
-                                      ))
-                                    ) : providerCatalogLoading ? (
-                                      <Label basic className='router-tag'>
-                                        {t(
-                                          'channel.edit.model_selector.provider_loading',
-                                        )}
-                                      </Label>
-                                    ) : isUnassigned ? (
-                                      '-'
-                                    ) : (
-                                      '-'
-                                    )}
-                                    </div>
-                                  </Table.Cell>
-                                  <Table.Cell
-                                    title={row.model}
-                                    className='router-cell-truncate'
-                                  >
-                                    {row.model}
-                                  </Table.Cell>
-                                  <Table.Cell>
-                                    <span className='router-nowrap'>
-                                      {row.price_unit}
-                                    </span>
-                                  </Table.Cell>
-                                  <Table.Cell>
-                                    {hasComplexInputPricing ? (
-                                      <Button
-                                        type='button'
-                                        basic
-                                        className='router-inline-button'
-                                        onClick={() => openComplexPricingModal(row)}
-                                      >
-                                        {t(
-                                          'channel.edit.model_selector.pricing_detail_button',
-                                        )}
-                                      </Button>
-                                    ) : (
-                                      <span className='router-nowrap'>
-                                        {row.input_price ?? '-'}
-                                      </span>
-                                    )}
-                                  </Table.Cell>
-                                  <Table.Cell>
-                                    {hasComplexOutputPricing ? (
-                                      <Button
-                                        type='button'
-                                        basic
-                                        className='router-inline-button'
-                                        onClick={() => openComplexPricingModal(row)}
-                                      >
-                                        {t(
-                                          'channel.edit.model_selector.pricing_detail_button',
-                                        )}
-                                      </Button>
-                                    ) : (
-                                      <span className='router-nowrap'>
-                                        {row.output_price ?? '-'}
-                                      </span>
-                                    )}
-                                  </Table.Cell>
-                                  <Table.Cell collapsing className='router-nowrap'>
-                                    <div className='router-inline-actions'>
-                                      <Button
-                                        type='button'
-                                        className='router-inline-button'
-                                        disabled={rowEditDisabled}
-                                        onClick={() =>
-                                          startDetailModelEdit(
-                                            row.upstream_model,
-                                          )
-                                        }
-                                      >
-                                        {t('common.edit')}
-                                      </Button>
-                                      {isUnassigned && !providerCatalogLoading ? (
-                                        <Button
-                                          type='button'
-                                          className='router-inline-button'
-                                          basic
-                                          disabled={rowEditDisabled}
-                                          onClick={() => openAppendProviderModal(row)}
-                                        >
-                                          {t(
-                                            'channel.edit.model_selector.provider_add',
-                                          )}
-                                        </Button>
-                                      ) : null}
-                                    </div>
-                                  </Table.Cell>
-                                </Table.Row>
-                              );
-                            })
-                          )}
-                        </Table.Body>
-                      </Table>
-                      {detailModelTotalPages > 1 && (
-                        <div className='router-pagination-wrap'>
-                          <Pagination
-                            className='router-section-pagination'
-                            activePage={detailModelPage}
-                            totalPages={detailModelTotalPages}
-                            onPageChange={(e, { activePage }) =>
-                              setDetailModelPage(Number(activePage) || 1)
-                            }
-                          />
-                        </div>
-                      )}
-                      {modelsSyncError && (
-                        <div className='router-error-text router-error-text-top'>
-                          {modelsSyncError}
-                        </div>
-                      )}
-                    </Form.Field>
-                  </section>
+                  <ChannelDetailModelsTab
+                    t={t}
+                    columnWidths={CHANNEL_DETAIL_MODEL_COLUMN_WIDTHS}
+                    modelSectionMetaText={modelSectionMetaText}
+                    detailModelFilter={detailModelFilter}
+                    setDetailModelFilter={setDetailModelFilter}
+                    detailModelsEditing={detailModelsEditing}
+                    modelSearchKeyword={modelSearchKeyword}
+                    setModelSearchKeyword={setModelSearchKeyword}
+                    fetchModelsLoading={fetchModelsLoading}
+                    activeRefreshModelsTask={activeRefreshModelsTask}
+                    detailModelMutating={detailModelMutating}
+                    handleFetchModels={handleFetchModels}
+                    detailModelStats={detailModelStats}
+                    searchedModelConfigs={searchedModelConfigs}
+                    visibleModelConfigs={visibleModelConfigs}
+                    renderedModelConfigs={renderedModelConfigs}
+                    getProviderOwnersForModel={getProviderOwnersForModel}
+                    getSelectedProviderDisplayItems={
+                      getSelectedProviderDisplayItems
+                    }
+                    getComplexPricingDetailsForModel={
+                      getComplexPricingDetailsForModel
+                    }
+                    openComplexPricingModal={openComplexPricingModal}
+                    detailModelsEditLocked={detailModelsEditLocked}
+                    providerCatalogLoading={providerCatalogLoading}
+                    renderModelToggleCells={renderModelToggleCells}
+                    canSelectChannelModel={canSelectChannelModel}
+                    normalizeChannelModelType={normalizeChannelModelType}
+                    startDetailModelEdit={startDetailModelEdit}
+                    openAppendProviderModal={openAppendProviderModal}
+                    detailModelTotalPages={detailModelTotalPages}
+                    detailModelPage={detailModelPage}
+                    setDetailModelPage={setDetailModelPage}
+                    modelsSyncError={modelsSyncError}
+                  />
                 )}
                 {showDetailEndpointsTab && (
-                  <section className='router-entity-detail-section'>
-                    <div className='router-entity-detail-section-header'>
-                      <div className='router-toolbar-start router-block-gap-sm'>
-                        <span className='router-entity-detail-section-title'>
-                          {t('channel.edit.endpoint_capabilities.title')}
-                        </span>
-                        <span className='router-toolbar-meta'>
-                          ({endpointCapabilitySummaryText})
-                        </span>
-                      </div>
-                    </div>
-                    <Form.Field>
-                      <Message info className='router-section-message'>
-                        {t('channel.edit.endpoint_capabilities.hint')}
-                      </Message>
-                      <div className='router-detail-summary-grid'>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {endpointCapabilityStats.total}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t('channel.edit.endpoint_capabilities.cards.total')}
-                          </div>
-                        </div>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {endpointCapabilityStats.enabled}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t('channel.edit.endpoint_capabilities.cards.enabled')}
-                          </div>
-                        </div>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {endpointCapabilityStats.explicit}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t('channel.edit.endpoint_capabilities.cards.explicit')}
-                          </div>
-                        </div>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {endpointCapabilityStats.candidate}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t('channel.edit.endpoint_capabilities.cards.candidate')}
-                          </div>
-                        </div>
-                      </div>
-                      <Table
-                        celled
-                        stackable
-                        className='router-detail-table router-channel-endpoint-capability-table'
-                        compact='very'
-                      >
-                        <colgroup>
-                          {CHANNEL_ENDPOINT_CAPABILITY_COLUMN_WIDTHS.map(
-                            (width, index) => (
-                              <col
-                                key={`channel-endpoint-capability-col-${index}`}
-                                style={{ width }}
-                              />
-                            ),
-                          )}
-                        </colgroup>
-                        <Table.Header>
-                          <Table.Row>
-                            <Table.HeaderCell>
-                              {t(
-                                'channel.edit.endpoint_capabilities.table.model',
-                              )}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell>
-                              {t(
-                                'channel.edit.endpoint_capabilities.table.endpoint',
-                              )}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell>
-                              {t(
-                                'channel.edit.endpoint_capabilities.table.source',
-                              )}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell textAlign='center'>
-                              {t(
-                                'channel.edit.endpoint_capabilities.table.enabled',
-                              )}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell>
-                              {t(
-                                'channel.edit.endpoint_capabilities.table.latest_test',
-                              )}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell>
-                              {t(
-                                'channel.edit.endpoint_capabilities.table.updated_at',
-                              )}
-                            </Table.HeaderCell>
-                          </Table.Row>
-                        </Table.Header>
-                        <Table.Body>
-                          {channelEndpoints.length === 0 ? (
-                            <Table.Row>
-                              <Table.Cell
-                                className='router-empty-cell'
-                                colSpan={6}
-                              >
-                                {channelEndpointsLoading
-                                  ? t(
-                                      'channel.edit.endpoint_capabilities.loading',
-                                    )
-                                  : t(
-                                      'channel.edit.endpoint_capabilities.empty',
-                                    )}
-                              </Table.Cell>
-                            </Table.Row>
-                          ) : (
-                            channelEndpoints.map((row) => {
-                              const endpointKey = buildChannelEndpointKey(
-                                row.model,
-                                row.endpoint,
-                              );
-                              const latestResult =
-                                modelTestResultsByKey.get(endpointKey) || null;
-                              const latestStatusKey = latestResult
-                                ? latestResult.supported === true &&
-                                  latestResult.status === 'supported'
-                                  ? 'supported'
-                                  : latestResult.status || 'unsupported'
-                                : 'untested';
-                              const isMutating =
-                                endpointMutatingKey === endpointKey;
-                              return (
-                                <Table.Row key={endpointKey}>
-                                  <Table.Cell title={row.model}>
-                                    <span className='router-cell-truncate'>
-                                      {row.model}
-                                    </span>
-                                  </Table.Cell>
-                                  <Table.Cell title={row.endpoint}>
-                                    <span className='router-cell-truncate'>
-                                      {row.endpoint}
-                                    </span>
-                                  </Table.Cell>
-                                  <Table.Cell>
-                                    {renderEndpointCapabilitySource(row.source)}
-                                  </Table.Cell>
-                                  <Table.Cell textAlign='center'>
-                                    <Checkbox
-                                      checked={row.enabled === true}
-                                      disabled={
-                                        endpointCapabilityReadonly || isMutating
-                                      }
-                                      onChange={(e, { checked }) =>
-                                        updateChannelEndpointCapability(
-                                          row,
-                                          !!checked,
-                                        )
-                                      }
-                                    />
-                                  </Table.Cell>
-                                  <Table.Cell
-                                    title={t(
-                                      `channel.edit.model_tester.status.${latestStatusKey}`,
-                                    )}
-                                  >
-                                    <span className='router-cell-truncate'>
-                                      {t(
-                                        `channel.edit.model_tester.status.${latestStatusKey}`,
-                                      )}
-                                    </span>
-                                  </Table.Cell>
-                                  <Table.Cell className='router-nowrap'>
-                                    {row.updated_at > 0
-                                      ? timestamp2string(row.updated_at)
-                                      : '-'}
-                                  </Table.Cell>
-                                </Table.Row>
-                              );
-                            })
-                          )}
-                        </Table.Body>
-                      </Table>
-                      {channelEndpointsError && (
-                        <div className='router-error-text router-error-text-top'>
-                          {channelEndpointsError}
-                        </div>
-                      )}
-                    </Form.Field>
-                  </section>
-                )}
-                {showDetailEndpointsTab && (
-                  <section className='router-entity-detail-section'>
-                    <div className='router-entity-detail-section-header'>
-                      <div className='router-toolbar-start router-block-gap-sm'>
-                        <span className='router-entity-detail-section-title'>
-                          {t('channel.edit.endpoint_policies.title')}
-                        </span>
-                        <span className='router-toolbar-meta'>
-                          ({endpointPolicySummaryText})
-                        </span>
-                      </div>
-                    </div>
-                    <Form.Field>
-                      <Message info className='router-section-message'>
-                        {t('channel.edit.endpoint_policies.hint')}
-                      </Message>
-                      <div className='router-detail-summary-grid'>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {endpointPolicyStats.total}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t('channel.edit.endpoint_policies.cards.configured')}
-                          </div>
-                        </div>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {endpointPolicyStats.enabled}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t('channel.edit.endpoint_policies.cards.enabled')}
-                          </div>
-                        </div>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {endpointPolicyStats.disabled}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t('channel.edit.endpoint_policies.cards.disabled')}
-                          </div>
-                        </div>
-                        <div className='router-inline-stat-card'>
-                          <div className='router-inline-stat-value'>
-                            {endpointPolicyStats.unconfigured}
-                          </div>
-                          <div className='router-inline-stat-hint'>
-                            {t(
-                              'channel.edit.endpoint_policies.cards.not_configured',
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <Table
-                        celled
-                        stackable
-                        className='router-detail-table router-channel-endpoint-policy-table'
-                        compact='very'
-                      >
-                        <colgroup>
-                          {CHANNEL_ENDPOINT_POLICY_COLUMN_WIDTHS.map(
-                            (width, index) => (
-                              <col
-                                key={`channel-endpoint-policy-col-${index}`}
-                                style={{ width }}
-                              />
-                            ),
-                          )}
-                        </colgroup>
-                        <Table.Header>
-                          <Table.Row>
-                            <Table.HeaderCell>
-                              {t('channel.edit.endpoint_policies.table.model')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell>
-                              {t(
-                                'channel.edit.endpoint_policies.table.endpoint',
-                              )}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell>
-                              {t('channel.edit.endpoint_policies.table.status')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell>
-                              {t('channel.edit.endpoint_policies.table.source')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell>
-                              {t('channel.edit.endpoint_policies.table.reason')}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell>
-                              {t(
-                                'channel.edit.endpoint_policies.table.updated_at',
-                              )}
-                            </Table.HeaderCell>
-                            <Table.HeaderCell>
-                              {t(
-                                'channel.edit.endpoint_policies.table.actions',
-                              )}
-                            </Table.HeaderCell>
-                          </Table.Row>
-                        </Table.Header>
-                        <Table.Body>
-                          {channelEndpoints.length === 0 ? (
-                            <Table.Row>
-                              <Table.Cell
-                                className='router-empty-cell'
-                                colSpan={7}
-                              >
-                                {channelEndpointPoliciesLoading
-                                  ? t('channel.edit.endpoint_policies.loading')
-                                  : t('channel.edit.endpoint_policies.empty')}
-                              </Table.Cell>
-                            </Table.Row>
-                          ) : (
-                            channelEndpoints.map((endpointRow) => {
-                              const endpointKey = buildChannelEndpointKey(
-                                endpointRow.model,
-                                endpointRow.endpoint,
-                              );
-                              const policyRow =
-                                channelEndpointPolicies.find(
-                                  (item) =>
-                                    item.model === endpointRow.model &&
-                                    item.endpoint === endpointRow.endpoint,
-                                ) || null;
-                              return (
-                                <Table.Row key={`policy-${endpointKey}`}>
-                                  <Table.Cell title={endpointRow.model}>
-                                    <span className='router-cell-truncate'>
-                                      {endpointRow.model}
-                                    </span>
-                                  </Table.Cell>
-                                  <Table.Cell title={endpointRow.endpoint}>
-                                    <span className='router-cell-truncate'>
-                                      {endpointRow.endpoint}
-                                    </span>
-                                  </Table.Cell>
-                                  <Table.Cell>
-                                    {policyRow ? (
-                                      policyRow.enabled ? (
-                                        <Label
-                                          basic
-                                          color='green'
-                                          className='router-tag'
-                                        >
-                                          {t(
-                                            'channel.edit.endpoint_policies.status.enabled',
-                                          )}
-                                        </Label>
-                                      ) : (
-                                        <Label
-                                          basic
-                                          color='grey'
-                                          className='router-tag'
-                                        >
-                                          {t(
-                                            'channel.edit.endpoint_policies.status.disabled',
-                                          )}
-                                        </Label>
-                                      )
-                                    ) : (
-                                      <Label basic className='router-tag'>
-                                        {t(
-                                          'channel.edit.endpoint_policies.status.not_configured',
-                                        )}
-                                      </Label>
-                                    )}
-                                  </Table.Cell>
-                                  <Table.Cell>
-                                    {policyRow?.source || '-'}
-                                  </Table.Cell>
-                                  <Table.Cell
-                                    title={(policyRow?.reason || '').toString()}
-                                  >
-                                    <span className='router-cell-truncate'>
-                                      {policyRow?.reason || '-'}
-                                    </span>
-                                  </Table.Cell>
-                                  <Table.Cell className='router-nowrap'>
-                                    {policyRow?.updated_at > 0
-                                      ? timestamp2string(policyRow.updated_at)
-                                      : '-'}
-                                  </Table.Cell>
-                                  <Table.Cell collapsing>
-                                    <Button
-                                      type='button'
-                                      className='router-inline-button'
-                                      disabled={endpointPolicyReadonly}
-                                      onClick={() =>
-                                        openEndpointPolicyEditor(endpointRow)
-                                      }
-                                    >
-                                      {policyRow
-                                        ? t(
-                                            'channel.edit.endpoint_policies.edit',
-                                          )
-                                        : t(
-                                            'channel.edit.endpoint_policies.create',
-                                          )}
-                                    </Button>
-                                  </Table.Cell>
-                                </Table.Row>
-                              );
-                            })
-                          )}
-                        </Table.Body>
-                      </Table>
-                      {channelEndpointPoliciesError && (
-                        <div className='router-error-text router-error-text-top'>
-                          {channelEndpointPoliciesError}
-                        </div>
-                      )}
-                    </Form.Field>
-                  </section>
-                )}
-                {!isDetailMode && (
-                  <Form.Field>
-                    <div className='router-toolbar router-block-gap-xs'>
-                      <div className='router-toolbar-start router-block-gap-sm'>
-                        <span className='router-entity-detail-section-title'>
-                          {t('channel.edit.models')}
-                        </span>
-                        <span className='router-toolbar-meta'>
-                          ({modelSectionMetaText})
-                        </span>
-                      </div>
-                      <div className='router-toolbar-end router-block-gap-sm'>
-                        <Form.Input
-                          className='router-section-input router-search-form-sm'
-                          icon='search'
-                          iconPosition='left'
-                          placeholder={t(
-                            'channel.edit.model_selector.search_placeholder',
-                          )}
-                          value={modelSearchKeyword}
-                          onChange={(e, { value }) =>
-                            setModelSearchKeyword(value || '')
-                          }
-                        />
-                        <Button
-                          type='button'
-                          className='router-page-button'
-                          color='green'
-                          loading={
-                            fetchModelsLoading || !!activeRefreshModelsTask
-                          }
-                          disabled={
-                            fetchModelsLoading ||
-                            !!activeRefreshModelsTask ||
-                            (requiresConnectionVerification &&
-                              !hasModelPreviewCredentials)
-                          }
-                          onClick={() => handleFetchModels({ silent: false })}
-                        >
-                          {fetchModelsButtonText}
-                        </Button>
-                      </div>
-                    </div>
-                    <Table
-                      celled
-                      stackable
-                      className='router-detail-table router-create-model-table'
-                    >
-                      <colgroup>
-                        {CREATE_MODEL_SELECTION_COLUMN_WIDTHS.map((width, index) => (
-                          <col key={`create-model-col-${index}`} style={{ width }} />
-                        ))}
-                      </colgroup>
-                      <Table.Header>
-                        <Table.Row>
-                          <Table.HeaderCell
-                            textAlign='center'
-                            className='router-create-model-selected-col'
-                          >
-                            <div className='router-model-header-checkbox'>
-                              <span className='router-model-header-checkbox-label'>
-                                {t('channel.edit.model_selector.table.selected')}
-                              </span>
-                              <Checkbox
-                                checked={createStepCurrentPageAllSelected}
-                                indeterminate={
-                                  createStepCurrentPagePartiallySelected
-                                }
-                                disabled={
-                                  createStepCurrentPageSelectableModels.length ===
-                                  0
-                                }
-                                onChange={(e, { checked }) =>
-                                  toggleCreateStepCurrentPageSelections(
-                                    !!checked,
-                                  )
-                                }
-                              />
-                            </div>
-                          </Table.HeaderCell>
-                          <Table.HeaderCell
-                            className='router-create-model-name-col'
-                          >
-                            {t('channel.edit.model_selector.table.name')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell
-                            className='router-create-model-type-col'
-                          >
-                            {t('channel.edit.model_selector.table.type')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell
-                            className='router-create-model-providers-col'
-                          >
-                            {t('channel.edit.model_selector.table.providers')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell
-                            className='router-create-model-alias-col'
-                          >
-                            {t('channel.edit.model_selector.table.alias')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell
-                            className='router-create-model-price-col'
-                          >
-                            {t('channel.edit.model_selector.table.price_unit')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell
-                            className='router-create-model-price-col'
-                          >
-                            {t('channel.edit.model_selector.table.input_price')}
-                          </Table.HeaderCell>
-                          <Table.HeaderCell
-                            className='router-create-model-price-col'
-                          >
-                            {t('channel.edit.model_selector.table.output_price')}
-                          </Table.HeaderCell>
-                        </Table.Row>
-                      </Table.Header>
-                      <Table.Body>
-                        {searchedModelConfigs.length === 0 ? (
-                          <Table.Row>
-                            <Table.Cell
-                              className='router-empty-cell'
-                              colSpan={8}
-                            >
-                              {modelSearchKeyword.trim() !== ''
-                                ? t('channel.edit.model_selector.empty_search')
-                                : t('channel.edit.model_selector.empty')}
-                            </Table.Cell>
-                          </Table.Row>
-                        ) : (
-                          renderedModelConfigs.map((row) => {
-                            const providerOwners =
-                              getProviderOwnersForModel(row);
-                            const selectedProviderItems =
-                              getSelectedProviderDisplayItems(row);
-                            const complexPricingDetails =
-                              getComplexPricingDetailsForModel(row);
-                            const hasComplexInputPricing =
-                              complexPricingDetails.some((detail) =>
-                                (detail.price_components || []).some(
-                                  (component) =>
-                                    Number(component.input_price || 0) > 0,
-                                ),
-                              );
-                            const hasComplexOutputPricing =
-                              complexPricingDetails.some((detail) =>
-                                (detail.price_components || []).some(
-                                  (component) =>
-                                    Number(component.output_price || 0) > 0,
-                                ),
-                              );
-                            const canSelectRow = providerOwners.length > 0;
-                            return (
-                              <Table.Row
-                                key={`${row.upstream_model}-${row.model}`}
-                              >
-                                {renderModelToggleCells({
-                                  row,
-                                  canSelect: canSelectRow,
-                                  cellClassName: 'router-create-model-selected-col',
-                                })}
-                                <Table.Cell
-                                  title={row.upstream_model}
-                                  className='router-create-model-name-col router-cell-truncate'
-                                >
-                                  <span className='router-cell-truncate'>
-                                    {row.upstream_model}
-                                  </span>
-                                  {row.inactive && (
-                                    <Label
-                                      basic
-                                      color='grey'
-                                      className='router-tag'
-                                    >
-                                      {t('channel.edit.model_selector.inactive')}
-                                    </Label>
-                                  )}
-                                </Table.Cell>
-                                <Table.Cell className='router-create-model-type-col'>
-                                  {t(
-                                    `channel.model_types.${normalizeChannelModelType(
-                                      row.type,
-                                    )}`,
-                                  )}
-                                </Table.Cell>
-                                <Table.Cell
-                                  className='router-create-model-providers-col'
-                                  title={
-                                    selectedProviderItems.length > 0
-                                      ? selectedProviderItems
-                                          .map((provider) => provider.text)
-                                          .join(', ')
-                                      : providerOwners.join(', ')
-                                  }
-                                >
-                                  <div className='router-create-model-provider-list'>
-                                    {selectedProviderItems.length > 0 ? (
-                                      selectedProviderItems.map((provider) => (
-                                        <Label
-                                          key={`${row.upstream_model}-${provider.key}`}
-                                          basic
-                                          className='router-tag'
-                                          title={provider.text}
-                                        >
-                                          {provider.text}
-                                        </Label>
-                                      ))
-                                    ) : providerOwners.length > 0 ? (
-                                      providerOwners.map((providerId) => (
-                                        <Label
-                                          key={`${row.upstream_model}-${providerId}`}
-                                          basic
-                                          className='router-tag'
-                                          title={providerId}
-                                        >
-                                          {providerId}
-                                        </Label>
-                                      ))
-                                    ) : providerCatalogLoading ? (
-                                      <Label basic className='router-tag'>
-                                        {t(
-                                          'channel.edit.model_selector.provider_loading',
-                                        )}
-                                      </Label>
-                                    ) : (
-                                      <Button
-                                        type='button'
-                                        className='router-inline-button'
-                                        basic
-                                        disabled={providerCatalogLoading}
-                                        onClick={() => openAppendProviderModal(row)}
-                                      >
-                                        {t(
-                                          'channel.edit.model_selector.provider_add',
-                                        )}
-                                      </Button>
-                                    )}
-                                  </div>
-                                </Table.Cell>
-                                <Table.Cell className='router-create-model-alias-col'>
-                                  <Form.Input
-                                    className='router-inline-input router-create-model-alias-input'
-                                    transparent
-                                    title={row.model}
-                                    value={row.model}
-                                    onChange={(e, { value }) =>
-                                      updateModelConfigField(
-                                        row.upstream_model,
-                                        'model',
-                                        value || row.upstream_model,
-                                      )
-                                    }
-                                  />
-                                </Table.Cell>
-                                <Table.Cell className='router-create-model-price-col'>
-                                  <Form.Input
-                                    className='router-inline-input'
-                                    transparent
-                                    readOnly
-                                    value={row.price_unit}
-                                  />
-                                </Table.Cell>
-                                <Table.Cell className='router-create-model-price-col'>
-                                  {hasComplexInputPricing ? (
-                                    <Button
-                                      type='button'
-                                      basic
-                                      className='router-inline-button'
-                                      onClick={() => openComplexPricingModal(row)}
-                                    >
-                                      {t(
-                                        'channel.edit.model_selector.pricing_detail_button',
-                                      )}
-                                    </Button>
-                                  ) : (
-                                    <Form.Input
-                                      className='router-inline-input'
-                                      type='number'
-                                      min='0'
-                                      step='0.01'
-                                      transparent
-                                      placeholder='-'
-                                      value={row.input_price ?? ''}
-                                      onChange={(e, { value }) =>
-                                        updateModelConfigField(
-                                          row.upstream_model,
-                                          'input_price',
-                                          value,
-                                        )
-                                      }
-                                    />
-                                  )}
-                                </Table.Cell>
-                                <Table.Cell className='router-create-model-price-col'>
-                                  {hasComplexOutputPricing ? (
-                                    <Button
-                                      type='button'
-                                      basic
-                                      className='router-inline-button'
-                                      onClick={() => openComplexPricingModal(row)}
-                                    >
-                                      {t(
-                                        'channel.edit.model_selector.pricing_detail_button',
-                                      )}
-                                    </Button>
-                                  ) : (
-                                    <Form.Input
-                                      className='router-inline-input'
-                                      type='number'
-                                      min='0'
-                                      step='0.01'
-                                      transparent
-                                      placeholder='-'
-                                      value={row.output_price ?? ''}
-                                      onChange={(e, { value }) =>
-                                        updateModelConfigField(
-                                          row.upstream_model,
-                                          'output_price',
-                                          value,
-                                        )
-                                      }
-                                    />
-                                  )}
-                                </Table.Cell>
-                              </Table.Row>
-                            );
-                          })
-                        )}
-                      </Table.Body>
-                    </Table>
-                    {detailModelTotalPages > 1 && (
-                      <div className='router-pagination-wrap'>
-                        <Pagination
-                          className='router-section-pagination'
-                          activePage={detailModelPage}
-                          totalPages={detailModelTotalPages}
-                          onPageChange={(e, { activePage }) =>
-                            setDetailModelPage(Number(activePage) || 1)
-                          }
-                        />
-                      </div>
-                    )}
-                    {modelsSyncError && (
-                      <div className='router-error-text router-error-text-top'>
-                        {modelsSyncError}
-                      </div>
-                    )}
-                  </Form.Field>
+                  <ChannelDetailEndpointsTab
+                    t={t}
+                    capabilityColumnWidths={
+                      CHANNEL_ENDPOINT_CAPABILITY_COLUMN_WIDTHS
+                    }
+                    policyColumnWidths={CHANNEL_ENDPOINT_POLICY_COLUMN_WIDTHS}
+                    endpointCapabilitySummaryText={endpointCapabilitySummaryText}
+                    endpointCapabilityStats={endpointCapabilityStats}
+                    channelEndpoints={channelEndpoints}
+                    channelEndpointsLoading={channelEndpointsLoading}
+                    channelEndpointsError={channelEndpointsError}
+                    renderEndpointCapabilitySource={
+                      renderEndpointCapabilitySource
+                    }
+                    buildChannelEndpointKey={buildChannelEndpointKey}
+                    modelTestResultsByKey={modelTestResultsByKey}
+                    endpointCapabilityReadonly={endpointCapabilityReadonly}
+                    endpointMutatingKey={endpointMutatingKey}
+                    updateChannelEndpointCapability={
+                      updateChannelEndpointCapability
+                    }
+                    endpointPolicySummaryText={endpointPolicySummaryText}
+                    endpointPolicyStats={endpointPolicyStats}
+                    channelEndpointPoliciesLoading={
+                      channelEndpointPoliciesLoading
+                    }
+                    channelEndpointPolicies={channelEndpointPolicies}
+                    channelEndpointPoliciesError={
+                      channelEndpointPoliciesError
+                    }
+                    endpointPolicyReadonly={endpointPolicyReadonly}
+                    openEndpointPolicyEditor={openEndpointPolicyEditor}
+                    timestamp2string={timestamp2string}
+                  />
                 )}
               </>
             )}
-            {showStepThree && inputs.protocol !== 'proxy' && (
-              <>
-                {showDetailTestsTab && (
-                  <section className='router-entity-detail-section'>
-                    <div className='router-entity-detail-section-header'>
-                      <div className='router-toolbar-start'>
-                        <span className='router-entity-detail-section-title'>
-                          {t('channel.edit.model_tester.title')}
-                        </span>
-                      </div>
-                    </div>
-                    <Form.Field>
-                      <Message info className='router-section-message'>
-                        {t('channel.edit.model_tester.hint')}
-                      </Message>
-                      <Message className='router-section-message'>
-                        {t('channel.edit.model_tester.selection_notice')}
-                      </Message>
-                      <div className='router-toolbar-end router-block-gap-sm'>
-                        <>
-                          <Button
-                            type='button'
-                            className='router-section-button'
-                            color='blue'
-                            loading={
-                              modelTesting && modelTestingScope === 'batch'
-                            }
-                            disabled={
-                              detailTestingReadonly ||
-                              detailModelMutating ||
-                              modelTesting ||
-                              modelTestTargetModels.length === 0 ||
-                              selectedModelTestHasActiveTasks
-                            }
-                            onClick={() =>
-                              handleRunModelTests({
-                                targetModels: modelTestTargetModels,
-                                scope: 'batch',
-                              })
-                            }
-                          >
-                            {t('channel.edit.model_tester.button')}
-                          </Button>
-                          <Label basic className='router-tag'>
-                            {t('channel.edit.model_tester.selection', {
-                              selected: modelTestTargetModels.length,
-                              total: modelTestRows.length,
-                            })}
-                          </Label>
-                        </>
-                        <Button
-                          type='button'
-                          className='router-page-button'
-                          basic
-                          onClick={() =>
-                            openChannelTaskView({
-                              type: 'channel_model_test',
-                            })
-                          }
-                        >
-                          {t('channel.edit.model_tester.history_tasks')}
-                        </Button>
-                        {modelTestedAt > 0 && (
-                          <span className='router-toolbar-meta'>
-                            {t('channel.edit.model_tester.last_tested', {
-                              time: new Date(modelTestedAt).toLocaleString(),
-                            })}
-                          </span>
-                        )}
-                      </div>
-                      {modelTestError && (
-                        <div className='router-error-text router-block-gap-sm'>
-                          {modelTestError}
-                        </div>
-                      )}
-                      {renderModelTestGroups(true)}
-                    </Form.Field>
-                  </section>
-                )}
-                {!isDetailMode && (
-                  <Form.Field>
-                    <CreateChannelModelTestSection
-                      modelTesting={modelTesting}
-                      modelTestingScope={modelTestingScope}
-                      detailModelMutating={detailModelMutating}
-                      modelTestTargetModels={modelTestTargetModels}
-                      selectedModelTestHasActiveTasks={
-                        selectedModelTestHasActiveTasks
-                      }
-                      handleRunModelTests={handleRunModelTests}
-                      createModelTestProviderOptions={
-                        createModelTestProviderOptions
-                      }
-                      createModelTestProviderFilter={
-                        createModelTestProviderFilter
-                      }
-                      setCreateModelTestProviderFilter={
-                        setCreateModelTestProviderFilter
-                      }
-                      createModelTestTypeOptions={createModelTestTypeOptions}
-                      createModelTestTypeFilter={createModelTestTypeFilter}
-                      setCreateModelTestTypeFilter={setCreateModelTestTypeFilter}
-                      createModelTestBulkEndpointOptions={
-                        createModelTestBulkEndpointOptions
-                      }
-                      createModelTestBulkEndpointValue={
-                        createModelTestBulkEndpointValue
-                      }
-                      updateAllModelTestEndpoints={updateAllModelTestEndpoints}
-                      openChannelTaskView={openChannelTaskView}
-                      modelTestedAt={modelTestedAt}
-                      modelTestError={modelTestError}
-                      modelTestRows={modelTestRows}
-                      createFilteredModelTestRows={createFilteredModelTestRows}
-                      modelTestingTargetSet={modelTestingTargetSet}
-                      activeChannelTasksByModel={activeChannelTasksByModel}
-                      modelTestResultsByKey={modelTestResultsByKey}
-                      latestModelTestResultByModel={
-                        latestModelTestResultByModel
-                      }
-                      buildModelTestResultKey={buildModelTestResultKey}
-                      getEffectiveModelEndpoint={getEffectiveModelEndpoint}
-                      getEndpointOptionsForModel={getEndpointOptionsForModel}
-                      updateModelTestEndpoint={updateModelTestEndpoint}
-                      updateModelTestStream={updateModelTestStream}
-                      toggleModelTestGroupTargets={toggleModelTestGroupTargets}
-                      toggleModelTestTarget={toggleModelTestTarget}
-                      handleDownloadModelTestArtifact={
-                        handleDownloadModelTestArtifact
-                      }
-                    />
-                  </Form.Field>
-                )}
-              </>
+            {showDetailTestsTab && (
+              <ChannelDetailTestsTab
+                t={t}
+                inputs={inputs}
+                columnWidths={CHANNEL_MODEL_TEST_GROUP_COLUMN_WIDTHS}
+                modelTestRows={modelTestRows}
+                modelTestGroups={modelTestGroups}
+                modelTestTargetModels={modelTestTargetModels}
+                detailModelMutating={detailModelMutating}
+                toggleModelTestGroupTargets={toggleModelTestGroupTargets}
+                toggleModelTestTarget={toggleModelTestTarget}
+                getEffectiveModelEndpoint={getEffectiveModelEndpoint}
+                modelTestResultsByKey={modelTestResultsByKey}
+                buildModelTestResultKey={buildModelTestResultKey}
+                latestModelTestResultByModel={latestModelTestResultByModel}
+                activeChannelTasksByModel={activeChannelTasksByModel}
+                getEndpointOptionsForModel={getEndpointOptionsForModel}
+                updateModelTestEndpoint={updateModelTestEndpoint}
+                updateModelTestStream={updateModelTestStream}
+                modelTesting={modelTesting}
+                modelTestingScope={modelTestingScope}
+                modelTestingTargetSet={modelTestingTargetSet}
+                handleRunModelTests={handleRunModelTests}
+                handleDownloadModelTestArtifact={
+                  handleDownloadModelTestArtifact
+                }
+                detailTestingReadonly={detailTestingReadonly}
+                modelTestError={modelTestError}
+                openChannelTaskView={openChannelTaskView}
+                modelTestedAt={modelTestedAt}
+                selectedModelTestHasActiveTasks={
+                  selectedModelTestHasActiveTasks
+                }
+                timestamp2string={timestamp2string}
+                updateAllModelTestEndpoints={updateAllModelTestEndpoints}
+              />
             )}
-            {showStepFour && isCreateMode && inputs.protocol !== 'proxy' && (
+            {!isDetailMode && showAdvancedSection && inputs.protocol !== 'proxy' && (
               <Form.Field>
-                <Message info className='router-section-message'>
-                  {t('channel.edit.model_tester.review_hint')}
-                </Message>
-                {createReviewPendingRows.length > 0 && (
-                  <Message warning className='router-section-message'>
-                    {t('channel.edit.model_tester.review_pending_notice', {
-                      count: createReviewPendingRows.length,
-                    })}
-                  </Message>
-                )}
-                <Table
-                  celled
-                  stackable
-                  className='router-detail-table router-channel-create-review-table'
-                >
-                  <colgroup>
-                    {CHANNEL_CREATE_REVIEW_COLUMN_WIDTHS.map((width, index) => (
-                      <col
-                        key={`channel-create-review-col-${index}`}
-                        style={{ width }}
-                      />
-                    ))}
-                  </colgroup>
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.HeaderCell>
-                        {t('channel.edit.model_selector.table.name')}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t('channel.edit.model_selector.table.type')}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t('channel.edit.model_selector.table.alias')}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t('channel.edit.model_tester.table.endpoint')}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t('channel.edit.model_tester.table.supported_endpoints')}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t('channel.edit.model_selector.table.input_price')}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t('channel.edit.model_selector.table.output_price')}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t('channel.edit.model_selector.table.price_unit')}
-                      </Table.HeaderCell>
-                      <Table.HeaderCell>
-                        {t('channel.edit.model_tester.table.status')}
-                      </Table.HeaderCell>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    {createReviewRows.length === 0 ? (
-                      <Table.Row>
-                        <Table.Cell className='router-empty-cell' colSpan='9'>
-                          {t('channel.edit.model_selector.empty')}
-                        </Table.Cell>
-                      </Table.Row>
-                    ) : (
-                      createReviewRows.map((row) => {
-                        const normalizedEndpoint = getEffectiveModelEndpoint(row);
-                        const item = modelTestResultsByKey.get(
-                          buildModelTestResultKey(row.model, normalizedEndpoint),
-                        );
-                        const effectiveStatus = item?.status || 'untested';
-                        const labelColor =
-                          effectiveStatus === 'running'
-                            ? 'blue'
-                            : effectiveStatus === 'pending'
-                              ? 'orange'
-                              : effectiveStatus === 'stale'
-                                ? 'yellow'
-                                : effectiveStatus === 'untested'
-                                  ? undefined
-                                  : effectiveStatus === 'supported'
-                                    ? 'green'
-                                    : effectiveStatus === 'skipped'
-                                      ? 'grey'
-                                      : 'red';
-                        const supportedEndpointSet =
-                          createReviewSupportedEndpointsByModel.get(row.model) ||
-                          new Set();
-                        const supportedEndpoints = Array.from(
-                          supportedEndpointSet,
-                        ).sort((a, b) => a.localeCompare(b));
-                        return (
-                          <Table.Row key={`${row.upstream_model}-${row.model}`}>
-                            <Table.Cell title={row.upstream_model}>
-                              <span className='router-cell-truncate'>
-                                {row.upstream_model}
-                              </span>
-                            </Table.Cell>
-                            <Table.Cell>
-                              {t(
-                                `channel.model_types.${normalizeChannelModelType(
-                                  row.type,
-                                )}`,
-                              )}
-                            </Table.Cell>
-                            <Table.Cell>
-                              <Form.Input
-                                className='router-inline-input router-create-model-alias-input'
-                                transparent
-                                title={row.model}
-                                value={row.model}
-                                onChange={(e, { value }) =>
-                                  updateModelConfigField(
-                                    row.upstream_model,
-                                    'model',
-                                    value || row.upstream_model,
-                                  )
-                                }
-                              />
-                            </Table.Cell>
-                            <Table.Cell className='router-table-dropdown-cell'>
-                              {row.type === 'text' ? (
-                                <Dropdown
-                                  selection
-                                  className='router-mini-dropdown router-table-dropdown-fluid'
-                                  options={getEndpointOptionsForModel(row)}
-                                  value={normalizedEndpoint}
-                                  onChange={(e, { value }) =>
-                                    updateModelConfigField(
-                                      row.upstream_model,
-                                      'endpoint',
-                                      value,
-                                    )
-                                  }
-                                />
-                              ) : row.type === 'image' ? (
-                                <Dropdown
-                                  selection
-                                  className='router-mini-dropdown router-table-dropdown-fluid'
-                                  options={getEndpointOptionsForModel(row)}
-                                  value={normalizedEndpoint}
-                                  onChange={(e, { value }) =>
-                                    updateModelConfigField(
-                                      row.upstream_model,
-                                      'endpoint',
-                                      value,
-                                    )
-                                  }
-                                />
-                              ) : (
-                                normalizedEndpoint || '-'
-                              )}
-                            </Table.Cell>
-                            <Table.Cell>
-                              {supportedEndpoints.length > 0 ? (
-                                <div className='router-create-model-provider-list'>
-                                  {supportedEndpoints.map((endpoint) => (
-                                    <Label
-                                      key={`${row.model}-${endpoint}`}
-                                      basic
-                                      className='router-tag'
-                                      title={endpoint}
-                                    >
-                                      {endpoint}
-                                    </Label>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className='router-text-muted'>-</span>
-                              )}
-                            </Table.Cell>
-                            <Table.Cell>
-                              <Form.Input
-                                className='router-inline-input'
-                                type='number'
-                                min='0'
-                                step='0.01'
-                                transparent
-                                placeholder='-'
-                                value={row.input_price ?? ''}
-                                onChange={(e, { value }) =>
-                                  updateModelConfigField(
-                                    row.upstream_model,
-                                    'input_price',
-                                    value,
-                                  )
-                                }
-                              />
-                            </Table.Cell>
-                            <Table.Cell>
-                              <Form.Input
-                                className='router-inline-input'
-                                type='number'
-                                min='0'
-                                step='0.01'
-                                transparent
-                                placeholder='-'
-                                value={row.output_price ?? ''}
-                                onChange={(e, { value }) =>
-                                  updateModelConfigField(
-                                    row.upstream_model,
-                                    'output_price',
-                                    value,
-                                  )
-                                }
-                              />
-                            </Table.Cell>
-                            <Table.Cell>
-                              <span className='router-nowrap'>
-                                {row.price_unit || '-'}
-                              </span>
-                            </Table.Cell>
-                            <Table.Cell>
-                              <Label
-                                basic
-                                color={labelColor}
-                                className='router-tag'
-                                title={item?.message || ''}
-                              >
-                                {t(
-                                  `channel.edit.model_tester.status.${effectiveStatus}`,
-                                )}
-                              </Label>
-                            </Table.Cell>
-                          </Table.Row>
-                        );
-                      })
-                    )}
-                  </Table.Body>
-                </Table>
+                <Form.TextArea
+                  className='router-section-textarea router-code-textarea router-code-textarea-md'
+                  label={t('channel.edit.system_prompt')}
+                  placeholder={t('channel.edit.system_prompt_placeholder')}
+                  name='system_prompt'
+                  onChange={handleInputChange}
+                  value={inputs.system_prompt}
+                  autoComplete='new-password'
+                />
               </Form.Field>
-            )}
-            {showStepFive && inputs.protocol !== 'proxy' && (
-              <>
-                {showDetailOverviewTab && (
-                  <section className='router-entity-detail-section'>
-                    <div className='router-entity-detail-section-header'>
-                      <div className='router-toolbar-start'>
-                        <span className='router-entity-detail-section-title'>
-                          {t('channel.edit.advanced_title')}
-                        </span>
-                      </div>
-                      <div className='router-toolbar-end'>
-                        {detailAdvancedEditing ? (
-                          <>
-                            <Button
-                              type='button'
-                              className='router-page-button'
-                              onClick={cancelDetailAdvancedEdit}
-                              disabled={detailAdvancedSaving}
-                            >
-                              {t('channel.edit.buttons.cancel')}
-                            </Button>
-                            <Button
-                              type='button'
-                              className='router-page-button'
-                              color='blue'
-                              loading={detailAdvancedSaving}
-                              disabled={detailAdvancedSaving}
-                              onClick={saveDetailAdvancedConfig}
-                            >
-                              {t('channel.edit.buttons.save')}
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            type='button'
-                            className='router-page-button'
-                            color='blue'
-                            disabled={detailAdvancedEditLocked}
-                            onClick={() => setDetailAdvancedEditing(true)}
-                          >
-                            {t('common.edit')}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <Form.Field>
-                      <Form.TextArea
-                        className='router-section-textarea router-code-textarea router-code-textarea-md'
-                        label={t('channel.edit.system_prompt')}
-                        placeholder={t('channel.edit.system_prompt_placeholder')}
-                        name='system_prompt'
-                        onChange={handleInputChange}
-                        value={inputs.system_prompt}
-                        autoComplete='new-password'
-                        readOnly={detailAdvancedReadonly}
-                      />
-                    </Form.Field>
-                  </section>
-                )}
-                {!isDetailMode && (
-                  <Form.Field>
-                    <Form.TextArea
-                      className='router-section-textarea router-code-textarea router-code-textarea-md'
-                      label={t('channel.edit.system_prompt')}
-                      placeholder={t('channel.edit.system_prompt_placeholder')}
-                      name='system_prompt'
-                      onChange={handleInputChange}
-                      value={inputs.system_prompt}
-                      autoComplete='new-password'
-                    />
-                  </Form.Field>
-                )}
-              </>
             )}
           </Form>
         </Card.Content>
