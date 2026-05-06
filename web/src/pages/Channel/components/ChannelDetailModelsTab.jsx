@@ -23,7 +23,6 @@ const ChannelDetailModelsTab = ({
   activeRefreshModelsTask,
   detailModelMutating,
   handleFetchModels,
-  detailModelStats,
   searchedModelConfigs,
   visibleModelConfigs,
   renderedModelConfigs,
@@ -108,40 +107,6 @@ const ChannelDetailModelsTab = ({
         </div>
       </div>
       <Form.Field>
-        <div className='router-detail-summary-grid'>
-          <div className='router-inline-stat-card'>
-            <div className='router-inline-stat-value'>
-              {detailModelStats.enabled}
-            </div>
-            <div className='router-inline-stat-hint'>
-              {t('channel.edit.model_selector.cards.enabled')}
-            </div>
-          </div>
-          <div className='router-inline-stat-card'>
-            <div className='router-inline-stat-value'>
-              {detailModelStats.selectable}
-            </div>
-            <div className='router-inline-stat-hint'>
-              {t('channel.edit.model_selector.cards.selectable')}
-            </div>
-          </div>
-          <div className='router-inline-stat-card'>
-            <div className='router-inline-stat-value'>
-              {detailModelStats.unselectable}
-            </div>
-            <div className='router-inline-stat-hint'>
-              {t('channel.edit.model_selector.cards.unselectable')}
-            </div>
-          </div>
-          <div className='router-inline-stat-card'>
-            <div className='router-inline-stat-value'>
-              {detailModelStats.inactive}
-            </div>
-            <div className='router-inline-stat-hint'>
-              {t('channel.edit.model_selector.cards.inactive')}
-            </div>
-          </div>
-        </div>
         <Message info className='router-section-message'>
           {t('channel.edit.model_selector.enable_hint')}
         </Message>
@@ -236,6 +201,14 @@ const ChannelDetailModelsTab = ({
                   detailModelsEditLocked ||
                   detailModelMutating ||
                   detailModelsEditing;
+                const rowActionBlocked =
+                  !canSelectChannelModel(row) && !row.selected;
+                const rowActionDisabled = rowEditDisabled || rowActionBlocked;
+                const rowActionDisabledReason = rowActionBlocked
+                  ? t(
+                      'channel.edit.model_selector.selection_disabled_unassigned',
+                    )
+                  : '';
                 return (
                   <Table.Row key={`${row.upstream_model}-${row.model}`}>
                     {renderModelToggleCells({
@@ -309,7 +282,8 @@ const ChannelDetailModelsTab = ({
                         <Button
                           type='button'
                           className='router-inline-button'
-                          disabled={rowEditDisabled}
+                          disabled={rowActionDisabled}
+                          title={rowActionDisabledReason || undefined}
                           onClick={() => startDetailModelEdit(row.upstream_model)}
                         >
                           {t('common.edit')}

@@ -88,13 +88,13 @@ const CHANNEL_IDENTIFIER_PATTERN = /^[a-z0-9-]+$/;
 const CHANNEL_IDENTIFIER_MAX_LENGTH = 64;
 const CHANNEL_DETAIL_MODEL_COLUMN_WIDTHS = [
   '8%',
-  '24%',
+  '23%',
   '8%',
-  '22%',
+  '21%',
   '12%',
   '10%',
   '10%',
-  '6%',
+  '8%',
 ];
 const CHANNEL_ENDPOINT_CAPABILITY_COLUMN_WIDTHS = [
   '22%',
@@ -1809,9 +1809,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         row?.provider,
       );
       const owners = new Set();
-      if (selectedProvider !== '') {
-        owners.add(selectedProvider);
-      }
       buildProviderLookupKeys(row).forEach((key) => {
         (providerModelOwners[key] || []).forEach((providerId) => {
           owners.add(providerId);
@@ -1874,16 +1871,19 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       const selectedProvider = normalizeChannelModelProviderValue(
         row?.provider,
       );
-      if (selectedProvider !== '') {
+      const providerOwners = getProviderOwnersForModel(row);
+      if (
+        selectedProvider !== '' &&
+        providerOwners.includes(selectedProvider)
+      ) {
         return selectedProvider;
       }
-      const providerOwners = getProviderOwnersForModel(row);
       if (providerOwners.length === 1) {
         return providerOwners[0];
       }
-      return inferAssignableProviderForRowWithOptions(row, providerOptions);
+      return '';
     },
-    [getProviderOwnersForModel, providerOptions],
+    [getProviderOwnersForModel],
   );
   const getSelectedProviderDisplayItems = useCallback(
     (row) => {
@@ -2092,8 +2092,8 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     setComplexPricingModalData(null);
   }, []);
   const hasProviderConfiguredForModel = useCallback(
-    (row) => resolvePreferredProviderForModel(row) !== '',
-    [resolvePreferredProviderForModel],
+    (row) => getProviderOwnersForModel(row).length > 0,
+    [getProviderOwnersForModel],
   );
   const canSelectChannelModel = useCallback(
     (row) => row?.inactive !== true && hasProviderConfiguredForModel(row),
@@ -2103,31 +2103,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     () => visibleModelConfigs.filter((row) => row.inactive !== true),
     [visibleModelConfigs],
   );
-  const detailModelStats = useMemo(() => {
-    return visibleModelConfigs.reduce(
-      (acc, row) => {
-        if (row.selected === true) {
-          acc.enabled += 1;
-        }
-        if (row.inactive === true) {
-          acc.inactive += 1;
-          return acc;
-        }
-        if (canSelectChannelModel(row)) {
-          acc.selectable += 1;
-        } else {
-          acc.unselectable += 1;
-        }
-        return acc;
-      },
-      {
-        selectable: 0,
-        unselectable: 0,
-        enabled: 0,
-        inactive: 0,
-      },
-    );
-  }, [canSelectChannelModel, visibleModelConfigs]);
   const detailFilteredModelConfigs = useMemo(() => {
     if (!isDetailMode) {
       return visibleModelConfigs;
@@ -3068,23 +3043,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       ) {
         loadProviderCatalogIndex({ silent: true }).then();
       }
-      const preferredProvider = resolvePreferredProviderForModel(currentRow);
-      if (
-        normalizeChannelModelProviderValue(currentRow.provider) === '' &&
-        preferredProvider !== ''
-      ) {
-        setInputs((prev) =>
-          buildNextInputsWithModelConfigs(
-            prev,
-            visibleModelConfigs.map((row) =>
-              row.upstream_model === targetModel
-                ? { ...row, provider: preferredProvider }
-                : row,
-            ),
-            prev.protocol,
-          ),
-        );
-      }
       setDetailEditingModelKey(targetModel);
       setDetailEditingModelSnapshot({ ...currentRow });
     },
@@ -3093,7 +3051,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       providerCatalogLoaded,
       providerCatalogLoading,
       providerOptions.length,
-      resolvePreferredProviderForModel,
       visibleModelConfigs,
     ],
   );
@@ -3688,10 +3645,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         row.upstream_model === upstreamModel && canSelectChannelModel(row)
           ? {
               ...row,
-              provider:
-                normalizeChannelModelProviderValue(row.provider) === ''
-                  ? resolvePreferredProviderForModel(row)
-                  : row.provider,
               selected: !!checked,
             }
           : row,
@@ -3718,7 +3671,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       detailEditingModelKey,
       detailModelsEditing,
       isDetailMode,
-      resolvePreferredProviderForModel,
       persistDetailModelConfigs,
       visibleModelConfigs,
     ],
@@ -3742,10 +3694,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         targetIDs.has(row.upstream_model)
           ? {
               ...row,
-              provider:
-                normalizeChannelModelProviderValue(row.provider) === ''
-                  ? resolvePreferredProviderForModel(row)
-                  : row.provider,
               selected: !!checked,
             }
           : row,
@@ -3756,7 +3704,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       detailCurrentPageBlockedModels.length,
       detailCurrentPageSelectableModels,
       persistDetailModelConfigs,
-      resolvePreferredProviderForModel,
       t,
       visibleModelConfigs,
     ],
@@ -3863,8 +3810,9 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       const selectCellClassName = [inDetailMode ? 'router-cell-checkbox' : '', cellClassName]
         .filter(Boolean)
         .join(' ');
+      const isUnavailable = !canSelect && !row.selected;
       const disabledReason =
-        !canSelect && !row.selected
+        isUnavailable
           ? t('channel.edit.model_selector.selection_disabled_unassigned')
           : '';
       const handleDisabledClick = () => {
@@ -3875,13 +3823,26 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       return (
         <Table.Cell
           textAlign='center'
-          className={selectCellClassName || undefined}
+          className={[
+            selectCellClassName,
+            isUnavailable ? 'router-model-toggle-cell-disabled' : '',
+          ]
+            .filter(Boolean)
+            .join(' ') || undefined}
         >
           <span
-            className='router-inline-block'
+            className={[
+              'router-inline-block',
+              'router-model-toggle-wrap',
+              isUnavailable ? 'router-model-toggle-wrap-disabled' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             onClick={handleDisabledClick}
             role={disabledReason ? 'button' : undefined}
             tabIndex={disabledReason ? 0 : undefined}
+            title={disabledReason || undefined}
+            aria-label={disabledReason || undefined}
             onKeyDown={(e) => {
               if ((e.key === 'Enter' || e.key === ' ') && disabledReason) {
                 e.preventDefault();
@@ -3890,8 +3851,9 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
             }}
           >
             <Checkbox
+              className={isUnavailable ? 'router-model-toggle-disabled' : undefined}
               checked={!!row.selected}
-              disabled={selectDisabled || (!canSelect && !row.selected)}
+              disabled={selectDisabled || isUnavailable}
               onChange={(e, { checked }) =>
                 toggleModelSelection(row.upstream_model, checked)
               }
@@ -4663,7 +4625,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                     activeRefreshModelsTask={activeRefreshModelsTask}
                     detailModelMutating={detailModelMutating}
                     handleFetchModels={handleFetchModels}
-                    detailModelStats={detailModelStats}
                     searchedModelConfigs={searchedModelConfigs}
                     visibleModelConfigs={visibleModelConfigs}
                     renderedModelConfigs={renderedModelConfigs}

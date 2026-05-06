@@ -666,6 +666,7 @@
           "name": "Name",
           "alias": "Alias",
           "type": "Type",
+          "providers": "Provider",
           "price_unit": "Price Unit",
           "input_price": "Input Price",
           "output_price": "Output Price",
@@ -676,7 +677,7 @@
           "enabled": "Enabled",
           "disabled": "Disabled"
         },
-        "enable_hint": "Models with a toggleable Enabled checkbox are ready to use. If a model cannot be toggled, complete the required setup in the provider catalog first, then sync models here and enable it again.",
+        "enable_hint": "Only models already in the provider model catalog can be enabled. Models not in the catalog stay unselectable until you add them there and sync again.",
         "auto_assign": "Auto Import",
         "auto_assign_empty": "No models can be auto-imported right now",
         "auto_assign_success": "Imported {{success}} models, failed {{failed}}",
@@ -689,8 +690,8 @@
         "provider_append_invalid": "Please select a provider and enter a model name",
         "provider_append_success": "Model added to provider catalog",
         "provider_append_failed": "Failed to add model to provider catalog",
-        "selection_disabled_unassigned": "This model has no provider configured and cannot be enabled. Add it to the provider model catalog first.",
-        "selection_skipped_unassigned": "Skipped {{count}} models without provider configuration on this page. Add them to the provider model catalog before enabling.",
+        "selection_disabled_unassigned": "This model is not in the provider model catalog and cannot be enabled.",
+        "selection_skipped_unassigned": "Skipped {{count}} models on this page that are not in the provider model catalog.",
         "realtime_enabled": "Realtime model sync is enabled: changing address or key refreshes the model list, but does not select all by default.",
         "realtime_hint": "After address and key are filled, supported models will be fetched automatically.",
         "flow_title": "Create Channel Flow",
@@ -729,7 +730,7 @@
           "pricing_title": "Pricing",
           "status_hint": "When disabled, this model will not participate in the current channel's available model set.",
           "provider_placeholder": "Select a provider",
-          "provider_empty": "No provider is configured for this model yet"
+          "provider_empty": "This model is not in the provider model catalog"
         },
         "pricing_detail_table": {
           "component": "Component",

@@ -666,6 +666,7 @@
           "name": "名称",
           "alias": "别名",
           "type": "类型",
+          "providers": "供应商",
           "price_unit": "计价单位",
           "input_price": "输入价",
           "output_price": "输出价",
@@ -676,7 +677,7 @@
           "enabled": "已启用的",
           "disabled": "未启用的"
         },
-        "enable_hint": "可勾选的模型可直接启用。不可勾选的模型说明当前还缺少必要配置，请先到供应商模型目录补充后，再回来同步模型并启用。",
+        "enable_hint": "只有已录入供应商模型目录的模型，才可勾选启用。未录入的模型不可勾选，请先补充后再同步启用。",
         "auto_assign": "一键录入",
         "auto_assign_empty": "当前没有可一键录入的模型",
         "auto_assign_success": "已一键录入 {{success}} 个模型，失败 {{failed}} 个",
@@ -689,8 +690,8 @@
         "provider_append_invalid": "请选择供应商并填写模型名称",
         "provider_append_success": "模型已添加到供应商目录",
         "provider_append_failed": "添加供应商模型失败",
-        "selection_disabled_unassigned": "该模型还未配置供应商，不能启用。请先添加到供应商模型目录。",
-        "selection_skipped_unassigned": "已跳过当前页 {{count}} 个未配置供应商的模型。请先添加到供应商模型目录后再启用。",
+        "selection_disabled_unassigned": "该模型未录入供应商模型目录，不能启用。",
+        "selection_skipped_unassigned": "已跳过当前页 {{count}} 个未录入供应商模型目录的模型。",
         "realtime_enabled": "已启用实时模型同步：修改地址或密钥后会自动刷新模型列表，但不会默认全选。",
         "realtime_hint": "填写地址和密钥后会自动获取该渠道支持的模型。",
         "flow_title": "新建渠道流程",
@@ -729,7 +730,7 @@
           "pricing_title": "计费信息",
           "status_hint": "关闭后，该模型不会参与当前渠道的可用模型集合。",
           "provider_placeholder": "请选择供应商",
-          "provider_empty": "当前模型还未配置供应商"
+          "provider_empty": "该模型未录入供应商模型目录"
         },
         "pricing_detail_table": {
           "component": "计费项",

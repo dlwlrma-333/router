@@ -1997,6 +1997,38 @@ code {
     width: 72px;
 }
 
+.router-model-toggle-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    min-height: 28px;
+    border-radius: 6px;
+}
+
+.router-model-toggle-cell-disabled {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.router-model-toggle-wrap-disabled {
+    background: rgba(0, 0, 0, 0.04);
+    cursor: not-allowed;
+}
+
+.router-model-toggle-wrap-disabled .ui.checkbox {
+    opacity: 0.55;
+}
+
+.router-model-toggle-wrap-disabled .ui.checkbox input[disabled] ~ label::before,
+.router-model-toggle-wrap-disabled .ui.checkbox input[disabled]:checked ~ label::before {
+    background: #f3f4f6 !important;
+    border-color: #c9cdd4 !important;
+}
+
+.router-model-toggle-wrap-disabled .ui.checkbox input[disabled]:checked ~ label::after {
+    color: #9aa3af !important;
+}
+
 .router-model-header-checkbox {
     display: inline-flex;
     align-items: center;
