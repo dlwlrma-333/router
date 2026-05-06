@@ -1654,7 +1654,21 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       if (!item.model || !item.endpoint || key === '::') {
         return;
       }
-      index.set(key, item);
+      const existing = index.get(key);
+      if (!existing) {
+        index.set(key, item);
+        return;
+      }
+      if (Number(item.tested_at || 0) > Number(existing.tested_at || 0)) {
+        index.set(key, item);
+        return;
+      }
+      if (
+        Number(item.tested_at || 0) === Number(existing.tested_at || 0) &&
+        Number(item.latency_ms || 0) >= Number(existing.latency_ms || 0)
+      ) {
+        index.set(key, item);
+      }
     });
     return index;
   }, [modelTestResults]);

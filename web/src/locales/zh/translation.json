@@ -803,7 +803,7 @@
           "supported_endpoints": "已通过端点",
           "status": "成功/失败",
           "latency": "最小/平均/最大（ms）",
-          "tested_at": "最近测试",
+          "tested_at": "最近测试时间点",
           "actions": "操作"
         }
       },

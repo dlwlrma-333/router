@@ -803,7 +803,7 @@
           "supported_endpoints": "Supported Endpoints",
           "status": "Success/Fail",
           "latency": "Min/Avg/Max (ms)",
-          "tested_at": "Last Tested",
+          "tested_at": "Latest Test Time",
           "actions": "Actions"
         }
       },
