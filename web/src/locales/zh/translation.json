@@ -572,6 +572,8 @@
         "empty": "当前没有端点能力数据，请先同步模型或执行模型测试。",
         "load_failed": "加载端点能力失败",
         "update_success": "端点能力更新成功",
+        "enable_success": "打开端点能力成功",
+        "disable_success": "关闭端点能力成功",
         "update_failed": "更新端点能力失败",
         "table": {
           "model": "模型",
@@ -579,6 +581,7 @@
           "source": "来源",
           "enabled": "启用",
           "latest_test": "最近测试",
+          "test_status": "测试状态",
           "updated_at": "更新时间"
         },
         "source": {
@@ -614,6 +617,8 @@
           "endpoint": "端点",
           "status": "状态",
           "reason": "原因",
+          "policy": "策略",
+          "policy_note": "策略说明",
           "updated_at": "更新时间",
           "actions": "操作"
         },

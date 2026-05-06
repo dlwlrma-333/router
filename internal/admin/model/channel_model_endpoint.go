@@ -8,7 +8,6 @@ import (
 	"github.com/yeying-community/router/common/helper"
 	"github.com/yeying-community/router/internal/relay/relaymode"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 const (
@@ -79,7 +78,7 @@ func BuildChannelModelEndpointRowsWithProviderEndpoints(existing []ChannelModelE
 		if channelID == "" || modelID == "" {
 			continue
 		}
-		defaultEnabled := row.Selected && !row.Inactive
+		eligibleForEnable := row.Selected && !row.Inactive
 		for _, endpoint := range resolveProviderEndpointCandidatesForChannelModel(row, providerEndpoints) {
 			normalizedEndpoint := NormalizeRequestedChannelModelEndpoint(endpoint)
 			if normalizedEndpoint == "" {
@@ -94,10 +93,10 @@ func BuildChannelModelEndpointRowsWithProviderEndpoints(existing []ChannelModelE
 				ChannelId: channelID,
 				Model:     modelID,
 				Endpoint:  normalizedEndpoint,
-				Enabled:   defaultEnabled,
+				Enabled:   false,
 			}
 			if existingRow, ok := existingByKey[key]; ok {
-				item.Enabled = existingRow.Enabled && defaultEnabled
+				item.Enabled = existingRow.Enabled && eligibleForEnable
 			}
 			result = append(result, item)
 		}
@@ -384,14 +383,17 @@ func replaceChannelModelEndpointRowsWithDB(db *gorm.DB, channelID string, rows [
 		if len(normalizedRows) == 0 {
 			return nil
 		}
-		return tx.Clauses(clause.OnConflict{
-			Columns: []clause.Column{
-				{Name: "channel_id"},
-				{Name: "model"},
-				{Name: "endpoint"},
-			},
-			DoUpdates: clause.AssignmentColumns([]string{"enabled", "updated_at"}),
-		}).Create(&normalizedRows).Error
+		payloads := make([]map[string]any, 0, len(normalizedRows))
+		for _, row := range normalizedRows {
+			payloads = append(payloads, map[string]any{
+				"channel_id": row.ChannelId,
+				"model":      row.Model,
+				"endpoint":   row.Endpoint,
+				"enabled":    row.Enabled,
+				"updated_at": row.UpdatedAt,
+			})
+		}
+		return tx.Table(ChannelModelEndpointsTableName).Create(&payloads).Error
 	})
 }
 

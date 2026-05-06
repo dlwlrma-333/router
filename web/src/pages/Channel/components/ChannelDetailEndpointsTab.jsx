@@ -12,7 +12,6 @@ const ChannelDetailEndpointsTab = ({
   t,
   columnWidths,
   endpointSummaryText,
-  endpointCapabilityStats,
   channelEndpoints,
   channelEndpointsLoading,
   channelEndpointsError,
@@ -21,7 +20,6 @@ const ChannelDetailEndpointsTab = ({
   endpointCapabilityReadonly,
   endpointMutatingKey,
   updateChannelEndpointCapability,
-  endpointPolicyStats,
   channelEndpointPoliciesLoading,
   channelEndpointPolicies,
   channelEndpointPoliciesError,
@@ -49,36 +47,6 @@ const ChannelDetailEndpointsTab = ({
         <Message info className='router-section-message'>
           {t('channel.edit.endpoint_capabilities.hint')}
         </Message>
-        <div className='router-detail-summary-grid'>
-          <div className='router-inline-stat-card'>
-            <div className='router-inline-stat-value'>
-              {endpointCapabilityStats.total}
-            </div>
-            <div className='router-inline-stat-hint'>
-              {t('channel.edit.endpoint_capabilities.cards.total')}
-            </div>
-          </div>
-          <div className='router-inline-stat-card'>
-            <div className='router-inline-stat-value'>
-              {endpointCapabilityStats.enabled}
-            </div>
-            <div className='router-inline-stat-hint'>
-              {t('channel.edit.endpoint_capabilities.cards.enabled')}
-            </div>
-          </div>
-          <div className='router-inline-stat-card'>
-            <div className='router-inline-stat-value'>{endpointPolicyStats.total}</div>
-            <div className='router-inline-stat-hint'>
-              {t('channel.edit.endpoint_policies.cards.configured')}
-            </div>
-          </div>
-          <div className='router-inline-stat-card'>
-            <div className='router-inline-stat-value'>{endpointPolicyStats.enabled}</div>
-            <div className='router-inline-stat-hint'>
-              {t('channel.edit.endpoint_policies.cards.enabled')}
-            </div>
-          </div>
-        </div>
         <Table
           celled
           stackable
@@ -105,13 +73,13 @@ const ChannelDetailEndpointsTab = ({
                 {t('channel.edit.endpoint_capabilities.table.enabled')}
               </Table.HeaderCell>
               <Table.HeaderCell>
-                {t('channel.edit.endpoint_capabilities.table.latest_test')}
+                {t('channel.edit.endpoint_capabilities.table.test_status')}
               </Table.HeaderCell>
               <Table.HeaderCell>
-                {t('channel.edit.endpoint_policies.table.status')}
+                {t('channel.edit.endpoint_policies.table.policy')}
               </Table.HeaderCell>
               <Table.HeaderCell>
-                {t('channel.edit.endpoint_policies.table.reason')}
+                {t('channel.edit.endpoint_policies.table.policy_note')}
               </Table.HeaderCell>
               <Table.HeaderCell>
                 {t('channel.edit.endpoint_policies.table.actions')}

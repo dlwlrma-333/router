@@ -65,18 +65,20 @@ func GetChannelEndpoints(c *gin.Context) {
 		})
 		return
 	}
-	explicitKeys := make(map[string]struct{}, len(explicitRows))
+	explicitKeys := make(map[string]model.ChannelModelEndpoint, len(explicitRows))
 	for _, row := range explicitRows {
 		key := strings.TrimSpace(row.ChannelId) + "::" + strings.TrimSpace(row.Model) + "::" + model.NormalizeRequestedChannelModelEndpoint(row.Endpoint)
-		explicitKeys[key] = struct{}{}
+		explicitKeys[key] = row
 	}
-	items := make([]channelEndpointItem, 0, len(snapshotRows))
+	items := make([]channelEndpointItem, 0, len(snapshotRows)+len(explicitRows))
+	seen := make(map[string]struct{}, len(snapshotRows)+len(explicitRows))
 	for _, row := range snapshotRows {
 		key := strings.TrimSpace(row.ChannelId) + "::" + strings.TrimSpace(row.Model) + "::" + model.NormalizeRequestedChannelModelEndpoint(row.Endpoint)
 		source := "provider_catalog"
 		if _, ok := explicitKeys[key]; ok {
 			source = "explicit"
 		}
+		seen[key] = struct{}{}
 		items = append(items, channelEndpointItem{
 			ChannelId: row.ChannelId,
 			Model:     row.Model,
@@ -84,6 +86,19 @@ func GetChannelEndpoints(c *gin.Context) {
 			Enabled:   row.Enabled,
 			UpdatedAt: row.UpdatedAt,
 			Source:    source,
+		})
+	}
+	for key, row := range explicitKeys {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		items = append(items, channelEndpointItem{
+			ChannelId: row.ChannelId,
+			Model:     row.Model,
+			Endpoint:  row.Endpoint,
+			Enabled:   row.Enabled,
+			UpdatedAt: row.UpdatedAt,
+			Source:    "explicit",
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -159,7 +174,11 @@ func UpdateChannelEndpoint(c *gin.Context) {
 		})
 		return
 	}
-	if !model.HasChannelModelEndpoint(snapshotRows, modelName, endpoint) {
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	if enabled && !model.HasChannelModelEndpoint(snapshotRows, modelName, endpoint) {
 		message := "该渠道模型未声明该端点，不能保存端点能力"
 		logChannelAdminWarn(c, "update_endpoint", stringField("channel_id", channelID), stringField("model", modelName), stringField("endpoint", endpoint), stringField("reason", message))
 		c.JSON(http.StatusOK, gin.H{
@@ -167,10 +186,6 @@ func UpdateChannelEndpoint(c *gin.Context) {
 			"message": message,
 		})
 		return
-	}
-	enabled := true
-	if req.Enabled != nil {
-		enabled = *req.Enabled
 	}
 	explicitRows, err := model.ListChannelModelEndpointsByChannelIDWithDB(model.DB, channelID, "", "")
 	if err != nil {

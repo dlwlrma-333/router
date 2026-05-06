@@ -579,6 +579,7 @@
           "source": "Source",
           "enabled": "Enabled",
           "latest_test": "Latest Test",
+          "test_status": "Test Status",
           "updated_at": "Updated At"
         },
         "source": {
@@ -614,6 +615,8 @@
           "endpoint": "Endpoint",
           "status": "Status",
           "reason": "Reason",
+          "policy": "Policy",
+          "policy_note": "Policy Note",
           "updated_at": "Updated At",
           "actions": "Actions"
         },

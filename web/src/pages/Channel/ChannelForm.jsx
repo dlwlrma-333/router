@@ -3378,7 +3378,11 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         setChannelEndpoints(normalizeChannelEndpointRows(nextEndpoints));
         setChannelEndpointsError('');
         showSuccess(
-          t('channel.edit.endpoint_capabilities.update_success'),
+          t(
+            enabled
+              ? 'channel.edit.endpoint_capabilities.enable_success'
+              : 'channel.edit.endpoint_capabilities.disable_success',
+          ),
         );
       } catch (error) {
         showError(
@@ -4535,7 +4539,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                     t={t}
                     columnWidths={CHANNEL_ENDPOINT_COLUMN_WIDTHS}
                     endpointSummaryText={endpointSummaryText}
-                    endpointCapabilityStats={endpointCapabilityStats}
                     channelEndpoints={channelEndpoints}
                     channelEndpointsLoading={channelEndpointsLoading}
                     channelEndpointsError={channelEndpointsError}
@@ -4546,7 +4549,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                     updateChannelEndpointCapability={
                       updateChannelEndpointCapability
                     }
-                    endpointPolicyStats={endpointPolicyStats}
                     channelEndpointPoliciesLoading={
                       channelEndpointPoliciesLoading
                     }
