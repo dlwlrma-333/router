@@ -96,22 +96,16 @@ const CHANNEL_DETAIL_MODEL_COLUMN_WIDTHS = [
   '10%',
   '8%',
 ];
-const CHANNEL_ENDPOINT_CAPABILITY_COLUMN_WIDTHS = [
-  '22%',
-  '24%',
-  '14%',
-  '10%',
-  '14%',
+const CHANNEL_ENDPOINT_COLUMN_WIDTHS = [
   '16%',
-];
-const CHANNEL_ENDPOINT_POLICY_COLUMN_WIDTHS = [
   '18%',
-  '20%',
-  '12%',
-  '12%',
-  '22%',
   '10%',
-  '6%',
+  '8%',
+  '11%',
+  '10%',
+  '9%',
+  '10%',
+  '8%',
 ];
 const CHANNEL_MODEL_TEST_GROUP_COLUMN_WIDTHS = [
   '4%',
@@ -2216,23 +2210,16 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       },
     );
   }, [channelEndpoints]);
-  const endpointCapabilitySummaryText = useMemo(
+  const endpointSummaryText = useMemo(
     () =>
       t('channel.edit.endpoint_capabilities.summary', {
         total: endpointCapabilityStats.total,
-        enabled: endpointCapabilityStats.enabled,
-        explicit: endpointCapabilityStats.explicit,
-        candidate: endpointCapabilityStats.candidate,
+        configured: channelEndpointPolicies.length,
+        capability_enabled: endpointCapabilityStats.enabled,
+        policy_enabled: channelEndpointPolicies.filter((row) => row.enabled)
+          .length,
       }),
-    [endpointCapabilityStats, t],
-  );
-  const endpointPolicySummaryText = useMemo(
-    () =>
-      t('channel.edit.endpoint_policies.summary', {
-        total: channelEndpointPolicies.length,
-        enabled: channelEndpointPolicies.filter((row) => row.enabled).length,
-      }),
-    [channelEndpointPolicies, t],
+    [channelEndpointPolicies, endpointCapabilityStats.enabled, endpointCapabilityStats.total, t],
   );
   const endpointPolicyStats = useMemo(() => {
     const configuredKeys = new Set(
@@ -4532,15 +4519,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                   {t('channel.edit.detail_tabs.models')}
                 </Menu.Item>
                 <Menu.Item
-                  active={activeDetailTab === 'endpoints'}
-                  disabled={
-                    isAnyDetailSectionEditing && activeDetailTab !== 'endpoints'
-                  }
-                  onClick={() => goToDetailTab('endpoints')}
-                >
-                  {t('channel.edit.detail_tabs.endpoints')}
-                </Menu.Item>
-                <Menu.Item
                   active={activeDetailTab === 'tests'}
                   disabled={
                     isAnyDetailSectionEditing && activeDetailTab !== 'tests'
@@ -4548,6 +4526,15 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                   onClick={() => goToDetailTab('tests')}
                 >
                   {t('channel.edit.detail_tabs.tests')}
+                </Menu.Item>
+                <Menu.Item
+                  active={activeDetailTab === 'endpoints'}
+                  disabled={
+                    isAnyDetailSectionEditing && activeDetailTab !== 'endpoints'
+                  }
+                  onClick={() => goToDetailTab('endpoints')}
+                >
+                  {t('channel.edit.detail_tabs.endpoints')}
                 </Menu.Item>
               </Menu>
             </div>
@@ -4659,11 +4646,8 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                 {showDetailEndpointsTab && (
                   <ChannelDetailEndpointsTab
                     t={t}
-                    capabilityColumnWidths={
-                      CHANNEL_ENDPOINT_CAPABILITY_COLUMN_WIDTHS
-                    }
-                    policyColumnWidths={CHANNEL_ENDPOINT_POLICY_COLUMN_WIDTHS}
-                    endpointCapabilitySummaryText={endpointCapabilitySummaryText}
+                    columnWidths={CHANNEL_ENDPOINT_COLUMN_WIDTHS}
+                    endpointSummaryText={endpointSummaryText}
                     endpointCapabilityStats={endpointCapabilityStats}
                     channelEndpoints={channelEndpoints}
                     channelEndpointsLoading={channelEndpointsLoading}
@@ -4678,7 +4662,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                     updateChannelEndpointCapability={
                       updateChannelEndpointCapability
                     }
-                    endpointPolicySummaryText={endpointPolicySummaryText}
                     endpointPolicyStats={endpointPolicyStats}
                     channelEndpointPoliciesLoading={
                       channelEndpointPoliciesLoading

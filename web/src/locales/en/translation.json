@@ -559,9 +559,9 @@
         "tests": "Tests"
       },
       "endpoint_capabilities": {
-        "title": "Endpoint Capabilities",
-        "summary": "{{total}} total, {{enabled}} enabled, {{explicit}} explicit, {{candidate}} candidates",
-        "hint": "This section shows endpoint capabilities for the current channel models. Candidate endpoints come from the provider model catalog; routing and /v1/models exposure use enabled channel endpoint capabilities.",
+        "title": "Endpoints",
+        "summary": "{{total}} total, {{capability_enabled}} enabled, {{configured}} with policy, {{policy_enabled}} policy-enabled",
+        "hint": "This table is grouped by model + endpoint. Each row manages endpoint capability and endpoint policy together so you do not need to compare two separate lists.",
         "cards": {
           "total": "Total Endpoints",
           "enabled": "Enabled",

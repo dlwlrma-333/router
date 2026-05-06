@@ -559,9 +559,9 @@
         "tests": "测试"
       },
       "endpoint_capabilities": {
-        "title": "端点能力",
-        "summary": "共 {{total}} 条，启用 {{enabled}} 条，显式 {{explicit}} 条，候选 {{candidate}} 条",
-        "hint": "这里展示的是当前渠道模型的端点能力。候选端点来自供应商模型目录；真正参与路由和 /v1/models 暴露的是已启用的渠道端点能力。",
+        "title": "端点",
+        "summary": "共 {{total}} 条，已启用 {{capability_enabled}} 条，已配策略 {{configured}} 条，策略启用 {{policy_enabled}} 条",
+        "hint": "这里按模型 + 端点汇总展示当前渠道的端点信息。同一行同时管理端点能力和端点策略，避免在两张表里来回对照。",
         "cards": {
           "total": "端点总数",
           "enabled": "已启用",
