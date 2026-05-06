@@ -561,7 +561,7 @@
       "endpoint_capabilities": {
         "title": "端点",
         "summary": "共 {{total}} 条，已启用 {{capability_enabled}} 条，已配策略 {{configured}} 条，策略启用 {{policy_enabled}} 条",
-        "hint": "这里按模型 + 端点汇总展示当前渠道的端点信息。同一行同时管理端点能力和端点策略，避免在两张表里来回对照。",
+        "hint": "这里按模型 + 端点展示当前渠道的端点信息，可直接启用端点并配置对应策略。",
         "cards": {
           "total": "端点总数",
           "enabled": "已启用",
@@ -613,14 +613,13 @@
           "model": "模型",
           "endpoint": "端点",
           "status": "状态",
-          "source": "来源",
           "reason": "原因",
           "updated_at": "更新时间",
           "actions": "操作"
         },
         "editor": {
           "title": "编辑端点策略",
-          "hint": "JSON 文本会按后端规则校验。`capabilities` 描述事实能力，`request_policy` 描述请求侧动作，`response_policy` 暂作为预留字段。",
+          "hint": "这里仅编辑端点策略。JSON 文本会按后端规则校验：`capabilities` 描述能力，`request_policy` 描述请求侧动作，`response_policy` 暂为预留字段。",
           "template": "策略模板",
           "template_placeholder": "选择常用模板快速填充",
           "capabilities": "能力声明 JSON",

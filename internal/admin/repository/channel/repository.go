@@ -204,77 +204,6 @@ func Insert(channel *model.Channel) error {
 	return channel.AddAbilities()
 }
 
-func sameStringPointerValue(left *string, right *string) bool {
-	leftValue := ""
-	rightValue := ""
-	if left != nil {
-		leftValue = strings.TrimSpace(*left)
-	}
-	if right != nil {
-		rightValue = strings.TrimSpace(*right)
-	}
-	return leftValue == rightValue
-}
-
-func buildSelectedModelTestSignature(channel *model.Channel) string {
-	if channel == nil {
-		return ""
-	}
-	rows := channel.GetModelConfigs()
-	if len(rows) == 0 {
-		return ""
-	}
-	parts := make([]string, 0, len(rows))
-	for _, row := range rows {
-		if !row.Selected {
-			continue
-		}
-		modelID := strings.TrimSpace(row.Model)
-		upstreamModel := strings.TrimSpace(row.UpstreamModel)
-		modelType := strings.TrimSpace(row.Type)
-		if modelID == "" {
-			continue
-		}
-		if upstreamModel == "" {
-			upstreamModel = modelID
-		}
-		endpoints := model.NormalizeChannelModelDirectEndpoints(modelType, row.Endpoints, row.Endpoint)
-		endpointSignature := strings.Join(endpoints, "|")
-		parts = append(parts, modelID+"=>"+upstreamModel+"#"+modelType+"@"+endpointSignature)
-	}
-	return strings.Join(parts, "|")
-}
-
-func shouldResetChannelTests(existing *model.Channel, incoming *model.Channel) bool {
-	if existing == nil || incoming == nil {
-		return false
-	}
-	if strings.TrimSpace(incoming.Protocol) != "" && existing.GetProtocol() != incoming.GetProtocol() {
-		return true
-	}
-	if incoming.BaseURL != nil && !sameStringPointerValue(existing.BaseURL, incoming.BaseURL) {
-		return true
-	}
-	if strings.TrimSpace(incoming.Key) != "" && strings.TrimSpace(existing.Key) != strings.TrimSpace(incoming.Key) {
-		return true
-	}
-	if strings.TrimSpace(incoming.Config) != "" && strings.TrimSpace(existing.Config) != strings.TrimSpace(incoming.Config) {
-		return true
-	}
-	if strings.TrimSpace(incoming.TestModel) != "" && strings.TrimSpace(existing.TestModel) != strings.TrimSpace(incoming.TestModel) {
-		return true
-	}
-	if incoming.ModelConfigsProvided &&
-		buildSelectedModelTestSignature(existing) != buildSelectedModelTestSignature(incoming) {
-		return true
-	}
-	if incoming.ModelsProvided &&
-		model.JoinChannelModelCSV(existing.SelectedModelIDs()) != model.JoinChannelModelCSV(incoming.SelectedModelIDs()) {
-		return true
-	}
-	return false
-}
-
 func Update(channel *model.Channel) error {
 	channel.NormalizeIdentity()
 	channel.Id = strings.TrimSpace(channel.Id)
@@ -302,7 +231,6 @@ func Update(channel *model.Channel) error {
 		if err := ensureChannelIdentifierUniqueWithDB(tx, channel); err != nil {
 			return err
 		}
-		resetChannelTests := shouldResetChannelTests(&existing, channel)
 		channel.UpdatedAt = helper.GetTimestamp()
 		if channel.NameProvided {
 			if err := tx.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("name", model.NormalizeChannelIdentifier(channel.Name)).Error; err != nil {
@@ -324,11 +252,6 @@ func Update(channel *model.Channel) error {
 				return err
 			}
 			if err := model.EnsureChannelTestModelWithDB(tx, channel.Id); err != nil {
-				return err
-			}
-		}
-		if resetChannelTests {
-			if err := model.DeleteChannelTestsByChannelIDWithDB(tx, channel.Id); err != nil {
 				return err
 			}
 		}
@@ -427,15 +350,10 @@ func UpdateUsedQuotaDirect(id string, quota int64) {
 func UpdateTestModelByID(id string, testModel string) error {
 	id = strings.TrimSpace(id)
 	testModel = strings.TrimSpace(testModel)
-	return model.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&model.Channel{}).Where("id = ?", id).Updates(map[string]any{
-			"test_model": testModel,
-			"updated_at": helper.GetTimestamp(),
-		}).Error; err != nil {
-			return err
-		}
-		return model.DeleteChannelTestsByChannelIDWithDB(tx, id)
-	})
+	return model.DB.Model(&model.Channel{}).Where("id = ?", id).Updates(map[string]any{
+		"test_model": testModel,
+		"updated_at": helper.GetTimestamp(),
+	}).Error
 }
 
 func DeleteByStatus(status int64) (int64, error) {

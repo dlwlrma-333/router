@@ -561,7 +561,7 @@
       "endpoint_capabilities": {
         "title": "Endpoints",
         "summary": "{{total}} total, {{capability_enabled}} enabled, {{configured}} with policy, {{policy_enabled}} policy-enabled",
-        "hint": "This table is grouped by model + endpoint. Each row manages endpoint capability and endpoint policy together so you do not need to compare two separate lists.",
+        "hint": "This table shows endpoint data by model + endpoint. You can enable endpoints and configure their policies here.",
         "cards": {
           "total": "Total Endpoints",
           "enabled": "Enabled",
@@ -613,14 +613,13 @@
           "model": "Model",
           "endpoint": "Endpoint",
           "status": "Status",
-          "source": "Source",
           "reason": "Reason",
           "updated_at": "Updated At",
           "actions": "Actions"
         },
         "editor": {
           "title": "Edit Endpoint Policy",
-          "hint": "JSON text is validated by backend rules. `capabilities` describes factual support, `request_policy` describes request-side actions, and `response_policy` is reserved for now.",
+          "hint": "Only endpoint policy is edited here. JSON text is validated by backend rules: `capabilities` describes support, `request_policy` describes request-side actions, and `response_policy` is reserved for now.",
           "template": "Policy Template",
           "template_placeholder": "Choose a common template for quick fill",
           "capabilities": "Capabilities JSON",

@@ -16,7 +16,6 @@ const ChannelDetailEndpointsTab = ({
   channelEndpoints,
   channelEndpointsLoading,
   channelEndpointsError,
-  renderEndpointCapabilitySource,
   buildChannelEndpointKey,
   modelTestResultsByKey,
   endpointCapabilityReadonly,
@@ -102,9 +101,6 @@ const ChannelDetailEndpointsTab = ({
               <Table.HeaderCell>
                 {t('channel.edit.endpoint_capabilities.table.endpoint')}
               </Table.HeaderCell>
-              <Table.HeaderCell>
-                {t('channel.edit.endpoint_capabilities.table.source')}
-              </Table.HeaderCell>
               <Table.HeaderCell textAlign='center'>
                 {t('channel.edit.endpoint_capabilities.table.enabled')}
               </Table.HeaderCell>
@@ -113,9 +109,6 @@ const ChannelDetailEndpointsTab = ({
               </Table.HeaderCell>
               <Table.HeaderCell>
                 {t('channel.edit.endpoint_policies.table.status')}
-              </Table.HeaderCell>
-              <Table.HeaderCell>
-                {t('channel.edit.endpoint_policies.table.source')}
               </Table.HeaderCell>
               <Table.HeaderCell>
                 {t('channel.edit.endpoint_policies.table.reason')}
@@ -128,7 +121,7 @@ const ChannelDetailEndpointsTab = ({
           <Table.Body>
             {channelEndpoints.length === 0 ? (
               <Table.Row>
-                <Table.Cell className='router-empty-cell' colSpan={9}>
+                <Table.Cell className='router-empty-cell' colSpan={7}>
                   {channelEndpointsLoading
                     ? t('channel.edit.endpoint_capabilities.loading')
                     : t('channel.edit.endpoint_capabilities.empty')}
@@ -156,9 +149,6 @@ const ChannelDetailEndpointsTab = ({
                     </Table.Cell>
                     <Table.Cell title={row.endpoint}>
                       <span className='router-cell-truncate'>{row.endpoint}</span>
-                    </Table.Cell>
-                    <Table.Cell>
-                      {renderEndpointCapabilitySource(row.source)}
                     </Table.Cell>
                     <Table.Cell textAlign='center'>
                       <Checkbox
@@ -199,11 +189,6 @@ const ChannelDetailEndpointsTab = ({
                           {t('channel.edit.endpoint_policies.status.not_configured')}
                         </Label>
                       )}
-                    </Table.Cell>
-                    <Table.Cell title={(policyRow?.source || '').toString()}>
-                      <span className='router-cell-truncate'>
-                        {policyRow?.source || '-'}
-                      </span>
                     </Table.Cell>
                     <Table.Cell title={(policyRow?.reason || '').toString()}>
                       <span className='router-cell-truncate'>

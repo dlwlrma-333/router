@@ -97,14 +97,12 @@ const CHANNEL_DETAIL_MODEL_COLUMN_WIDTHS = [
   '8%',
 ];
 const CHANNEL_ENDPOINT_COLUMN_WIDTHS = [
-  '16%',
-  '18%',
-  '10%',
+  '22%',
+  '20%',
   '8%',
-  '11%',
-  '10%',
-  '9%',
-  '10%',
+  '15%',
+  '12%',
+  '15%',
   '8%',
 ];
 const CHANNEL_MODEL_TEST_GROUP_COLUMN_WIDTHS = [
@@ -1914,6 +1912,14 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       const providerId = resolvePreferredProviderForModel(row);
       const providerDetails = providerModelDetailsIndex[providerId] || {};
       const candidates = [];
+      normalizeChannelModelEndpoints(
+        row?.type,
+        row?.endpoints || row?.endpoint_list || [],
+        row?.endpoint,
+        inputs.protocol,
+      ).forEach((endpoint) => {
+        candidates.push(endpoint);
+      });
       buildProviderLookupKeys(row).forEach((key) => {
         const detail = providerDetails[key];
         if (!detail || !Array.isArray(detail.supported_endpoints)) {
@@ -1960,7 +1966,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         inputs.protocol,
       );
       const providerEndpoints = getProviderCandidateEndpointsForModel(row);
-      if (providerEndpoints.includes(normalizedCurrent)) {
+      if (normalizedCurrent !== '') {
         return normalizedCurrent;
       }
       return providerEndpoints[0] || normalizedCurrent;
@@ -3391,25 +3397,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     ],
   );
 
-  const renderEndpointCapabilitySource = useCallback(
-    (source) => {
-      const normalizedSource = normalizeChannelEndpointSource(source);
-      if (normalizedSource === CHANNEL_ENDPOINT_SOURCE_EXPLICIT) {
-        return (
-          <Label basic color='blue' className='router-tag'>
-            {t('channel.edit.endpoint_capabilities.source.explicit')}
-          </Label>
-        );
-      }
-      return (
-        <Label basic color='grey' className='router-tag'>
-          {t('channel.edit.endpoint_capabilities.source.provider_catalog')}
-        </Label>
-      );
-    },
-    [t],
-  );
-
   const openEndpointPolicyEditor = useCallback(
     (row) => {
       const targetChannelId = (row?.channel_id || channelId || '')
@@ -3493,7 +3480,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
             .toString()
             .trim(),
           reason: (policyDraft.reason || '').toString(),
-          source: (policyDraft.source || 'manual').toString().trim() || 'manual',
+          source: 'manual',
           last_verified_at: Number(policyDraft.last_verified_at || 0),
         },
       );
@@ -4552,9 +4539,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                     channelEndpoints={channelEndpoints}
                     channelEndpointsLoading={channelEndpointsLoading}
                     channelEndpointsError={channelEndpointsError}
-                    renderEndpointCapabilitySource={
-                      renderEndpointCapabilitySource
-                    }
                     buildChannelEndpointKey={buildChannelEndpointKey}
                     modelTestResultsByKey={modelTestResultsByKey}
                     endpointCapabilityReadonly={endpointCapabilityReadonly}

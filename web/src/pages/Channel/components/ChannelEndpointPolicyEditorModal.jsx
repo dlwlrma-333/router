@@ -80,17 +80,6 @@ const ChannelEndpointPolicyEditorModal = ({
                 }
               />
             </Form.Field>
-            <Form.Input
-              className='router-modal-input'
-              label={t('channel.edit.endpoint_policies.table.source')}
-              value={policyDraft.source}
-              onChange={(e, { value }) =>
-                setPolicyDraft((prev) => ({
-                  ...prev,
-                  source: value || 'manual',
-                }))
-              }
-            />
           </Form.Group>
           <Form.TextArea
             className='router-section-textarea router-code-textarea router-code-textarea-sm'
