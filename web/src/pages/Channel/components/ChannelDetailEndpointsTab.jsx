@@ -4,7 +4,6 @@ import {
   Checkbox,
   Dropdown,
   Form,
-  Label,
   Message,
   Table,
 } from 'semantic-ui-react';
@@ -140,9 +139,6 @@ const ChannelDetailEndpointsTab = ({
                 {t('channel.edit.endpoint_policies.table.policy')}
               </Table.HeaderCell>
               <Table.HeaderCell>
-                {t('channel.edit.endpoint_policies.table.policy_note')}
-              </Table.HeaderCell>
-              <Table.HeaderCell>
                 {t('channel.edit.endpoint_policies.table.actions')}
               </Table.HeaderCell>
             </Table.Row>
@@ -150,7 +146,7 @@ const ChannelDetailEndpointsTab = ({
           <Table.Body>
             {filteredRows.length === 0 ? (
               <Table.Row>
-                <Table.Cell className='router-empty-cell' colSpan={7}>
+                <Table.Cell className='router-empty-cell' colSpan={6}>
                   {channelEndpointsLoading
                     ? t('channel.edit.endpoint_capabilities.loading')
                     : channelEndpoints.length === 0
@@ -202,37 +198,16 @@ const ChannelDetailEndpointsTab = ({
                     <Table.Cell>
                       {channelEndpointPoliciesLoading &&
                       channelEndpointPolicies.length === 0 ? (
-                        <Label basic className='router-tag'>
+                        <span className='router-cell-truncate'>
                           {t('channel.edit.endpoint_policies.loading')}
-                        </Label>
+                        </span>
                       ) : policyRow ? (
-                        policyRow.template_key ? (
-                          <Label
-                            basic
-                            color={policyRow.enabled ? 'green' : 'grey'}
-                            className='router-tag'
-                          >
-                            {policyRow.template_key}
-                          </Label>
-                        ) : (
-                          <Label
-                            basic
-                            color={policyRow.enabled ? 'blue' : 'grey'}
-                            className='router-tag'
-                          >
-                            MANUAL
-                          </Label>
-                        )
+                        <span className='router-cell-truncate'>
+                          {policyRow.template_key || '-'}
+                        </span>
                       ) : (
-                        <Label basic className='router-tag'>
-                          {t('channel.edit.endpoint_policies.status.not_configured')}
-                        </Label>
+                        <span className='router-cell-truncate'>-</span>
                       )}
-                    </Table.Cell>
-                    <Table.Cell title={(policyRow?.reason || '').toString()}>
-                      <span className='router-cell-truncate'>
-                        {policyRow?.reason || '-'}
-                      </span>
                     </Table.Cell>
                     <Table.Cell collapsing>
                       <Button
@@ -248,9 +223,7 @@ const ChannelDetailEndpointsTab = ({
                               : undefined
                         }
                       >
-                        {policyRow
-                          ? t('channel.edit.endpoint_policies.edit')
-                          : t('channel.edit.endpoint_policies.create')}
+                        {t('channel.edit.endpoint_policies.action')}
                       </Button>
                     </Table.Cell>
                   </Table.Row>

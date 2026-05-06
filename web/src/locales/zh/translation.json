@@ -612,6 +612,7 @@
         "invalid": "端点策略参数不完整",
         "create": "新建策略",
         "edit": "编辑策略",
+        "action": "端点策略",
         "status": {
           "enabled": "已启用",
           "disabled": "已停用",
@@ -623,7 +624,6 @@
           "status": "状态",
           "reason": "原因",
           "policy": "策略标识",
-          "policy_note": "策略说明",
           "updated_at": "更新时间",
           "actions": "操作"
         },

@@ -97,13 +97,12 @@ const CHANNEL_DETAIL_MODEL_COLUMN_WIDTHS = [
   '8%',
 ];
 const CHANNEL_ENDPOINT_COLUMN_WIDTHS = [
-  '22%',
   '20%',
+  '18%',
   '8%',
-  '15%',
   '12%',
-  '15%',
-  '8%',
+  '28%',
+  '14%',
 ];
 const CHANNEL_MODEL_TEST_GROUP_COLUMN_WIDTHS = [
   '4%',

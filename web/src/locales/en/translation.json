@@ -612,6 +612,7 @@
         "invalid": "Incomplete endpoint policy payload",
         "create": "Create Policy",
         "edit": "Edit Policy",
+        "action": "Endpoint Policy",
         "status": {
           "enabled": "Enabled",
           "disabled": "Disabled",
@@ -623,7 +624,6 @@
           "status": "Status",
           "reason": "Reason",
           "policy": "Policy Key",
-          "policy_note": "Policy Note",
           "updated_at": "Updated At",
           "actions": "Actions"
         },
