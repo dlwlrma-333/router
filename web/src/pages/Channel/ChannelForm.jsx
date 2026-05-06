@@ -88,13 +88,12 @@ const CHANNEL_IDENTIFIER_PATTERN = /^[a-z0-9-]+$/;
 const CHANNEL_IDENTIFIER_MAX_LENGTH = 64;
 const CHANNEL_DETAIL_MODEL_COLUMN_WIDTHS = [
   '8%',
-  '18%',
-  '6%',
-  '16%',
-  '18%',
+  '24%',
+  '8%',
+  '22%',
+  '12%',
   '10%',
-  '9%',
-  '9%',
+  '10%',
   '6%',
 ];
 const CHANNEL_ENDPOINT_CAPABILITY_COLUMN_WIDTHS = [
@@ -2104,10 +2103,13 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     setComplexPricingModalOpen(false);
     setComplexPricingModalData(null);
   }, []);
+  const hasProviderConfiguredForModel = useCallback(
+    (row) => resolvePreferredProviderForModel(row) !== '',
+    [resolvePreferredProviderForModel],
+  );
   const canSelectChannelModel = useCallback(
-    (row) =>
-      row?.inactive !== true && getProviderOwnersForModel(row).length > 0,
-    [getProviderOwnersForModel],
+    (row) => row?.inactive !== true && hasProviderConfiguredForModel(row),
+    [hasProviderConfiguredForModel],
   );
   const activeModelConfigs = useMemo(
     () => visibleModelConfigs.filter((row) => row.inactive !== true),
@@ -2116,28 +2118,28 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   const detailModelStats = useMemo(() => {
     return visibleModelConfigs.reduce(
       (acc, row) => {
-        const owners = getProviderOwnersForModel(row);
-        if (owners.length > 0) {
-          acc.assigned += 1;
-        } else {
-          acc.unassigned += 1;
-        }
         if (row.selected === true) {
           acc.enabled += 1;
         }
         if (row.inactive === true) {
           acc.inactive += 1;
+          return acc;
+        }
+        if (canSelectChannelModel(row)) {
+          acc.selectable += 1;
+        } else {
+          acc.unselectable += 1;
         }
         return acc;
       },
       {
-        assigned: 0,
-        unassigned: 0,
+        selectable: 0,
+        unselectable: 0,
         enabled: 0,
         inactive: 0,
       },
     );
-  }, [getProviderOwnersForModel, visibleModelConfigs]);
+  }, [canSelectChannelModel, visibleModelConfigs]);
   const detailFilteredModelConfigs = useMemo(() => {
     if (!isDetailMode) {
       return visibleModelConfigs;
@@ -2191,6 +2193,29 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     const offset = (detailModelPage - 1) * CHANNEL_MODEL_PAGE_SIZE;
     return searchedModelConfigs.slice(offset, offset + CHANNEL_MODEL_PAGE_SIZE);
   }, [searchedModelConfigs, detailModelPage]);
+  const detailCurrentPageSelectableModels = useMemo(
+    () => renderedModelConfigs.filter((row) => canSelectChannelModel(row)),
+    [canSelectChannelModel, renderedModelConfigs],
+  );
+  const detailCurrentPageBlockedModels = useMemo(
+    () =>
+      renderedModelConfigs.filter(
+        (row) => row.inactive !== true && !canSelectChannelModel(row),
+      ),
+    [canSelectChannelModel, renderedModelConfigs],
+  );
+  const detailCurrentPageAllSelected = useMemo(
+    () =>
+      detailCurrentPageSelectableModels.length > 0 &&
+      detailCurrentPageSelectableModels.every((row) => row.selected === true),
+    [detailCurrentPageSelectableModels],
+  );
+  const detailCurrentPagePartiallySelected = useMemo(
+    () =>
+      !detailCurrentPageAllSelected &&
+      detailCurrentPageSelectableModels.some((row) => row.selected === true),
+    [detailCurrentPageAllSelected, detailCurrentPageSelectableModels],
+  );
   const modelSelectionSummaryText = useMemo(
     () =>
       t('channel.edit.model_selector.summary', {
@@ -2199,22 +2224,10 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       }),
     [activeModelConfigs.length, inputs.models.length, t],
   );
-  const modelAssignmentSummaryText = useMemo(() => {
-    if (!isDetailMode) {
-      return '';
-    }
-    return t('channel.edit.model_selector.assignment_summary', {
-      assigned: detailModelStats.assigned,
-      unassigned: detailModelStats.unassigned,
-    });
-  }, [detailModelStats, isDetailMode, t]);
-  const modelSectionMetaText = useMemo(() => {
-    const parts = [modelSelectionSummaryText];
-    if (modelAssignmentSummaryText) {
-      parts.push(modelAssignmentSummaryText);
-    }
-    return parts.filter(Boolean).join(' · ');
-  }, [modelAssignmentSummaryText, modelSelectionSummaryText]);
+  const modelSectionMetaText = useMemo(
+    () => modelSelectionSummaryText,
+    [modelSelectionSummaryText],
+  );
   const endpointCapabilityStats = useMemo(() => {
     return channelEndpoints.reduce(
       (acc, row) => {
@@ -3708,7 +3721,14 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     async (upstreamModel, checked) => {
       const nextConfigs = visibleModelConfigs.map((row) =>
         row.upstream_model === upstreamModel && canSelectChannelModel(row)
-          ? { ...row, selected: !!checked }
+          ? {
+              ...row,
+              provider:
+                normalizeChannelModelProviderValue(row.provider) === ''
+                  ? resolvePreferredProviderForModel(row)
+                  : row.provider,
+              selected: !!checked,
+            }
           : row,
       );
       if (isDetailMode) {
@@ -3733,7 +3753,46 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       detailEditingModelKey,
       detailModelsEditing,
       isDetailMode,
+      resolvePreferredProviderForModel,
       persistDetailModelConfigs,
+      visibleModelConfigs,
+    ],
+  );
+  const toggleDetailCurrentPageSelections = useCallback(
+    async (checked) => {
+      if (checked && detailCurrentPageBlockedModels.length > 0) {
+        showInfo(
+          t('channel.edit.model_selector.selection_skipped_unassigned', {
+            count: detailCurrentPageBlockedModels.length,
+          }),
+        );
+      }
+      const targetIDs = new Set(
+        detailCurrentPageSelectableModels.map((row) => row.upstream_model),
+      );
+      if (targetIDs.size === 0) {
+        return;
+      }
+      const nextConfigs = visibleModelConfigs.map((row) =>
+        targetIDs.has(row.upstream_model)
+          ? {
+              ...row,
+              provider:
+                normalizeChannelModelProviderValue(row.provider) === ''
+                  ? resolvePreferredProviderForModel(row)
+                  : row.provider,
+              selected: !!checked,
+            }
+          : row,
+      );
+      await persistDetailModelConfigs(nextConfigs);
+    },
+    [
+      detailCurrentPageBlockedModels.length,
+      detailCurrentPageSelectableModels,
+      persistDetailModelConfigs,
+      resolvePreferredProviderForModel,
+      t,
       visibleModelConfigs,
     ],
   );
@@ -4651,10 +4710,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                     searchedModelConfigs={searchedModelConfigs}
                     visibleModelConfigs={visibleModelConfigs}
                     renderedModelConfigs={renderedModelConfigs}
-                    getProviderOwnersForModel={getProviderOwnersForModel}
-                    getSelectedProviderDisplayItems={
-                      getSelectedProviderDisplayItems
-                    }
                     getComplexPricingDetailsForModel={
                       getComplexPricingDetailsForModel
                     }
@@ -4663,9 +4718,20 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                     providerCatalogLoading={providerCatalogLoading}
                     renderModelToggleCells={renderModelToggleCells}
                     canSelectChannelModel={canSelectChannelModel}
+                    detailCurrentPageAllSelected={
+                      detailCurrentPageAllSelected
+                    }
+                    detailCurrentPagePartiallySelected={
+                      detailCurrentPagePartiallySelected
+                    }
+                    detailCurrentPageSelectableCount={
+                      detailCurrentPageSelectableModels.length
+                    }
+                    toggleDetailCurrentPageSelections={
+                      toggleDetailCurrentPageSelections
+                    }
                     normalizeChannelModelType={normalizeChannelModelType}
                     startDetailModelEdit={startDetailModelEdit}
-                    openAppendProviderModal={openAppendProviderModal}
                     detailModelTotalPages={detailModelTotalPages}
                     detailModelPage={detailModelPage}
                     setDetailModelPage={setDetailModelPage}

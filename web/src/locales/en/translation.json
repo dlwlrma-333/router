@@ -659,8 +659,8 @@
         "summary": "Selected {{selected}} / {{total}}",
         "cards": {
           "enabled": "Enabled Models",
-          "assigned": "Assigned to Provider",
-          "unassigned": "Unassigned",
+          "selectable": "Ready to Enable",
+          "unselectable": "Needs Setup",
           "inactive": "Inactive Models"
         },
         "table": {
@@ -668,7 +668,6 @@
           "name": "Name",
           "alias": "Alias",
           "type": "Type",
-          "providers": "Provider Ownership",
           "price_unit": "Price Unit",
           "input_price": "Input Price",
           "output_price": "Output Price",
@@ -679,21 +678,21 @@
           "enabled": "Enabled",
           "disabled": "Disabled"
         },
-        "assignment_summary": "Assigned {{assigned}}, unassigned {{unassigned}}",
+        "enable_hint": "Models with a toggleable Enabled checkbox are ready to use. If a model cannot be toggled, complete the required setup in the provider catalog first, then sync models here and enable it again.",
         "auto_assign": "Auto Import",
         "auto_assign_empty": "No models can be auto-imported right now",
         "auto_assign_success": "Imported {{success}} models, failed {{failed}}",
         "provider_loading": "Loading providers...",
-        "provider_unassigned": "Unassigned",
+        "provider_unassigned": "Pending",
         "inactive": "Inactive",
         "provider_add": "Add",
         "provider_no_options": "Please create a provider first",
         "provider_load_failed": "Failed to load provider list",
         "provider_append_invalid": "Please select a provider and enter a model name",
-        "provider_append_success": "Model added to provider",
-        "provider_append_failed": "Failed to add model to provider",
-        "selection_disabled_unassigned": "This model is not assigned to a provider and cannot be enabled. Add it to the provider model catalog first.",
-        "selection_skipped_unassigned": "Skipped {{count}} unassigned models on this page. Add them to the provider model catalog before enabling.",
+        "provider_append_success": "Model added to provider catalog",
+        "provider_append_failed": "Failed to add model to provider catalog",
+        "selection_disabled_unassigned": "This model has no provider configured and cannot be enabled. Add it to the provider model catalog first.",
+        "selection_skipped_unassigned": "Skipped {{count}} models without provider configuration on this page. Add them to the provider model catalog before enabling.",
         "realtime_enabled": "Realtime model sync is enabled: changing address or key refreshes the model list, but does not select all by default.",
         "realtime_hint": "After address and key are filled, supported models will be fetched automatically.",
         "flow_title": "Create Channel Flow",
@@ -732,7 +731,7 @@
           "pricing_title": "Pricing",
           "status_hint": "When disabled, this model will not participate in the current channel's available model set.",
           "provider_placeholder": "Select a provider",
-          "provider_empty": "No provider is assigned to this model yet"
+          "provider_empty": "No provider is configured for this model yet"
         },
         "pricing_detail_table": {
           "component": "Component",

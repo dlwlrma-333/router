@@ -1,9 +1,11 @@
 import React from 'react';
 import {
   Button,
+  Checkbox,
   Dropdown,
   Form,
   Label,
+  Message,
   Pagination,
   Table,
 } from 'semantic-ui-react';
@@ -25,17 +27,18 @@ const ChannelDetailModelsTab = ({
   searchedModelConfigs,
   visibleModelConfigs,
   renderedModelConfigs,
-  getProviderOwnersForModel,
-  getSelectedProviderDisplayItems,
   getComplexPricingDetailsForModel,
   openComplexPricingModal,
   detailModelsEditLocked,
   providerCatalogLoading,
   renderModelToggleCells,
   canSelectChannelModel,
+  detailCurrentPageAllSelected,
+  detailCurrentPagePartiallySelected,
+  detailCurrentPageSelectableCount,
+  toggleDetailCurrentPageSelections,
   normalizeChannelModelType,
   startDetailModelEdit,
-  openAppendProviderModal,
   detailModelTotalPages,
   detailModelPage,
   setDetailModelPage,
@@ -116,18 +119,18 @@ const ChannelDetailModelsTab = ({
           </div>
           <div className='router-inline-stat-card'>
             <div className='router-inline-stat-value'>
-              {detailModelStats.assigned}
+              {detailModelStats.selectable}
             </div>
             <div className='router-inline-stat-hint'>
-              {t('channel.edit.model_selector.cards.assigned')}
+              {t('channel.edit.model_selector.cards.selectable')}
             </div>
           </div>
           <div className='router-inline-stat-card'>
             <div className='router-inline-stat-value'>
-              {detailModelStats.unassigned}
+              {detailModelStats.unselectable}
             </div>
             <div className='router-inline-stat-hint'>
-              {t('channel.edit.model_selector.cards.unassigned')}
+              {t('channel.edit.model_selector.cards.unselectable')}
             </div>
           </div>
           <div className='router-inline-stat-card'>
@@ -139,6 +142,9 @@ const ChannelDetailModelsTab = ({
             </div>
           </div>
         </div>
+        <Message info className='router-section-message'>
+          {t('channel.edit.model_selector.enable_hint')}
+        </Message>
         <Table
           celled
           stackable
@@ -159,16 +165,30 @@ const ChannelDetailModelsTab = ({
                 textAlign='center'
                 className='router-create-model-selected-col'
               >
-                {t('channel.edit.model_selector.table.selected')}
+                <div className='router-model-header-checkbox'>
+                  <span className='router-model-header-checkbox-label'>
+                    {t('channel.edit.model_selector.table.selected')}
+                  </span>
+                  <Checkbox
+                    checked={detailCurrentPageAllSelected}
+                    indeterminate={detailCurrentPagePartiallySelected}
+                    disabled={
+                      detailModelsEditing ||
+                      detailModelMutating ||
+                      providerCatalogLoading ||
+                      detailCurrentPageSelectableCount === 0
+                    }
+                    onChange={(e, { checked }) =>
+                      toggleDetailCurrentPageSelections(!!checked)
+                    }
+                  />
+                </div>
               </Table.HeaderCell>
               <Table.HeaderCell>
                 {t('channel.edit.model_selector.table.name')}
               </Table.HeaderCell>
               <Table.HeaderCell>
                 {t('channel.edit.model_selector.table.type')}
-              </Table.HeaderCell>
-              <Table.HeaderCell>
-                {t('channel.edit.model_selector.table.providers')}
               </Table.HeaderCell>
               <Table.HeaderCell>
                 {t('channel.edit.model_selector.table.alias')}
@@ -188,7 +208,7 @@ const ChannelDetailModelsTab = ({
           <Table.Body>
             {searchedModelConfigs.length === 0 ? (
               <Table.Row>
-                <Table.Cell className='router-empty-cell' colSpan={9}>
+                <Table.Cell className='router-empty-cell' colSpan={8}>
                   {modelSearchKeyword.trim() !== ''
                     ? t('channel.edit.model_selector.empty_search')
                     : visibleModelConfigs.length > 0
@@ -198,8 +218,6 @@ const ChannelDetailModelsTab = ({
               </Table.Row>
             ) : (
               renderedModelConfigs.map((row) => {
-                const providerOwners = getProviderOwnersForModel(row);
-                const selectedProviderItems = getSelectedProviderDisplayItems(row);
                 const complexPricingDetails =
                   getComplexPricingDetailsForModel(row);
                 const hasComplexInputPricing = complexPricingDetails.some(
@@ -214,7 +232,6 @@ const ChannelDetailModelsTab = ({
                       (component) => Number(component.output_price || 0) > 0,
                     ),
                 );
-                const isUnassigned = providerOwners.length === 0;
                 const rowEditDisabled =
                   detailModelsEditLocked ||
                   detailModelMutating ||
@@ -245,38 +262,6 @@ const ChannelDetailModelsTab = ({
                       {t(
                         `channel.model_types.${normalizeChannelModelType(row.type)}`,
                       )}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className='router-create-model-provider-list'>
-                        {selectedProviderItems.length > 0 ? (
-                          selectedProviderItems.map((provider) => (
-                            <Label
-                              key={`${row.upstream_model}-${provider.key}`}
-                              basic
-                              className='router-tag'
-                              title={provider.text}
-                            >
-                              {provider.text}
-                            </Label>
-                          ))
-                        ) : providerOwners.length > 0 ? (
-                          providerOwners.map((providerId) => (
-                            <Label
-                              key={`${row.upstream_model}-${providerId}`}
-                              basic
-                              className='router-tag'
-                            >
-                              {providerId}
-                            </Label>
-                          ))
-                        ) : providerCatalogLoading ? (
-                          <Label basic className='router-tag'>
-                            {t('channel.edit.model_selector.provider_loading')}
-                          </Label>
-                        ) : (
-                          '-'
-                        )}
-                      </div>
                     </Table.Cell>
                     <Table.Cell
                       title={row.model}
@@ -329,17 +314,6 @@ const ChannelDetailModelsTab = ({
                         >
                           {t('common.edit')}
                         </Button>
-                        {isUnassigned && !providerCatalogLoading ? (
-                          <Button
-                            type='button'
-                            className='router-inline-button'
-                            basic
-                            disabled={rowEditDisabled}
-                            onClick={() => openAppendProviderModal(row)}
-                          >
-                            {t('channel.edit.model_selector.provider_add')}
-                          </Button>
-                        ) : null}
                       </div>
                     </Table.Cell>
                   </Table.Row>
