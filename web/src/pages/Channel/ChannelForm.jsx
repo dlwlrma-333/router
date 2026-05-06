@@ -1431,7 +1431,6 @@ const CHANNEL_ORIGIN_INPUTS = {
   base_url: '',
   other: '',
   model_configs: [],
-  system_prompt: '',
   models: [],
   test_model: '',
   created_time: 0,
@@ -1600,8 +1599,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   const [detailEditingModelSnapshot, setDetailEditingModelSnapshot] =
     useState(null);
   const [detailBasicSaving, setDetailBasicSaving] = useState(false);
-  const [detailAdvancedEditing, setDetailAdvancedEditing] = useState(false);
-  const [detailAdvancedSaving, setDetailAdvancedSaving] = useState(false);
   const [config, setConfig] = useState(CHANNEL_DEFAULT_CONFIG);
   const [providerOptions, setProviderOptions] = useState([]);
   const [providerModelOwners, setProviderModelOwners] = useState({});
@@ -1689,7 +1686,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   const showStepTwo =
     isDetailMode &&
     (activeDetailTab === 'models' || activeDetailTab === 'endpoints');
-  const showAdvancedSection = isDetailMode && activeDetailTab === 'overview';
   const showDetailOverviewTab = isDetailMode && activeDetailTab === 'overview';
   const showDetailModelsTab = isDetailMode && activeDetailTab === 'models';
   const showDetailEndpointsTab = isDetailMode && activeDetailTab === 'endpoints';
@@ -1697,20 +1693,12 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   const detailBasicReadonly = isDetailMode && !detailBasicEditing;
   const detailModelsEditing =
     isDetailMode && detailEditingModelKey.toString().trim() !== '';
-  const detailAdvancedReadonly = isDetailMode && !detailAdvancedEditing;
-  const isAnyDetailSectionEditing =
-    detailBasicEditing || detailModelsEditing || detailAdvancedEditing;
+  const isAnyDetailSectionEditing = detailBasicEditing || detailModelsEditing;
   const detailBasicEditLocked =
     isDetailMode &&
     !detailBasicEditing &&
-    (detailModelsEditing || detailAdvancedEditing);
-  const detailModelsEditLocked =
-    isDetailMode &&
-    (detailBasicEditing || detailAdvancedEditing);
-  const detailAdvancedEditLocked =
-    isDetailMode &&
-    !detailAdvancedEditing &&
-    (detailBasicEditing || detailModelsEditing);
+    detailModelsEditing;
+  const detailModelsEditLocked = isDetailMode && detailBasicEditing;
   const detailTestingReadonly = isDetailMode && isAnyDetailSectionEditing;
   const inputReadonlyProps = detailBasicReadonly ? { readOnly: true } : {};
   const visibleModelConfigs = useMemo(
@@ -2611,17 +2599,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     }
   }, [detailModelsEditing, persistDetailModelConfigs, t, visibleModelConfigs]);
 
-  const saveDetailAdvancedConfig = useCallback(async () => {
-    const ok = await persistDetailChannel({
-      loadingSetter: setDetailAdvancedSaving,
-      successMessage: t('channel.edit.messages.update_success'),
-    });
-    if (ok) {
-      setDetailAdvancedEditing(false);
-    }
-  }, [persistDetailChannel, t]);
-
-
   const loadChannelModelConfigsFromServer = useCallback(
     async (targetChannelId, protocol) => {
       try {
@@ -2805,7 +2782,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
               base_url: data.base_url || '',
               other: data.other || '',
               model_configs: modelState.modelConfigs,
-              system_prompt: data.system_prompt || '',
               models: modelState.selectedModels,
               test_model: data.test_model || modelState.selectedModels[0] || '',
               created_time: 0,
@@ -2828,7 +2804,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
               base_url: data.base_url || '',
               other: data.other || '',
               model_configs: modelState.modelConfigs,
-              system_prompt: data.system_prompt || '',
               models: modelState.selectedModels,
               test_model: data.test_model || modelState.selectedModels[0] || '',
               status: data.status,
@@ -2909,16 +2884,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     detailModelsEditing,
     visibleModelConfigs,
   ]);
-
-  const cancelDetailAdvancedEdit = useCallback(async () => {
-    if (!isDetailMode || !channelId) {
-      setDetailAdvancedEditing(false);
-      return;
-    }
-    setLoading(true);
-    setDetailAdvancedEditing(false);
-    await loadChannelById(channelId, false, false);
-  }, [channelId, isDetailMode, loadChannelById]);
 
   const handleFetchModels = useCallback(
     async ({ silent = false } = {}) => {
@@ -3957,7 +3922,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       setDetailBasicEditing(false);
       setDetailEditingModelKey('');
       setDetailEditingModelSnapshot(null);
-      setDetailAdvancedEditing(false);
     }
   }, [isDetailMode]);
 
@@ -4658,18 +4622,11 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                 detailBasicSaving={detailBasicSaving}
                 detailBasicEditLocked={detailBasicEditLocked}
                 detailBasicReadonly={detailBasicReadonly}
-                detailAdvancedEditing={detailAdvancedEditing}
-                detailAdvancedSaving={detailAdvancedSaving}
-                detailAdvancedEditLocked={detailAdvancedEditLocked}
-                detailAdvancedReadonly={detailAdvancedReadonly}
                 channelIdentifierMaxLength={CHANNEL_IDENTIFIER_MAX_LENGTH}
                 handleInputChange={handleInputChange}
                 cancelDetailBasicEdit={cancelDetailBasicEdit}
                 saveDetailBasicInfo={saveDetailBasicInfo}
                 setDetailBasicEditing={setDetailBasicEditing}
-                cancelDetailAdvancedEdit={cancelDetailAdvancedEdit}
-                saveDetailAdvancedConfig={saveDetailAdvancedConfig}
-                setDetailAdvancedEditing={setDetailAdvancedEditing}
                 basicConnectionFields={renderConnectionFields()}
                 protocolSelectionHintContent={
                   !detailBasicReadonly ? (
@@ -4812,19 +4769,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                 timestamp2string={timestamp2string}
                 updateAllModelTestEndpoints={updateAllModelTestEndpoints}
               />
-            )}
-            {!isDetailMode && showAdvancedSection && inputs.protocol !== 'proxy' && (
-              <Form.Field>
-                <Form.TextArea
-                  className='router-section-textarea router-code-textarea router-code-textarea-md'
-                  label={t('channel.edit.system_prompt')}
-                  placeholder={t('channel.edit.system_prompt_placeholder')}
-                  name='system_prompt'
-                  onChange={handleInputChange}
-                  value={inputs.system_prompt}
-                  autoComplete='new-password'
-                />
-              </Form.Field>
             )}
           </Form>
         </Card.Content>

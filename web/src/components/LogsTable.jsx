@@ -124,13 +124,6 @@ function renderDetail(log) {
           </Label>
         </>
       )}
-      {log.system_prompt_reset && (
-        <>
-          <Label basic className='router-tag' color='red'>
-            System Prompt Reset
-          </Label>
-        </>
-      )}
     </>
   );
 }

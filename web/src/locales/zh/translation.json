@@ -629,8 +629,6 @@
         }
       },
       "created_time": "创建时间",
-      "system_prompt": "系统提示词",
-      "system_prompt_placeholder": "此项可选，用于强制设置给定的系统提示词，请配合自定义模型 & 模型重定向使用，首先创建一个唯一的自定义模型名称并在上面填入，之后将该自定义模型重定向映射到该渠道一个原生支持的模型",
       "proxy_url": "地址",
       "proxy_url_placeholder": "此项可选，用于通过代理站来进行 API 调用，请输入代理站地址，格式为：https://domain.com。注意，这里所需要填入的代理地址仅会在实际请求时替换域名部分，如果你想填入 OpenAI SDK 中所要求的 Base URL，请使用 OpenAI 渠道类型",
       "base_url": "地址",
@@ -828,7 +826,6 @@
         "step_review": "步骤 4：发布确认",
         "step_advanced": "步骤 5：高级配置"
       },
-      "advanced_title": "高级配置",
       "aws_region_placeholder": "region，例如：us-west-2",
       "aws_ak_placeholder": "AWS IAM Access Key",
       "aws_sk_placeholder": "AWS IAM Secret Key",

@@ -629,8 +629,6 @@
         }
       },
       "created_time": "Created Time",
-      "system_prompt": "System Prompt",
-      "system_prompt_placeholder": "Optional, used to force set system prompt. Use with custom model & model mapping. First create a unique custom model name above, then map it to a natively supported model",
       "proxy_url": "Address",
       "proxy_url_placeholder": "This is optional and used for API calls via a proxy. Please enter the proxy URL, formatted as: https://domain.com",
       "base_url": "Address",
@@ -828,7 +826,6 @@
         "step_review": "Step 4: Publish Review",
         "step_advanced": "Step 5: Advanced Settings"
       },
-      "advanced_title": "Advanced Settings",
       "aws_region_placeholder": "region, e.g.: us-west-2",
       "aws_ak_placeholder": "AWS IAM Access Key",
       "aws_sk_placeholder": "AWS IAM Secret Key",

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/yeying-community/router/common/helper"
-	"github.com/yeying-community/router/internal/relay/constant/role"
 
 	"github.com/gin-gonic/gin"
 
@@ -221,7 +220,6 @@ func postConsumeQuota(ctx context.Context, usage *relaymodel.Usage, meta *meta.M
 		Content:            billing.FormatPricingLog(pricing, groupRatio),
 		IsStream:           meta.IsStream,
 		ElapsedTime:        helper.CalcElapsedTime(meta.StartTime),
-		SystemPromptReset:  systemPromptReset,
 	}
 	billingSnapshot.ApplyToLog(entry)
 	model.RecordConsumeLog(ctx, entry)
@@ -264,30 +262,4 @@ func isErrorHappened(meta *meta.Meta, resp *http.Response) bool {
 		return true
 	}
 	return false
-}
-
-func setSystemPrompt(ctx context.Context, request *relaymodel.GeneralOpenAIRequest, prompt string) (reset bool) {
-	if prompt == "" {
-		return false
-	}
-	if len(request.Messages) == 0 {
-		if messages := parseInputAsMessages(request.Input); len(messages) > 0 {
-			request.Messages = messages
-			request.Input = nil
-		}
-	}
-	if len(request.Messages) == 0 {
-		return false
-	}
-	if request.Messages[0].Role == role.System {
-		request.Messages[0].Content = prompt
-		logger.Infof(ctx, "rewrite system prompt")
-		return true
-	}
-	request.Messages = append([]relaymodel.Message{{
-		Role:    role.System,
-		Content: prompt,
-	}}, request.Messages...)
-	logger.Infof(ctx, "add system prompt")
-	return true
 }

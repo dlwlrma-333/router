@@ -135,8 +135,6 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	if err != nil {
 		return openai.ErrorWrapper(err, "convert_request_failed", http.StatusBadRequest)
 	}
-	// set system prompt on the request shape that will actually be sent upstream
-	systemPromptReset := setSystemPrompt(ctx, upstreamRequest, meta.ForcedSystemPrompt)
 
 	adaptor := relay.GetAdaptor(meta.APIType)
 	if adaptor == nil {
@@ -171,7 +169,7 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 		return respErr
 	}
 	// post-consume quota
-	go postConsumeQuota(ctx, usage, meta, upstreamRequest, pricing, preConsumedQuota, groupRatio, systemPromptReset, billingPlan.ChargeUserBalance(), packageReservation)
+	go postConsumeQuota(ctx, usage, meta, upstreamRequest, pricing, preConsumedQuota, groupRatio, false, billingPlan.ChargeUserBalance(), packageReservation)
 	groupQuotaSettled = true
 	return nil
 }
@@ -280,7 +278,6 @@ func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralO
 		meta.APIType == apitype.OpenAI &&
 		meta.OriginModelName == meta.ActualModelName &&
 		meta.ChannelProtocol != relaychannel.Baichuan &&
-		meta.ForcedSystemPrompt == "" &&
 		meta.Mode == upstreamMode &&
 		meta.Mode != relaymode.Messages {
 		// no need to convert request for openai

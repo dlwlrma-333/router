@@ -10,18 +10,11 @@ const ChannelDetailOverviewTab = ({
   detailBasicSaving,
   detailBasicEditLocked,
   detailBasicReadonly,
-  detailAdvancedEditing,
-  detailAdvancedSaving,
-  detailAdvancedEditLocked,
-  detailAdvancedReadonly,
   channelIdentifierMaxLength,
   handleInputChange,
   cancelDetailBasicEdit,
   saveDetailBasicInfo,
   setDetailBasicEditing,
-  cancelDetailAdvancedEdit,
-  saveDetailAdvancedConfig,
-  setDetailAdvancedEditing,
   basicConnectionFields,
   protocolSelectionHintContent,
   protocolSpecificFields,
@@ -130,61 +123,6 @@ const ChannelDetailOverviewTab = ({
             readOnly
           />
         </Form.Group>
-      </section>
-      <section className='router-entity-detail-section'>
-        <div className='router-entity-detail-section-header'>
-          <div className='router-toolbar-start'>
-            <span className='router-entity-detail-section-title'>
-              {t('channel.edit.advanced_title')}
-            </span>
-          </div>
-          <div className='router-toolbar-end'>
-            {detailAdvancedEditing ? (
-              <>
-                <Button
-                  type='button'
-                  className='router-page-button'
-                  onClick={cancelDetailAdvancedEdit}
-                  disabled={detailAdvancedSaving}
-                >
-                  {t('channel.edit.buttons.cancel')}
-                </Button>
-                <Button
-                  type='button'
-                  className='router-page-button'
-                  color='blue'
-                  loading={detailAdvancedSaving}
-                  disabled={detailAdvancedSaving}
-                  onClick={saveDetailAdvancedConfig}
-                >
-                  {t('channel.edit.buttons.save')}
-                </Button>
-              </>
-            ) : (
-              <Button
-                type='button'
-                className='router-page-button'
-                color='blue'
-                disabled={detailAdvancedEditLocked}
-                onClick={() => setDetailAdvancedEditing(true)}
-              >
-                {t('common.edit')}
-              </Button>
-            )}
-          </div>
-        </div>
-        <Form.Field>
-          <Form.TextArea
-            className='router-section-textarea router-code-textarea router-code-textarea-md'
-            label={t('channel.edit.system_prompt')}
-            placeholder={t('channel.edit.system_prompt_placeholder')}
-            name='system_prompt'
-            onChange={handleInputChange}
-            value={inputs.system_prompt}
-            autoComplete='new-password'
-            readOnly={detailAdvancedReadonly}
-          />
-        </Form.Field>
       </section>
     </>
   );

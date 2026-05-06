@@ -96,9 +96,6 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	c.Set(ctxkey.Channel, channelProtocol)
 	c.Set(ctxkey.ChannelId, channel.Id)
 	c.Set(ctxkey.ChannelName, channel.DisplayName())
-	if channel.SystemPrompt != nil && *channel.SystemPrompt != "" {
-		c.Set(ctxkey.SystemPrompt, *channel.SystemPrompt)
-	}
 	c.Set(ctxkey.ChannelModelConfigs, channel.GetSelectedModelConfigs())
 	mapping := channel.GetModelMapping()
 	if groupID := c.GetString(ctxkey.Group); groupID != "" {
