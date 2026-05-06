@@ -9,9 +9,6 @@ const ChannelModelEditorModal = ({
   detailEditingModelRow,
   normalizeChannelModelType,
   updateModelConfigField,
-  endpointOptionsForModelType,
-  normalizeChannelModelEndpoints,
-  protocol,
   providerCatalogLoading,
   getProviderSelectOptionsForModel,
   resolvePreferredProviderForModel,
@@ -77,33 +74,6 @@ const ChannelModelEditorModal = ({
                   readOnly
                 />
               </Form.Group>
-              {(detailEditingModelRow.type === 'text' ||
-                detailEditingModelRow.type === 'image') && (
-                <Form.Field>
-                  <label>{t('channel.edit.model_tester.table.endpoint')}</label>
-                  <Dropdown
-                    selection
-                    fluid
-                    multiple
-                    className='router-modal-dropdown'
-                    options={endpointOptionsForModelType(detailEditingModelRow.type)}
-                    value={normalizeChannelModelEndpoints(
-                      detailEditingModelRow.type,
-                      detailEditingModelRow.endpoints,
-                      detailEditingModelRow.endpoint,
-                      protocol,
-                    )}
-                    disabled={detailModelMutating}
-                    onChange={(e, { value }) =>
-                      updateModelConfigField(
-                        detailEditingModelRow.upstream_model,
-                        'endpoints',
-                        value,
-                      )
-                    }
-                  />
-                </Form.Field>
-              )}
               <Form.Field>
                 <label>{t('channel.edit.model_selector.table.providers')}</label>
                 <div className='router-channel-model-editor-provider-row'>

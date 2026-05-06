@@ -4086,11 +4086,14 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   }, [fetchChannelTypes]);
 
   useEffect(() => {
-    if (!showStepTwo) {
+    if (
+      !showStepTwo &&
+      !showDetailTestsTab
+    ) {
       return;
     }
     loadProviderCatalogIndex({ silent: true }).then();
-  }, [loadProviderCatalogIndex, showStepTwo]);
+  }, [loadProviderCatalogIndex, showDetailTestsTab, showStepTwo]);
 
   useEffect(() => {
     if (detailModelPage <= detailModelTotalPages) {
@@ -4436,9 +4439,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         detailEditingModelRow={detailEditingModelRow}
         normalizeChannelModelType={normalizeChannelModelType}
         updateModelConfigField={updateModelConfigField}
-        endpointOptionsForModelType={endpointOptionsForModelType}
-        normalizeChannelModelEndpoints={normalizeChannelModelEndpoints}
-        protocol={inputs.protocol}
         providerCatalogLoading={providerCatalogLoading}
         getProviderSelectOptionsForModel={getProviderSelectOptionsForModel}
         resolvePreferredProviderForModel={resolvePreferredProviderForModel}
@@ -4680,13 +4680,12 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
             {showDetailTestsTab && (
               <ChannelDetailTestsTab
                 t={t}
+                channelId={channelId}
                 inputs={inputs}
                 columnWidths={CHANNEL_MODEL_TEST_GROUP_COLUMN_WIDTHS}
                 modelTestRows={modelTestRows}
-                modelTestGroups={modelTestGroups}
                 modelTestTargetModels={modelTestTargetModels}
                 detailModelMutating={detailModelMutating}
-                toggleModelTestGroupTargets={toggleModelTestGroupTargets}
                 toggleModelTestTarget={toggleModelTestTarget}
                 getEffectiveModelEndpoint={getEffectiveModelEndpoint}
                 modelTestResultsByKey={modelTestResultsByKey}
@@ -4712,6 +4711,10 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                 }
                 timestamp2string={timestamp2string}
                 updateAllModelTestEndpoints={updateAllModelTestEndpoints}
+                resolvePreferredProviderForModel={
+                  resolvePreferredProviderForModel
+                }
+                normalizeChannelModelType={normalizeChannelModelType}
               />
             )}
           </Form>
