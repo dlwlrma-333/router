@@ -6,6 +6,7 @@ import {
   Form,
   Label,
   Message,
+  Popup,
   Table,
 } from 'semantic-ui-react';
 
@@ -14,6 +15,7 @@ const ChannelDetailTestsTab = ({
   channelId,
   inputs,
   columnWidths,
+  modelTestResults,
   modelTestRows,
   modelTestTargetModels,
   detailModelMutating,
@@ -21,28 +23,27 @@ const ChannelDetailTestsTab = ({
   getEffectiveModelEndpoint,
   modelTestResultsByKey,
   buildModelTestResultKey,
-  latestModelTestResultByModel,
   activeChannelTasksByModel,
   getEndpointOptionsForModel,
   updateModelTestEndpoint,
-  updateModelTestStream,
   modelTesting,
   modelTestingScope,
   modelTestingTargetSet,
   handleRunModelTests,
-  handleDownloadModelTestArtifact,
   detailTestingReadonly,
   modelTestError,
   openChannelTaskView,
-  modelTestedAt,
   selectedModelTestHasActiveTasks,
   timestamp2string,
   updateAllModelTestEndpoints,
+  updateAllModelTestStreams,
   resolvePreferredProviderForModel,
   normalizeChannelModelType,
 }) => {
   const [providerFilter, setProviderFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [batchSelectionMode, setBatchSelectionMode] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   if (inputs.protocol === 'proxy') {
     return null;
@@ -183,6 +184,53 @@ const ChannelDetailTestsTab = ({
   }, [filteredRows, getEffectiveModelEndpoint]);
 
   const disabledBase = detailTestingReadonly || detailModelMutating;
+  const batchStreamValue = useMemo(() => {
+    if (filteredRows.length === 0) {
+      return true;
+    }
+    return filteredRows.every((row) => row?.is_stream !== false);
+  }, [filteredRows]);
+
+  const resultSummaryByKey = useMemo(() => {
+    const summaryMap = new Map();
+    (Array.isArray(modelTestResults) ? modelTestResults : []).forEach((item) => {
+      const modelName = (item?.model || '').toString().trim();
+      const endpoint = (item?.endpoint || '').toString().trim();
+      if (modelName === '' || endpoint === '') {
+        return;
+      }
+      const key = buildModelTestResultKey(modelName, endpoint);
+      const current = summaryMap.get(key) || {
+        successCount: 0,
+        failureCount: 0,
+        minLatencyMs: 0,
+        maxLatencyMs: 0,
+        totalLatencyMs: 0,
+        latencyCount: 0,
+      };
+      if (item?.status === 'supported' && item?.supported === true) {
+        current.successCount += 1;
+      } else if (
+        ['unsupported', 'skipped'].includes(
+          (item?.status || '').toString().trim().toLowerCase(),
+        )
+      ) {
+        current.failureCount += 1;
+      }
+      const latencyMs = Number(item?.latency_ms || 0);
+      if (latencyMs > 0) {
+        current.minLatencyMs =
+          current.minLatencyMs > 0
+            ? Math.min(current.minLatencyMs, latencyMs)
+            : latencyMs;
+        current.maxLatencyMs = Math.max(current.maxLatencyMs, latencyMs);
+        current.totalLatencyMs += latencyMs;
+        current.latencyCount += 1;
+      }
+      summaryMap.set(key, current);
+    });
+    return summaryMap;
+  }, [buildModelTestResultKey, modelTestResults]);
 
   const toggleFilteredTargets = (checked) => {
     const targetSet = new Set(filteredTargetSet);
@@ -202,6 +250,13 @@ const ChannelDetailTestsTab = ({
       }
     });
   };
+
+  const displayedColumnWidths = useMemo(() => {
+    if (batchSelectionMode) {
+      return columnWidths;
+    }
+    return columnWidths.slice(1);
+  }, [batchSelectionMode, columnWidths]);
 
   return (
     <section className='router-entity-detail-section'>
@@ -267,6 +322,42 @@ const ChannelDetailTestsTab = ({
                 updateAllModelTestEndpoints(value, filteredModelIDs);
               }}
             />
+            <Popup
+              basic
+              on='click'
+              open={settingsOpen}
+              onClose={() => setSettingsOpen(false)}
+              position='bottom left'
+              trigger={
+                <Button
+                  type='button'
+                  className='router-page-button'
+                  basic
+                  disabled={disabledBase || filteredRows.length === 0}
+                  onClick={() => setSettingsOpen((prev) => !prev)}
+                >
+                  {t('channel.edit.model_tester.settings_button')}
+                </Button>
+              }
+              content={
+                <div className='router-log-filter-editor'>
+                  <div className='router-log-filter-editor-title'>
+                    {t('channel.edit.model_tester.settings_title')}
+                  </div>
+                  <Form.Field style={{ marginBottom: 0 }}>
+                    <Checkbox
+                      toggle
+                      label={t('channel.edit.model_tester.settings_stream')}
+                      checked={batchStreamValue}
+                      disabled={disabledBase || filteredRows.length === 0}
+                      onChange={(e, { checked }) =>
+                        updateAllModelTestStreams(!!checked, filteredModelIDs)
+                      }
+                    />
+                  </Form.Field>
+                </div>
+              }
+            />
           </div>
           <div className='router-toolbar-end router-block-gap-sm'>
             <Button
@@ -277,24 +368,38 @@ const ChannelDetailTestsTab = ({
               disabled={
                 disabledBase ||
                 modelTesting ||
-                filteredSelectedCount === 0 ||
-                selectedModelTestHasActiveTasks
+                (batchSelectionMode &&
+                  (filteredSelectedCount === 0 ||
+                    selectedModelTestHasActiveTasks))
               }
-              onClick={() =>
+              onClick={() => {
+                if (!batchSelectionMode) {
+                  setBatchSelectionMode(true);
+                  return;
+                }
                 handleRunModelTests({
                   targetModels: modelTestTargetModels,
                   scope: 'batch',
-                })
-              }
+                });
+              }}
             >
-              {t('channel.edit.model_tester.button')}
+              {t(
+                batchSelectionMode
+                  ? 'channel.edit.model_tester.button_run_batch'
+                  : 'channel.edit.model_tester.button_enter_batch',
+              )}
             </Button>
-            <Label basic className='router-tag'>
-              {t('channel.edit.model_tester.selection', {
-                selected: filteredSelectedCount,
-                total: filteredRows.length,
-              })}
-            </Label>
+            {batchSelectionMode && (
+              <Button
+                type='button'
+                className='router-page-button'
+                basic
+                disabled={disabledBase || modelTesting}
+                onClick={() => setBatchSelectionMode(false)}
+              >
+                {t('common.cancel')}
+              </Button>
+            )}
             <Button
               type='button'
               className='router-page-button'
@@ -307,13 +412,6 @@ const ChannelDetailTestsTab = ({
             >
               {t('channel.edit.model_tester.history_tasks')}
             </Button>
-            {modelTestedAt > 0 && (
-              <span className='router-toolbar-meta'>
-                {t('channel.edit.model_tester.last_tested', {
-                  time: new Date(modelTestedAt).toLocaleString(),
-                })}
-              </span>
-            )}
           </div>
         </div>
         {modelTestError && (
@@ -327,7 +425,7 @@ const ChannelDetailTestsTab = ({
           className='router-detail-table router-model-test-table'
         >
           <colgroup>
-            {columnWidths.map((width, index) => (
+            {displayedColumnWidths.map((width, index) => (
               <col
                 key={`channel-model-test-col-${index}`}
                 style={{ width }}
@@ -336,24 +434,23 @@ const ChannelDetailTestsTab = ({
           </colgroup>
           <Table.Header>
             <Table.Row>
-              <Table.HeaderCell collapsing textAlign='center'>
-                <Checkbox
-                  checked={filteredAllSelected}
-                  indeterminate={filteredPartiallySelected}
-                  disabled={disabledBase || filteredRows.length === 0}
-                  onChange={(e, { checked }) =>
-                    toggleFilteredTargets(!!checked)
-                  }
-                />
-              </Table.HeaderCell>
+              {batchSelectionMode && (
+                <Table.HeaderCell collapsing textAlign='center'>
+                  <Checkbox
+                    checked={filteredAllSelected}
+                    indeterminate={filteredPartiallySelected}
+                    disabled={disabledBase || filteredRows.length === 0}
+                    onChange={(e, { checked }) =>
+                      toggleFilteredTargets(!!checked)
+                    }
+                  />
+                </Table.HeaderCell>
+              )}
               <Table.HeaderCell>
                 {t('channel.edit.model_tester.table.model')}
               </Table.HeaderCell>
               <Table.HeaderCell>
                 {t('channel.edit.model_tester.table.endpoint')}
-              </Table.HeaderCell>
-              <Table.HeaderCell collapsing>
-                {t('channel.edit.model_tester.table.is_stream')}
               </Table.HeaderCell>
               <Table.HeaderCell collapsing>
                 {t('channel.edit.model_tester.table.status')}
@@ -364,9 +461,6 @@ const ChannelDetailTestsTab = ({
               <Table.HeaderCell collapsing>
                 {t('channel.edit.model_tester.table.tested_at')}
               </Table.HeaderCell>
-              <Table.HeaderCell>
-                {t('channel.edit.model_tester.table.message')}
-              </Table.HeaderCell>
               <Table.HeaderCell collapsing>
                 {t('channel.edit.model_tester.table.actions')}
               </Table.HeaderCell>
@@ -375,7 +469,10 @@ const ChannelDetailTestsTab = ({
           <Table.Body>
             {filteredRows.length === 0 ? (
               <Table.Row>
-                <Table.Cell className='router-empty-cell' colSpan='9'>
+                <Table.Cell
+                  className='router-empty-cell'
+                  colSpan={batchSelectionMode ? '8' : '7'}
+                >
                   {t(
                     modelTestRows.length === 0
                       ? 'channel.edit.model_tester.empty'
@@ -389,15 +486,13 @@ const ChannelDetailTestsTab = ({
                 const item = modelTestResultsByKey.get(
                   buildModelTestResultKey(row.model, normalizedEndpoint),
                 );
-                const latestItemForModel =
-                  latestModelTestResultByModel.get(row.model) || null;
-                const displayItem = item || latestItemForModel;
                 const activeTask = activeChannelTasksByModel.get(row.model) || null;
-                const useLatestResult = !activeTask && !item && !!latestItemForModel;
-                const canDownloadArtifact =
-                  !!displayItem?.artifact_path || !!displayItem?.artifact_name;
+                const endpointSummary =
+                  resultSummaryByKey.get(
+                    buildModelTestResultKey(row.model, normalizedEndpoint),
+                  ) || null;
                 const effectiveStatus =
-                  activeTask?.status || displayItem?.status || 'untested';
+                  activeTask?.status || item?.status || 'untested';
                 const labelColor =
                   effectiveStatus === 'running'
                     ? 'blue'
@@ -412,15 +507,17 @@ const ChannelDetailTestsTab = ({
                             : 'red';
                 return (
                   <Table.Row key={row.model}>
-                    <Table.Cell textAlign='center'>
-                      <Checkbox
-                        checked={modelTestTargetModels.includes(row.model)}
-                        disabled={disabledBase}
-                        onChange={(e, { checked }) =>
-                          toggleModelTestTarget(row.model, !!checked)
-                        }
-                      />
-                    </Table.Cell>
+                    {batchSelectionMode && (
+                      <Table.Cell textAlign='center'>
+                        <Checkbox
+                          checked={modelTestTargetModels.includes(row.model)}
+                          disabled={disabledBase}
+                          onChange={(e, { checked }) =>
+                            toggleModelTestTarget(row.model, !!checked)
+                          }
+                        />
+                      </Table.Cell>
+                    )}
                     <Table.Cell title={row.model || '-'}>
                       <span className='router-cell-truncate'>{row.model || '-'}</span>
                     </Table.Cell>
@@ -440,58 +537,32 @@ const ChannelDetailTestsTab = ({
                         normalizedEndpoint || row.endpoint || '-'
                       )}
                     </Table.Cell>
-                    <Table.Cell textAlign='center'>
-                      <Checkbox
-                        checked={!!row.is_stream}
-                        disabled={disabledBase}
-                        onChange={(e, { checked }) =>
-                          updateModelTestStream(row.model, !!checked)
-                        }
-                      />
-                    </Table.Cell>
                     <Table.Cell>
-                      <Label basic color={labelColor} className='router-tag'>
-                        {t(`channel.edit.model_tester.status.${effectiveStatus}`)}
-                      </Label>
+                      {activeTask ? (
+                        <Label basic color={labelColor} className='router-tag'>
+                          {t(`channel.edit.model_tester.status.${effectiveStatus}`)}
+                        </Label>
+                      ) : (
+                        <span className='router-nowrap'>
+                          {(endpointSummary?.successCount || 0)}/
+                          {(endpointSummary?.failureCount || 0)}
+                        </span>
+                      )}
                     </Table.Cell>
                     <Table.Cell className='router-nowrap'>
-                      {displayItem?.latency_ms > 0
-                        ? `${displayItem.latency_ms} ms`
+                      {endpointSummary?.latencyCount > 0
+                        ? `${endpointSummary.minLatencyMs}/` +
+                          `${Math.round(
+                            endpointSummary.totalLatencyMs /
+                              endpointSummary.latencyCount,
+                          )}/` +
+                          `${endpointSummary.maxLatencyMs}`
                         : '-'}
                     </Table.Cell>
                     <Table.Cell className='router-nowrap'>
-                      {displayItem?.tested_at > 0
-                        ? timestamp2string(displayItem.tested_at)
+                      {item?.tested_at > 0
+                        ? timestamp2string(item.tested_at)
                         : '-'}
-                    </Table.Cell>
-                    <Table.Cell
-                      title={
-                        useLatestResult
-                          ? t(
-                              'channel.edit.model_tester.latest_result_from_endpoint',
-                              {
-                                endpoint: displayItem?.endpoint || '-',
-                              },
-                            )
-                          : displayItem?.message ||
-                            (effectiveStatus === 'untested'
-                              ? t('channel.edit.model_tester.untested')
-                              : '-')
-                      }
-                    >
-                      <span className='router-cell-truncate'>
-                        {useLatestResult
-                          ? t(
-                              'channel.edit.model_tester.latest_result_from_endpoint',
-                              {
-                                endpoint: displayItem?.endpoint || '-',
-                              },
-                            )
-                          : displayItem?.message ||
-                            (effectiveStatus === 'untested'
-                              ? t('channel.edit.model_tester.untested')
-                              : '-')}
-                      </span>
                     </Table.Cell>
                     <Table.Cell collapsing>
                       <div className='router-inline-actions'>
@@ -508,6 +579,7 @@ const ChannelDetailTestsTab = ({
                           disabled={
                             disabledBase ||
                             modelTesting ||
+                            batchSelectionMode ||
                             activeChannelTasksByModel.has(row.model)
                           }
                           onClick={() =>
@@ -523,10 +595,14 @@ const ChannelDetailTestsTab = ({
                           type='button'
                           className='router-inline-button'
                           basic
-                          disabled={!canDownloadArtifact}
-                          onClick={() => handleDownloadModelTestArtifact(displayItem)}
+                          onClick={() =>
+                            openChannelTaskView({
+                              type: 'channel_model_test',
+                              model: row.model,
+                            })
+                          }
                         >
-                          {t('common.download')}
+                          {t('channel.edit.model_tester.history')}
                         </Button>
                       </div>
                     </Table.Cell>

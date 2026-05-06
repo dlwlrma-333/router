@@ -94,6 +94,37 @@ const getTaskOptionsEndpoint = (pageKind) => {
 
 const getTaskId = (item) => item?.id || item?.task_id || '';
 
+const parseTaskJSONField = (value) => {
+  const text = (value || '').toString().trim();
+  if (text === '') {
+    return null;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
+const parseDownloadFilename = (contentDisposition, fallbackName) => {
+  const fallback =
+    (fallbackName || 'download.bin').toString().trim() || 'download.bin';
+  const headerValue = (contentDisposition || '').toString();
+  const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+  const plainMatch = headerValue.match(/filename=\"?([^\";]+)\"?/i);
+  if (plainMatch?.[1]) {
+    return plainMatch[1];
+  }
+  return fallback;
+};
+
 const getTaskTypeOptions = (t, scope) => {
   const common = [{ key: 'all', value: '', text: t('task.filters.type_all') }];
   if (scope === 'user') {
@@ -605,6 +636,91 @@ const Task = () => {
     }
   };
 
+  const handleDownloadTaskArtifact = useCallback(
+    async (item) => {
+      const payload = parseTaskJSONField(item?.payload);
+      const result = parseTaskJSONField(item?.result);
+      const channelId = (
+        payload?.channel_id ||
+        item?.channel_id ||
+        ''
+      ).toString().trim();
+      const modelName = (
+        payload?.model ||
+        result?.model ||
+        item?.model ||
+        ''
+      ).toString().trim();
+      const endpoint = (
+        result?.endpoint ||
+        payload?.endpoint ||
+        item?.endpoint ||
+        ''
+      ).toString().trim();
+      const fallbackArtifactName =
+        (result?.artifact_name || `${modelName || 'task'}.bin`).toString();
+      if (
+        channelId === '' ||
+        modelName === '' ||
+        endpoint === '' ||
+        !(result?.artifact_name || result?.artifact_path)
+      ) {
+        showError(t('task.messages.download_unavailable'));
+        return;
+      }
+      try {
+        const response = await API.get(
+          `/api/v1/admin/channel/${channelId}/tests/artifact`,
+          {
+            params: {
+              model: modelName,
+              endpoint,
+            },
+            responseType: 'blob',
+          },
+        );
+        const responseContentType = (
+          response.headers?.['content-type'] || ''
+        ).toString();
+        if (responseContentType.includes('application/json')) {
+          const text = await response.data.text();
+          let parsed = null;
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            parsed = null;
+          }
+          showError(
+            parsed?.message ||
+              parsed?.error?.message ||
+              t('task.messages.download_failed'),
+          );
+          return;
+        }
+        const blob = new Blob([response.data], {
+          type:
+            responseContentType ||
+            result?.artifact_content_type ||
+            'application/octet-stream',
+        });
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = parseDownloadFilename(
+          response.headers?.['content-disposition'],
+          fallbackArtifactName,
+        );
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+      } catch (error) {
+        showError(error?.message || t('task.messages.download_failed'));
+      }
+    },
+    [t],
+  );
+
   const detailBasePath = isSystemTaskPage
     ? '/admin/channel/tasks'
     : isAdminPage
@@ -850,6 +966,11 @@ const Task = () => {
                   const canRetry =
                     isSystemTaskPage &&
                     (status === 'failed' || status === 'canceled');
+                  const taskResult = parseTaskJSONField(item?.result);
+                  const canDownloadArtifact =
+                    isSystemTaskPage &&
+                    item?.type === 'channel_model_test' &&
+                    !!(taskResult?.artifact_name || taskResult?.artifact_path);
                   return (
                     <Table.Row
                       key={taskId}
@@ -906,6 +1027,18 @@ const Task = () => {
                           </Button>
                         ) : (
                           <div className='router-inline-actions'>
+                            <Button
+                              type='button'
+                              className='router-inline-button'
+                              basic
+                              disabled={!canDownloadArtifact}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadTaskArtifact(item);
+                              }}
+                            >
+                              {t('common.download')}
+                            </Button>
                             <Button
                               type='button'
                               className='router-inline-button'

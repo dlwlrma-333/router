@@ -109,15 +109,23 @@ const CHANNEL_ENDPOINT_COLUMN_WIDTHS = [
 ];
 const CHANNEL_MODEL_TEST_GROUP_COLUMN_WIDTHS = [
   '4%',
-  '15%',
-  '22%',
-  '6%',
-  '8%',
-  '9%',
+  '16%',
+  '24%',
+  '10%',
+  '16%',
   '14%',
-  '12%',
   '10%',
 ];
+
+const resolveModelTestStreamEnabled = (row) => {
+  if (
+    Object.prototype.hasOwnProperty.call(row || {}, 'is_stream') ||
+    Object.prototype.hasOwnProperty.call(row || {}, 'isStream')
+  ) {
+    return row?.is_stream === true || row?.isStream === true;
+  }
+  return true;
+};
 const normalizeChannelIdentifier = (value) =>
   (value || '').toString().trim().toLowerCase();
 
@@ -956,7 +964,7 @@ const normalizeChannelModelConfigRow = (row, protocol) => {
     endpoints: normalizedEndpoints,
     inactive: row.inactive === true,
     selected: row.selected === true,
-    is_stream: row.is_stream === true || row.isStream === true,
+    is_stream: resolveModelTestStreamEnabled(row),
     input_price: normalizePriceOverrideValue(row.input_price),
     output_price: normalizePriceOverrideValue(row.output_price),
     price_unit: normalizePriceUnitValue(row.price_unit),
@@ -1314,23 +1322,6 @@ const buildModelTestResultKey = (modelName, endpoint) =>
   `${(modelName || '').toString().trim()}::${(endpoint || '')
     .toString()
     .trim()}`;
-
-const parseDownloadFilename = (contentDisposition, fallbackName) => {
-  const raw = (contentDisposition || '').toString();
-  const utf8Match = raw.match(/filename\*=UTF-8''([^;]+)/i);
-  if (utf8Match?.[1]) {
-    try {
-      return decodeURIComponent(utf8Match[1]);
-    } catch {
-      return utf8Match[1];
-    }
-  }
-  const plainMatch = raw.match(/filename=\"?([^\";]+)\"?/i);
-  if (plainMatch?.[1]) {
-    return plainMatch[1];
-  }
-  return fallbackName;
-};
 
 const normalizeAsyncTaskStatus = (value) => {
   const normalized = (value || '').toString().trim().toLowerCase();
@@ -1718,26 +1709,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         return;
       }
       index.set(key, item);
-    });
-    return index;
-  }, [modelTestResults]);
-  const latestModelTestResultByModel = useMemo(() => {
-    const index = new Map();
-    normalizeModelTestResults(modelTestResults).forEach((item) => {
-      const modelName = (item.model || '').toString().trim();
-      if (modelName === '') {
-        return;
-      }
-      const existing = index.get(modelName);
-      if (!existing) {
-        index.set(modelName, item);
-        return;
-      }
-      const existingTestedAt = Number(existing?.tested_at || 0);
-      const currentTestedAt = Number(item?.tested_at || 0);
-      if (currentTestedAt > existingTestedAt) {
-        index.set(modelName, item);
-      }
     });
     return index;
   }, [modelTestResults]);
@@ -3332,13 +3303,21 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       visibleModelConfigs,
     ],
   );
-  const updateModelTestStream = useCallback(
-    async (modelName, isStream) => {
+  const updateAllModelTestStreams = useCallback(
+    async (isStream, modelNames = []) => {
       if (detailTestingReadonly) {
         return;
       }
+      const targetSet = new Set(
+        (Array.isArray(modelNames) ? modelNames : [])
+          .map((item) => (item || '').toString().trim())
+          .filter(Boolean),
+      );
+      if (targetSet.size === 0) {
+        return;
+      }
       const nextConfigs = visibleModelConfigs.map((row) =>
-        row.model === modelName ? { ...row, is_stream: !!isStream } : row,
+        targetSet.has(row.model) ? { ...row, is_stream: !!isStream } : row,
       );
       if (isDetailMode) {
         await persistDetailModelConfigs(nextConfigs);
@@ -3354,85 +3333,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       persistDetailModelConfigs,
       visibleModelConfigs,
     ],
-  );
-
-  const handleDownloadModelTestArtifact = useCallback(
-    async (resultItem) => {
-      const normalizedChannelId = (
-        resultItem?.channel_id ||
-        channelId ||
-        previewChannelID ||
-        ''
-      )
-        .toString()
-        .trim();
-      const normalizedModel = (resultItem?.model || '').toString().trim();
-      const normalizedEndpoint = (resultItem?.endpoint || '')
-        .toString()
-        .trim();
-      if (
-        normalizedChannelId === '' ||
-        normalizedModel === '' ||
-        normalizedEndpoint === ''
-      ) {
-        showError(t('channel.edit.model_tester.download_unavailable'));
-        return;
-      }
-      try {
-        const response = await API.get(
-          `/api/v1/admin/channel/${normalizedChannelId}/tests/artifact`,
-          {
-            params: {
-              model: normalizedModel,
-              endpoint: normalizedEndpoint,
-            },
-            responseType: 'blob',
-          },
-        );
-        const responseContentType = (
-          response.headers?.['content-type'] || ''
-        ).toString();
-        if (responseContentType.includes('application/json')) {
-          const text = await response.data.text();
-          let parsed = null;
-          try {
-            parsed = JSON.parse(text);
-          } catch {
-            parsed = null;
-          }
-          showError(
-            parsed?.message ||
-              parsed?.error?.message ||
-              t('channel.edit.model_tester.download_failed'),
-          );
-          return;
-        }
-        const blob = new Blob([response.data], {
-          type:
-            responseContentType ||
-            resultItem?.artifact_content_type ||
-            'application/octet-stream',
-        });
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = parseDownloadFilename(
-          response.headers?.['content-disposition'],
-          resultItem?.artifact_name || `${normalizedModel}.bin`,
-        );
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(downloadUrl);
-      } catch (error) {
-        showError(
-          error?.response?.data?.message ||
-            error?.message ||
-            t('channel.edit.model_tester.download_failed'),
-        );
-      }
-    },
-    [channelId, previewChannelID, t],
   );
 
   const updateChannelEndpointCapability = useCallback(
@@ -4683,6 +4583,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                 channelId={channelId}
                 inputs={inputs}
                 columnWidths={CHANNEL_MODEL_TEST_GROUP_COLUMN_WIDTHS}
+                modelTestResults={modelTestResults}
                 modelTestRows={modelTestRows}
                 modelTestTargetModels={modelTestTargetModels}
                 detailModelMutating={detailModelMutating}
@@ -4690,27 +4591,22 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                 getEffectiveModelEndpoint={getEffectiveModelEndpoint}
                 modelTestResultsByKey={modelTestResultsByKey}
                 buildModelTestResultKey={buildModelTestResultKey}
-                latestModelTestResultByModel={latestModelTestResultByModel}
                 activeChannelTasksByModel={activeChannelTasksByModel}
                 getEndpointOptionsForModel={getEndpointOptionsForModel}
                 updateModelTestEndpoint={updateModelTestEndpoint}
-                updateModelTestStream={updateModelTestStream}
                 modelTesting={modelTesting}
                 modelTestingScope={modelTestingScope}
                 modelTestingTargetSet={modelTestingTargetSet}
                 handleRunModelTests={handleRunModelTests}
-                handleDownloadModelTestArtifact={
-                  handleDownloadModelTestArtifact
-                }
                 detailTestingReadonly={detailTestingReadonly}
                 modelTestError={modelTestError}
                 openChannelTaskView={openChannelTaskView}
-                modelTestedAt={modelTestedAt}
                 selectedModelTestHasActiveTasks={
                   selectedModelTestHasActiveTasks
                 }
                 timestamp2string={timestamp2string}
                 updateAllModelTestEndpoints={updateAllModelTestEndpoints}
+                updateAllModelTestStreams={updateAllModelTestStreams}
                 resolvePreferredProviderForModel={
                   resolvePreferredProviderForModel
                 }

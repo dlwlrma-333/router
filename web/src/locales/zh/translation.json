@@ -746,15 +746,16 @@
       "model_tester": {
         "title": "模型测试",
         "hint": "这里展示第二步中已选模型，并为每个模型配置实际测试端点。文本模型默认测试 /v1/responses，也可以切换为 /v1/chat/completions 或 /v1/messages；其他类型使用固定端点。支持单条测试和批量测试。模型测试结果将用于后续发布确认，建议仅发布测试通过的模型端点。",
-        "button": "测试选中模型",
         "button_enter_batch": "批量测试",
         "button_run_batch": "执行批量测试",
+        "settings_button": "配置",
+        "settings_title": "测试配置",
+        "settings_stream": "流式测试",
         "single": "测试",
         "task_created": "已提交 {{count}} 个测试任务，其中复用 {{reused}} 个运行中任务。",
-        "selection": "已勾选 {{selected}} / {{total}}",
         "group_count": "{{count}} 个模型",
         "group_type": "类型：{{type}}",
-        "history_tasks": "历史任务",
+        "history_tasks": "历史测试",
         "filters": {
           "all_provider": "全部供应商",
           "all_type": "全部类型",
@@ -770,6 +771,7 @@
         "test_failed": "模型测试失败",
         "download_failed": "下载测试结果文件失败",
         "download_unavailable": "当前测试结果没有可下载文件",
+        "history": "历史",
         "stale": "连接信息、模型选择或端点已变更，请重新执行模型测试。",
         "untested": "当前端点尚未执行测试。",
         "latest_result_from_endpoint": "当前端点未测试，展示最近一次测试结果（端点：{{endpoint}}）",
@@ -788,11 +790,9 @@
           "endpoint": "端点",
           "batch_set": "批量设置",
           "supported_endpoints": "已通过端点",
-          "is_stream": "是否流式",
-          "status": "结果",
-          "latency": "耗时",
+          "status": "成功/失败",
+          "latency": "最小/平均/最大（ms）",
           "tested_at": "最近测试",
-          "message": "说明",
           "actions": "操作"
         }
       },
@@ -1414,7 +1414,9 @@
       "retry_success": "任务已重新提交",
       "retry_failed": "任务重试失败",
       "cancel_success": "任务已取消",
-      "cancel_failed": "取消任务失败"
+      "cancel_failed": "取消任务失败",
+      "download_failed": "下载任务产物失败",
+      "download_unavailable": "当前任务没有可下载产物"
     }
   },
   "user": {

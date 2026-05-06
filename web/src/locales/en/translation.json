@@ -746,15 +746,16 @@
       "model_tester": {
         "title": "Model Test",
         "hint": "This section shows the models selected in step 2 and lets you choose the real upstream endpoint for each model. Text models default to /v1/responses and can be switched to /v1/chat/completions or /v1/messages. Other model types use fixed endpoints. Supports both single-row and batch testing. Results here are used for publish confirmation, and only tested-and-supported model endpoints should be published.",
-        "button": "Test Selected Models",
         "button_enter_batch": "Batch Test",
         "button_run_batch": "Run Batch Test",
+        "settings_button": "Settings",
+        "settings_title": "Test Settings",
+        "settings_stream": "Stream Test",
         "single": "Test",
         "task_created": "{{count}} test tasks submitted, {{reused}} active tasks reused.",
-        "selection": "Selected {{selected}} / {{total}}",
         "group_count": "{{count}} models",
         "group_type": "Type: {{type}}",
-        "history_tasks": "Task History",
+        "history_tasks": "Test History",
         "filters": {
           "all_provider": "All Providers",
           "all_type": "All Types",
@@ -770,6 +771,7 @@
         "test_failed": "Model test failed",
         "download_failed": "Failed to download the test artifact",
         "download_unavailable": "No downloadable artifact is available for this test result",
+        "history": "History",
         "stale": "Connection info, model selection, or endpoint changed. Please run model tests again.",
         "untested": "The current endpoint has not been tested yet.",
         "latest_result_from_endpoint": "Current endpoint is untested. Showing latest test result from endpoint: {{endpoint}}.",
@@ -788,11 +790,9 @@
           "endpoint": "Endpoint",
           "batch_set": "Batch",
           "supported_endpoints": "Supported Endpoints",
-          "is_stream": "Stream",
-          "status": "Status",
-          "latency": "Latency",
+          "status": "Success/Fail",
+          "latency": "Min/Avg/Max (ms)",
           "tested_at": "Last Tested",
-          "message": "Message",
           "actions": "Actions"
         }
       },
@@ -1414,7 +1414,9 @@
       "retry_success": "Task requeued",
       "retry_failed": "Failed to retry task",
       "cancel_success": "Task canceled",
-      "cancel_failed": "Failed to cancel task"
+      "cancel_failed": "Failed to cancel task",
+      "download_failed": "Failed to download task artifact",
+      "download_unavailable": "No downloadable artifact is available for this task"
     }
   },
   "user": {

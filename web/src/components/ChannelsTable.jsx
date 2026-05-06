@@ -164,25 +164,6 @@ const ChannelsTable = () => {
     buildProtocolMap(getChannelProtocolOptions(), t)
   );
 
-  const openChannelTasksPage = useCallback(
-    (channelId, extraParams = {}) => {
-      const normalizedChannelId = (channelId || '').toString().trim();
-      const query = new URLSearchParams();
-      if (normalizedChannelId !== '') {
-        query.set('channel_id', normalizedChannelId);
-      }
-      Object.entries(extraParams || {}).forEach(([key, value]) => {
-        const normalizedValue = (value || '').toString().trim();
-        if (normalizedValue !== '') {
-          query.set(key, normalizedValue);
-        }
-      });
-      const search = query.toString();
-      navigate(`/admin/channel/tasks${search ? `?${search}` : ''}`);
-    },
-    [navigate]
-  );
-
   const processChannelData = useCallback((channel) => {
     const next = { ...channel };
     next.id = (next.id || '').toString().trim();
@@ -766,14 +747,6 @@ const ChannelsTable = () => {
           )}
           <Button
             className='router-page-button'
-            type='button'
-            onClick={() => openChannelTasksPage('')}
-            disabled={batchDeleting || batchDisabling}
-          >
-            {t('channel.buttons.tasks')}
-          </Button>
-          <Button
-            className='router-page-button'
             onClick={refresh}
             loading={loading}
             disabled={actionBusy}
@@ -996,15 +969,6 @@ const ChannelsTable = () => {
                       to={`/channel/add?copy_from=${channel.id}`}
                     >
                       {t('channel.buttons.copy')}
-                    </Button>
-                    <Button
-                      className='router-inline-button'
-                      type='button'
-                      onClick={() => {
-                        openChannelTasksPage(channel.id);
-                      }}
-                    >
-                      {t('channel.buttons.tasks')}
                     </Button>
                     <Button
                       className='router-inline-button'
