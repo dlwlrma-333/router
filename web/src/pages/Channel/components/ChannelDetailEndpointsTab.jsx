@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Button,
   Checkbox,
+  Dropdown,
   Form,
   Label,
   Message,
@@ -33,6 +34,51 @@ const ChannelDetailEndpointsTab = ({
       row,
     ]),
   );
+  const [testStatusFilter, setTestStatusFilter] = useState('all');
+  const testStatusOptions = useMemo(
+    () => [
+      {
+        key: 'all',
+        value: 'all',
+        text: t('channel.edit.endpoint_capabilities.filters.all_test_status'),
+      },
+      ...[
+        'supported',
+        'unsupported',
+        'untested',
+        'stale',
+        'pending',
+        'running',
+        'skipped',
+      ].map((status) => ({
+        key: status,
+        value: status,
+        text: t(`channel.edit.model_tester.status.${status}`),
+      })),
+    ],
+    [t],
+  );
+  const filteredRows = useMemo(() => {
+    return channelEndpoints.filter((row) => {
+      if (testStatusFilter === 'all') {
+        return true;
+      }
+      const endpointKey = buildChannelEndpointKey(row.model, row.endpoint);
+      const latestResult = modelTestResultsByKey.get(endpointKey) || null;
+      const latestStatusKey = latestResult
+        ? latestResult.supported === true &&
+          latestResult.status === 'supported'
+          ? 'supported'
+          : latestResult.status || 'unsupported'
+        : 'untested';
+      return latestStatusKey === testStatusFilter;
+    });
+  }, [
+    buildChannelEndpointKey,
+    channelEndpoints,
+    modelTestResultsByKey,
+    testStatusFilter,
+  ]);
   return (
     <section className='router-entity-detail-section'>
       <div className='router-entity-detail-section-header'>
@@ -47,6 +93,21 @@ const ChannelDetailEndpointsTab = ({
         <Message info className='router-section-message'>
           {t('channel.edit.endpoint_capabilities.hint')}
         </Message>
+        <div className='router-toolbar router-block-gap-sm'>
+          <div className='router-toolbar-start router-block-gap-sm'>
+            <Dropdown
+              selection
+              className='router-section-dropdown router-detail-filter-dropdown router-dropdown-min-170'
+              options={testStatusOptions}
+              value={testStatusFilter}
+              disabled={channelEndpointsLoading || channelEndpoints.length === 0}
+              placeholder={t('channel.edit.endpoint_capabilities.filters.test_status')}
+              onChange={(e, { value }) =>
+                setTestStatusFilter((value || 'all').toString())
+              }
+            />
+          </div>
+        </div>
         <Table
           celled
           stackable
@@ -87,16 +148,18 @@ const ChannelDetailEndpointsTab = ({
             </Table.Row>
           </Table.Header>
           <Table.Body>
-            {channelEndpoints.length === 0 ? (
+            {filteredRows.length === 0 ? (
               <Table.Row>
                 <Table.Cell className='router-empty-cell' colSpan={7}>
                   {channelEndpointsLoading
                     ? t('channel.edit.endpoint_capabilities.loading')
-                    : t('channel.edit.endpoint_capabilities.empty')}
+                    : channelEndpoints.length === 0
+                      ? t('channel.edit.endpoint_capabilities.empty')
+                      : t('channel.edit.endpoint_capabilities.filtered_empty')}
                 </Table.Cell>
               </Table.Row>
             ) : (
-              channelEndpoints.map((row) => {
+              filteredRows.map((row) => {
                 const endpointKey = buildChannelEndpointKey(
                   row.model,
                   row.endpoint,

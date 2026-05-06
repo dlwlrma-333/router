@@ -570,11 +570,16 @@
         },
         "loading": "加载端点能力中...",
         "empty": "当前没有端点能力数据，请先同步模型或执行模型测试。",
+        "filtered_empty": "当前筛选条件下没有端点记录。",
         "load_failed": "加载端点能力失败",
         "update_success": "端点能力更新成功",
         "enable_success": "打开端点能力成功",
         "disable_success": "关闭端点能力成功",
         "update_failed": "更新端点能力失败",
+        "filters": {
+          "test_status": "测试状态",
+          "all_test_status": "全部测试状态"
+        },
         "table": {
           "model": "模型",
           "endpoint": "端点",

@@ -570,9 +570,16 @@
         },
         "loading": "Loading endpoint capabilities...",
         "empty": "No endpoint capability data yet. Sync models or run model tests first.",
+        "filtered_empty": "No endpoint rows match the current filter.",
         "load_failed": "Failed to load endpoint capabilities",
         "update_success": "Endpoint capability updated",
+        "enable_success": "Endpoint capability enabled",
+        "disable_success": "Endpoint capability disabled",
         "update_failed": "Failed to update endpoint capability",
+        "filters": {
+          "test_status": "Test Status",
+          "all_test_status": "All Test Statuses"
+        },
         "table": {
           "model": "Model",
           "endpoint": "Endpoint",
