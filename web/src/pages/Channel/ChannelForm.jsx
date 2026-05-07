@@ -2125,28 +2125,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       }),
     [channelEndpointPolicies, endpointCapabilityStats.enabled, endpointCapabilityStats.total, t],
   );
-  const endpointPolicyStats = useMemo(() => {
-    const configuredKeys = new Set(
-      channelEndpointPolicies.map((row) =>
-        buildChannelEndpointKey(row.model, row.endpoint),
-      ),
-    );
-    const enabled = channelEndpointPolicies.filter((row) => row.enabled).length;
-    const disabled = channelEndpointPolicies.filter((row) => !row.enabled).length;
-    let unconfigured = 0;
-    channelEndpoints.forEach((row) => {
-      const key = buildChannelEndpointKey(row.model, row.endpoint);
-      if (!configuredKeys.has(key)) {
-        unconfigured += 1;
-      }
-    });
-    return {
-      total: channelEndpointPolicies.length,
-      enabled,
-      disabled,
-      unconfigured,
-    };
-  }, [channelEndpointPolicies, channelEndpoints]);
   const endpointCapabilityReadonly =
     !isDetailMode ||
     isAnyDetailSectionEditing ||
