@@ -339,7 +339,7 @@ func fetchPolicyMedia(ctx context.Context, rawURL string, limits *adminmodel.Cha
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
 		return fetchedPolicyMedia{}, newEndpointPolicyError("unsupported_input", http.StatusBadRequest, "unsupported media url scheme %q", parsedURL.Scheme)
 	}
-	if err := validateEndpointPolicyFetchHost(ctx, parsedURL.Hostname()); err != nil {
+	if err := validateEndpointPolicyFetchHost(ctx, parsedURL.Host); err != nil {
 		return fetchedPolicyMedia{}, err
 	}
 	timeoutMs := endpointPolicyDefaultTimeoutMs
@@ -404,21 +404,28 @@ func fetchPolicyMedia(ctx context.Context, rawURL string, limits *adminmodel.Cha
 	}, nil
 }
 
-func validatePolicyFetchHost(ctx context.Context, hostname string) error {
-	normalizedHost := strings.TrimSpace(strings.ToLower(hostname))
+func validatePolicyFetchHost(ctx context.Context, rawHost string) error {
+	normalizedHost := normalizeEndpointPolicyHost(rawHost)
 	if normalizedHost == "" {
 		return newEndpointPolicyError("media_fetch_failed", http.StatusBadRequest, "media host is empty")
 	}
-	if normalizedHost == "localhost" {
+	hostname := normalizedHost
+	if parsedHost, _, err := net.SplitHostPort(normalizedHost); err == nil {
+		hostname = normalizeEndpointPolicyHost(parsedHost)
+	}
+	if isAllowedPrivatePolicyFetchHost(normalizedHost, hostname) {
+		return nil
+	}
+	if hostname == "localhost" {
 		return newEndpointPolicyError("unsupported_input", http.StatusBadRequest, "localhost media url is not allowed")
 	}
-	if addr, err := netip.ParseAddr(normalizedHost); err == nil {
+	if addr, err := netip.ParseAddr(hostname); err == nil {
 		if isBlockedPolicyFetchAddr(addr) {
-			return newEndpointPolicyError("unsupported_input", http.StatusBadRequest, "private media address %q is not allowed", normalizedHost)
+			return newEndpointPolicyError("unsupported_input", http.StatusBadRequest, "private media address %q is not allowed", hostname)
 		}
 		return nil
 	}
-	ips, err := net.DefaultResolver.LookupIPAddr(ctx, normalizedHost)
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, hostname)
 	if err != nil {
 		return newEndpointPolicyError("media_fetch_failed", http.StatusBadGateway, "resolve media host failed: %v", err)
 	}
@@ -428,10 +435,29 @@ func validatePolicyFetchHost(ctx context.Context, hostname string) error {
 			continue
 		}
 		if isBlockedPolicyFetchAddr(addr) {
-			return newEndpointPolicyError("unsupported_input", http.StatusBadRequest, "private media host %q is not allowed", normalizedHost)
+			return newEndpointPolicyError("unsupported_input", http.StatusBadRequest, "private media host %q is not allowed", hostname)
 		}
 	}
 	return nil
+}
+
+func normalizeEndpointPolicyHost(value string) string {
+	return strings.TrimSpace(strings.ToLower(value))
+}
+
+func isAllowedPrivatePolicyFetchHost(rawHost string, hostname string) bool {
+	normalizedRawHost := normalizeEndpointPolicyHost(rawHost)
+	normalizedHostname := normalizeEndpointPolicyHost(hostname)
+	for _, item := range config.UserContentRequestPrivateHostAllowlist {
+		allowed := normalizeEndpointPolicyHost(item)
+		if allowed == "" {
+			continue
+		}
+		if allowed == normalizedRawHost || allowed == normalizedHostname {
+			return true
+		}
+	}
+	return false
 }
 
 func isBlockedPolicyFetchAddr(addr netip.Addr) bool {

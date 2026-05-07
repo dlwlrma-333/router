@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/yeying-community/router/common/client"
+	"github.com/yeying-community/router/common/config"
 	"github.com/yeying-community/router/internal/admin/model"
 	relaymeta "github.com/yeying-community/router/internal/relay/meta"
 	relaymodel "github.com/yeying-community/router/internal/relay/model"
@@ -123,4 +124,19 @@ func newPolicyTestContext(t *testing.T, body string) *gin.Context {
 	req.Header.Set("Content-Type", "application/json")
 	c.Request = req
 	return c
+}
+
+func TestValidatePolicyFetchHostAllowsConfiguredLoopbackHost(t *testing.T) {
+	originalAllowlist := config.UserContentRequestPrivateHostAllowlist
+	config.UserContentRequestPrivateHostAllowlist = []string{"127.0.0.1:6065", "localhost:6065"}
+	defer func() {
+		config.UserContentRequestPrivateHostAllowlist = originalAllowlist
+	}()
+
+	if err := validatePolicyFetchHost(context.Background(), "127.0.0.1:6065"); err != nil {
+		t.Fatalf("validatePolicyFetchHost returned error: %v", err)
+	}
+	if err := validatePolicyFetchHost(context.Background(), "localhost:6065"); err != nil {
+		t.Fatalf("validatePolicyFetchHost returned error: %v", err)
+	}
 }

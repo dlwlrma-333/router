@@ -56,6 +56,11 @@ const ChannelEndpointPolicyEditorModal = ({
               />
             </Form.Field>
           </Form.Group>
+          {(policyDraft.template_key || '') === 'ANTHROPIC_IMAGE_URL_TO_BASE64' ? (
+            <Message warning className='router-section-message'>
+              {t('channel.edit.endpoint_policies.editor.anthropic_image_url_hint')}
+            </Message>
+          ) : null}
           <Form.Group widths='equal'>
             <Form.Input
               className='router-modal-input'
