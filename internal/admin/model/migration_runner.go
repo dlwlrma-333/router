@@ -700,6 +700,19 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return migrateGroupModelRoutesTableWithDB(tx)
 			},
 		},
+		{
+			Version:     "202605071830_channel_endpoint_policy_unique_index",
+			Description: "add unique index for channel endpoint policy upsert key",
+			Up: func(tx *gorm.DB) error {
+				if err := tx.Exec(`
+					CREATE UNIQUE INDEX IF NOT EXISTS uniq_channel_model_endpoint_policy
+					ON channel_model_endpoint_policies (channel_id, model, endpoint)
+				`).Error; err != nil {
+					return err
+				}
+				return tx.AutoMigrate(&ChannelModelEndpointPolicy{})
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
 }

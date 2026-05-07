@@ -20,9 +20,9 @@ const (
 
 type ChannelModelEndpointPolicy struct {
 	ID             string `json:"id" gorm:"primaryKey;type:varchar(64)"`
-	ChannelId      string `json:"channel_id" gorm:"type:varchar(64);index:idx_channel_model_endpoint_policy,priority:1"`
-	Model          string `json:"model" gorm:"type:varchar(255);index:idx_channel_model_endpoint_policy,priority:2"`
-	Endpoint       string `json:"endpoint" gorm:"type:varchar(255);index:idx_channel_model_endpoint_policy,priority:3"`
+	ChannelId      string `json:"channel_id" gorm:"type:varchar(64);uniqueIndex:uniq_channel_model_endpoint_policy,priority:1"`
+	Model          string `json:"model" gorm:"type:varchar(255);uniqueIndex:uniq_channel_model_endpoint_policy,priority:2"`
+	Endpoint       string `json:"endpoint" gorm:"type:varchar(255);uniqueIndex:uniq_channel_model_endpoint_policy,priority:3"`
 	Enabled        bool   `json:"enabled" gorm:"not null;default:true;index"`
 	TemplateKey    string `json:"template_key,omitempty" gorm:"type:varchar(128);default:''"`
 	Capabilities   string `json:"capabilities,omitempty" gorm:"type:text;default:''"`
