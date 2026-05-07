@@ -570,6 +570,10 @@
         "enable_success": "打开端点能力成功",
         "disable_success": "关闭端点能力成功",
         "update_failed": "更新端点能力失败",
+        "enable_confirm_title": "确认打开端点",
+        "enable_confirm_content": "当前端点没有成功测试记录，或最新测试结果不是成功，不建议直接打开。继续后，该端点可能被对外暴露并接收真实请求。",
+        "enable_confirm_target": "模型：{{model}}，端点：{{endpoint}}",
+        "enable_confirm_action": "继续打开",
         "filters": {
           "test_status": "测试状态",
           "all_test_status": "全部测试状态"

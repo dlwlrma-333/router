@@ -570,6 +570,10 @@
         "enable_success": "Endpoint capability enabled",
         "disable_success": "Endpoint capability disabled",
         "update_failed": "Failed to update endpoint capability",
+        "enable_confirm_title": "Confirm Enable Endpoint",
+        "enable_confirm_content": "This endpoint has no successful test record, or the latest test result is not successful. Enabling it is not recommended because it may be exposed for real requests.",
+        "enable_confirm_target": "Model: {{model}}, endpoint: {{endpoint}}",
+        "enable_confirm_action": "Enable Anyway",
         "filters": {
           "test_status": "Test Status",
           "all_test_status": "All Test Statuses"

@@ -1464,6 +1464,11 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     useState(false);
   const [channelEndpointPoliciesError, setChannelEndpointPoliciesError] =
     useState('');
+  const [endpointEnableConfirmOpen, setEndpointEnableConfirmOpen] =
+    useState(false);
+  const [endpointEnableConfirmLoading, setEndpointEnableConfirmLoading] =
+    useState(false);
+  const [pendingEndpointEnableRow, setPendingEndpointEnableRow] = useState(null);
   const [policyEditorOpen, setPolicyEditorOpen] = useState(false);
   const [policyEditorSaving, setPolicyEditorSaving] = useState(false);
   const [selectedPolicyTemplate, setSelectedPolicyTemplate] = useState('');
@@ -3261,7 +3266,8 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   );
 
   const updateChannelEndpointCapability = useCallback(
-    async (row, enabled) => {
+    async (row, enabled, options = {}) => {
+      const { skipConfirm = false } = options;
       if (!isDetailMode || endpointCapabilityReadonly) {
         return;
       }
@@ -3274,6 +3280,14 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         return;
       }
       const endpointKey = buildChannelEndpointKey(modelName, endpoint);
+      const latestResult = modelTestResultsByKey.get(endpointKey) || null;
+      const hasSuccessfulTest =
+        latestResult?.status === 'supported' && latestResult?.supported === true;
+      if (enabled && !skipConfirm && !hasSuccessfulTest) {
+        setPendingEndpointEnableRow(row);
+        setEndpointEnableConfirmOpen(true);
+        return;
+      }
       setEndpointMutatingKey(endpointKey);
       try {
         const res = await API.put(
@@ -3315,10 +3329,35 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       channelId,
       endpointCapabilityReadonly,
       isDetailMode,
+      modelTestResultsByKey,
       loadChannelEndpointsFromServer,
       t,
     ],
   );
+
+  const closeEndpointEnableConfirm = useCallback(() => {
+    if (endpointEnableConfirmLoading) {
+      return;
+    }
+    setEndpointEnableConfirmOpen(false);
+    setPendingEndpointEnableRow(null);
+  }, [endpointEnableConfirmLoading]);
+
+  const confirmEnableEndpointWithoutSuccessfulTest = useCallback(async () => {
+    if (!pendingEndpointEnableRow) {
+      return;
+    }
+    setEndpointEnableConfirmLoading(true);
+    try {
+      await updateChannelEndpointCapability(pendingEndpointEnableRow, true, {
+        skipConfirm: true,
+      });
+      setEndpointEnableConfirmOpen(false);
+      setPendingEndpointEnableRow(null);
+    } finally {
+      setEndpointEnableConfirmLoading(false);
+    }
+  }, [pendingEndpointEnableRow, updateChannelEndpointCapability]);
 
   const openEndpointPolicyEditor = useCallback(
     (row) => {
@@ -4278,6 +4317,43 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         setPolicyDraft={setPolicyDraft}
         saveEndpointPolicy={saveEndpointPolicy}
       />
+      <Modal
+        size='tiny'
+        open={endpointEnableConfirmOpen}
+        onClose={closeEndpointEnableConfirm}
+      >
+        <Modal.Header>
+          {t('channel.edit.endpoint_capabilities.enable_confirm_title')}
+        </Modal.Header>
+        <Modal.Content>
+          <p>{t('channel.edit.endpoint_capabilities.enable_confirm_content')}</p>
+          <p className='router-muted-text'>
+            {pendingEndpointEnableRow
+              ? t('channel.edit.endpoint_capabilities.enable_confirm_target', {
+                  model: pendingEndpointEnableRow.model || '-',
+                  endpoint: pendingEndpointEnableRow.endpoint || '-',
+                })
+              : ''}
+          </p>
+        </Modal.Content>
+        <Modal.Actions>
+          <Button
+            type='button'
+            onClick={closeEndpointEnableConfirm}
+            disabled={endpointEnableConfirmLoading}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type='button'
+            primary
+            loading={endpointEnableConfirmLoading}
+            onClick={confirmEnableEndpointWithoutSuccessfulTest}
+          >
+            {t('channel.edit.endpoint_capabilities.enable_confirm_action')}
+          </Button>
+        </Modal.Actions>
+      </Modal>
       <ChannelAppendProviderModal
         t={t}
         open={appendProviderModalOpen}
