@@ -232,6 +232,13 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 			},
 		},
 		{
+			Version:     "202604301030_channel_model_endpoint_policies",
+			Description: "add channel model endpoint policy table for request compatibility rules",
+			Up: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&ChannelModelEndpointPolicy{})
+			},
+		},
+		{
 			Version:     "202604011030_billing_currency_cny_decouple",
 			Description: "decouple CNY yyc rate from system default linkage and switch legacy default source to manual",
 			Up: func(tx *gorm.DB) error {
@@ -539,7 +546,7 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 		},
 		{
 			Version:     "202604161230_group_model_providers",
-			Description: "add canonical group_model_providers table and backfill provider mapping from current abilities",
+			Description: "add canonical group_model_providers table and backfill provider mapping from current runtime group model routes",
 			Up: func(tx *gorm.DB) error {
 				return migrateGroupModelProvidersWithDB(tx)
 			},
@@ -584,8 +591,170 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 				return syncDefaultProviderCatalogWithDB(tx)
 			},
 		},
+		{
+			Version:     "202605051230_openai_gpt_image_2_provider_catalog",
+			Description: "sync default provider catalog to add openai gpt-image-2 pricing rows",
+			Up: func(tx *gorm.DB) error {
+				return syncDefaultProviderCatalogWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605041030_provider_model_supported_endpoints",
+			Description: "add provider model supported endpoints as channel endpoint candidates",
+			Up: func(tx *gorm.DB) error {
+				if err := syncDefaultProviderCatalogWithDB(tx); err != nil {
+					return err
+				}
+				channelIDs := make([]string, 0)
+				if err := tx.Model(&Channel{}).Distinct("id").Pluck("id", &channelIDs).Error; err != nil {
+					return err
+				}
+				for _, channelID := range channelIDs {
+					rows, err := listChannelModelRowsByChannelIDWithDB(tx, channelID)
+					if err != nil {
+						return err
+					}
+					if err := SyncChannelModelEndpointsWithDB(tx, channelID, rows); err != nil {
+						return err
+					}
+				}
+				return nil
+			},
+		},
+		{
+			Version:     "202605051030_openai_text_model_endpoint_candidates",
+			Description: "backfill openai text provider models with responses and chat completion endpoint candidates",
+			Up: func(tx *gorm.DB) error {
+				if err := syncDefaultProviderCatalogWithDB(tx); err != nil {
+					return err
+				}
+				return backfillOpenAITextProviderModelEndpointCandidatesWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605051130_drop_provider_model_capabilities",
+			Description: "drop provider model capabilities column in favor of model type",
+			Up: func(tx *gorm.DB) error {
+				return dropProviderModelCapabilitiesWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605051330_repair_openai_text_model_endpoint_candidates",
+			Description: "repair openai text provider model endpoint candidates to include responses and chat completions",
+			Up: func(tx *gorm.DB) error {
+				return backfillOpenAITextProviderModelEndpointCandidatesWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605061700_channel_endpoint_policy_template_key",
+			Description: "add template key column to channel endpoint policies",
+			Up: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&ChannelModelEndpointPolicy{})
+			},
+		},
+		{
+			Version:     "202605061830_drop_legacy_and_reject_endpoint_policies",
+			Description: "delete deprecated drop_fields and reject_unsupported_input endpoint policies",
+			Up: func(tx *gorm.DB) error {
+				if err := tx.Where("template_key IN ?", []string{
+					"DROP_LEGACY_PENALTIES",
+					"REJECT_ANTHROPIC_IMAGE_URL",
+				}).Delete(&ChannelModelEndpointPolicy{}).Error; err != nil {
+					return err
+				}
+				return tx.Where(
+					"request_policy LIKE ? OR request_policy LIKE ?",
+					"%\"type\":\"drop_fields\"%",
+					"%\"type\":\"reject_unsupported_input\"%",
+				).Delete(&ChannelModelEndpointPolicy{}).Error
+			},
+		},
+		{
+			Version:     "202605071030_group_channel_bindings",
+			Description: "add canonical group channel bindings table and backfill from current runtime group model routes",
+			Up: func(tx *gorm.DB) error {
+				return migrateGroupChannelBindingsWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605071330_ability_provider_and_drop_group_model_providers",
+			Description: "store provider on runtime group model routes, backfill from channel/provider catalogs, and drop group model providers table",
+			Up: func(tx *gorm.DB) error {
+				if err := backfillGroupModelRouteProviderFromChannelModelsWithDB(tx); err != nil {
+					return err
+				}
+				return dropGroupModelProvidersTableWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605071530_group_models",
+			Description: "add canonical group models table and backfill from current runtime group model routes",
+			Up: func(tx *gorm.DB) error {
+				return migrateGroupModelsWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605071700_group_model_routes",
+			Description: "rename runtime group model channel table to group model routes",
+			Up: func(tx *gorm.DB) error {
+				return migrateGroupModelRoutesTableWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605071830_channel_endpoint_policy_unique_index",
+			Description: "add unique index for channel endpoint policy upsert key",
+			Up: func(tx *gorm.DB) error {
+				if err := tx.Exec(`
+					CREATE UNIQUE INDEX IF NOT EXISTS uniq_channel_model_endpoint_policy
+					ON channel_model_endpoint_policies (channel_id, model, endpoint)
+				`).Error; err != nil {
+					return err
+				}
+				return tx.AutoMigrate(&ChannelModelEndpointPolicy{})
+			},
+		},
 	}
 	return runVersionedMigrations(db, migrationScopeMain, migrations)
+}
+
+func backfillOpenAITextProviderModelEndpointCandidatesWithDB(db *gorm.DB) error {
+	if db == nil {
+		return fmt.Errorf("database handle is nil")
+	}
+	if err := db.AutoMigrate(&ProviderModel{}); err != nil {
+		return err
+	}
+	rows := make([]ProviderModel, 0)
+	if err := db.
+		Where("provider = ?", "openai").
+		Find(&rows).Error; err != nil {
+		return err
+	}
+	now := helper.GetTimestamp()
+	for _, row := range rows {
+		if normalizeModelType(row.Type, row.Model) != ProviderModelTypeText {
+			continue
+		}
+		nextEndpoints := openAITextProviderModelEndpointCandidates(row.SupportedEndpoints)
+		if strings.TrimSpace(row.SupportedEndpoints) == nextEndpoints {
+			continue
+		}
+		if err := db.Model(&ProviderModel{}).
+			Where("provider = ? AND model = ?", row.Provider, row.Model).
+			Updates(map[string]interface{}{
+				"supported_endpoints": nextEndpoints,
+				"updated_at":          now,
+			}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func openAITextProviderModelEndpointCandidates(raw string) string {
+	endpoints := splitProviderModelSupportedEndpoints(raw)
+	endpoints = append(endpoints, ChannelModelEndpointResponses, ChannelModelEndpointChat)
+	return joinProviderModelSupportedEndpoints(ProviderModelTypeText, endpoints)
 }
 
 func runLogVersionedMigrations(db *gorm.DB) error {

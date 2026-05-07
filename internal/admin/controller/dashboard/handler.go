@@ -93,17 +93,59 @@ type channelHealthItem struct {
 	HealthLevel        string   `json:"health_level"`
 }
 
+type usageRankingItem struct {
+	UserID       string  `json:"user_id"`
+	Username     string  `json:"username"`
+	RequestCount int64   `json:"request_count"`
+	TotalTokens  int64   `json:"total_tokens"`
+	SpendQuota   int64   `json:"spend_quota"`
+	SpendYYC     int64   `json:"spend_yyc"`
+	ShareRate    float64 `json:"share_rate"`
+	LastUsedAt   int64   `json:"last_used_at"`
+}
+
+type usageRankSummary struct {
+	UserCount    int64   `json:"user_count"`
+	RequestCount int64   `json:"request_count"`
+	TotalTokens  int64   `json:"total_tokens"`
+	SpendQuota   int64   `json:"spend_quota"`
+	SpendYYC     int64   `json:"spend_yyc"`
+	TopUsername  string  `json:"top_username"`
+	TopUserShare float64 `json:"top_user_share"`
+}
+
+type usageTotalSummary struct {
+	UserCount    int64 `json:"user_count"`
+	RequestCount int64 `json:"request_count"`
+	TotalTokens  int64 `json:"total_tokens"`
+	SpendQuota   int64 `json:"spend_quota"`
+	SpendYYC     int64 `json:"spend_yyc"`
+}
+
 type dashboardPayload struct {
-	Section     string              `json:"section"`
-	Period      string              `json:"period"`
-	Granularity string              `json:"granularity"`
-	StartAt     int64               `json:"start_timestamp"`
-	EndAt       int64               `json:"end_timestamp"`
-	Summary     summaryData         `json:"summary"`
-	Trend       []trendPoint        `json:"trend"`
-	TopChannels []channelHealthItem `json:"top_channels"`
-	RecentTasks []model.AsyncTask   `json:"recent_tasks"`
-	GeneratedAt int64               `json:"generated_at"`
+	Section      string              `json:"section"`
+	Period       string              `json:"period"`
+	Granularity  string              `json:"granularity"`
+	StartAt      int64               `json:"start_timestamp"`
+	EndAt        int64               `json:"end_timestamp"`
+	Summary      summaryData         `json:"summary"`
+	Trend        []trendPoint        `json:"trend"`
+	TopChannels  []channelHealthItem `json:"top_channels"`
+	UsageSummary usageRankSummary    `json:"usage_summary"`
+	UsageTotals  usageTotalSummary   `json:"usage_totals"`
+	UsageRank    []usageRankingItem  `json:"usage_rank"`
+	RecentTasks  []model.AsyncTask   `json:"recent_tasks"`
+	GeneratedAt  int64               `json:"generated_at"`
+}
+
+type usageRankingRow struct {
+	UserID       string `gorm:"column:user_id"`
+	Username     string `gorm:"column:username"`
+	RequestCount int64  `gorm:"column:request_count"`
+	PromptTokens int64  `gorm:"column:prompt_tokens"`
+	CompletionTs int64  `gorm:"column:completion_tokens"`
+	SpendQuota   int64  `gorm:"column:spend_quota"`
+	LastUsedAt   int64  `gorm:"column:last_used_at"`
 }
 
 func normalizeSection(raw string) string {
@@ -611,6 +653,121 @@ func buildTrend(startAt int64, endAt int64, granularity string) ([]trendPoint, e
 	return list, nil
 }
 
+func buildUsageRanking(startAt int64, endAt int64, totalConsumeQuota int64, limit int) ([]usageRankingItem, error) {
+	return buildUsageRankingWithKeyword(startAt, endAt, totalConsumeQuota, limit, "")
+}
+
+func summarizeUsageTotals(startAt int64, endAt int64, userKeyword string) (usageTotalSummary, error) {
+	summary := usageTotalSummary{}
+	if startAt <= 0 || endAt <= 0 || endAt < startAt {
+		return summary, nil
+	}
+	keyword := strings.TrimSpace(userKeyword)
+	query := model.LOG_DB.Table(model.EventLogsTableName).
+		Where("type = ? AND created_at BETWEEN ? AND ? AND COALESCE(NULLIF(TRIM(user_id), ''), '') <> ''", model.LogTypeConsume, startAt, endAt)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("(user_id ILIKE ? OR username ILIKE ?)", like, like)
+	}
+	type aggregateRow struct {
+		UserCount    int64 `gorm:"column:user_count"`
+		RequestCount int64 `gorm:"column:request_count"`
+		PromptTokens int64 `gorm:"column:prompt_tokens"`
+		CompletionTs int64 `gorm:"column:completion_tokens"`
+		SpendQuota   int64 `gorm:"column:spend_quota"`
+	}
+	row := aggregateRow{}
+	err := query.Select(`
+		COUNT(DISTINCT user_id) AS user_count,
+		COUNT(1) AS request_count,
+		COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+		COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+		COALESCE(SUM(quota), 0) AS spend_quota
+	`).Scan(&row).Error
+	if err != nil {
+		return summary, err
+	}
+	summary.UserCount = row.UserCount
+	summary.RequestCount = row.RequestCount
+	summary.TotalTokens = row.PromptTokens + row.CompletionTs
+	summary.SpendQuota = row.SpendQuota
+	summary.SpendYYC = row.SpendQuota
+	return summary, nil
+}
+
+func summarizeUsageRanking(items []usageRankingItem) usageRankSummary {
+	summary := usageRankSummary{}
+	if len(items) == 0 {
+		return summary
+	}
+	summary.UserCount = int64(len(items))
+	var topSpendQuota int64
+	for index, item := range items {
+		summary.RequestCount += item.RequestCount
+		summary.TotalTokens += item.TotalTokens
+		summary.SpendQuota += item.SpendQuota
+		summary.SpendYYC += item.SpendYYC
+		if index == 0 || item.SpendQuota > topSpendQuota {
+			topSpendQuota = item.SpendQuota
+			summary.TopUsername = strings.TrimSpace(item.Username)
+			if summary.TopUsername == "" {
+				summary.TopUsername = strings.TrimSpace(item.UserID)
+			}
+			summary.TopUserShare = item.ShareRate
+		}
+	}
+	return summary
+}
+
+func buildUsageRankingWithKeyword(startAt int64, endAt int64, totalConsumeQuota int64, limit int, userKeyword string) ([]usageRankingItem, error) {
+	if startAt <= 0 || endAt <= 0 || endAt < startAt || limit <= 0 {
+		return []usageRankingItem{}, nil
+	}
+	keyword := strings.TrimSpace(userKeyword)
+	rows := make([]usageRankingRow, 0, limit)
+	query := model.LOG_DB.Table(model.EventLogsTableName).
+		Select(`
+			COALESCE(NULLIF(TRIM(user_id), ''), '') AS user_id,
+			COALESCE(NULLIF(MAX(TRIM(username)), ''), COALESCE(NULLIF(TRIM(user_id), ''), '-')) AS username,
+			COUNT(1) AS request_count,
+			COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+			COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+			COALESCE(SUM(quota), 0) AS spend_quota,
+			COALESCE(MAX(created_at), 0) AS last_used_at
+		`).
+		Where("type = ? AND created_at BETWEEN ? AND ? AND COALESCE(NULLIF(TRIM(user_id), ''), '') <> ''", model.LogTypeConsume, startAt, endAt)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("(user_id ILIKE ? OR username ILIKE ?)", like, like)
+	}
+	err := query.Group("user_id").
+		Order("spend_quota DESC, request_count DESC, last_used_at DESC").
+		Limit(limit).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	items := make([]usageRankingItem, 0, len(rows))
+	for _, row := range rows {
+		totalTokens := row.PromptTokens + row.CompletionTs
+		shareRate := 0.0
+		if totalConsumeQuota > 0 && row.SpendQuota > 0 {
+			shareRate = float64(row.SpendQuota) / float64(totalConsumeQuota)
+		}
+		items = append(items, usageRankingItem{
+			UserID:       strings.TrimSpace(row.UserID),
+			Username:     strings.TrimSpace(row.Username),
+			RequestCount: row.RequestCount,
+			TotalTokens:  totalTokens,
+			SpendQuota:   row.SpendQuota,
+			SpendYYC:     row.SpendQuota,
+			ShareRate:    clamp01(shareRate),
+			LastUsedAt:   row.LastUsedAt,
+		})
+	}
+	return items, nil
+}
+
 func resolveAllTimeRange(now time.Time) (time.Time, time.Time, error) {
 	end := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location())
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
@@ -642,6 +799,7 @@ func resolveAllTimeRange(now time.Time) (time.Time, time.Time, error) {
 func GetDashboard(c *gin.Context) {
 	period := normalizePeriod(c.DefaultQuery("period", periodLast7Days))
 	section := normalizeSection(c.Query("section"))
+	userKeyword := strings.TrimSpace(c.Query("user_keyword"))
 	now := time.Now()
 	start, end := periodRange(period, now)
 	if period == periodAllTime {
@@ -736,6 +894,19 @@ func GetDashboard(c *gin.Context) {
 			TaskActiveTotal: taskActiveTotal,
 			TaskFailedTotal: taskFailedTotal,
 		}
+		usageTotals, err := summarizeUsageTotals(startAt, endAt, userKeyword)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		usageRank, err := buildUsageRankingWithKeyword(startAt, endAt, usageTotals.SpendQuota, 10, userKeyword)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		payload.UsageSummary = summarizeUsageRanking(usageRank)
+		payload.UsageTotals = usageTotals
+		payload.UsageRank = usageRank
 	}
 
 	if section == sectionAll || section == sectionTrend {

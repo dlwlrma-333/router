@@ -31,7 +31,7 @@ func backfillChannelModelProviderFromCatalogWithDB(tx *gorm.DB) error {
 		return err
 	}
 	if len(rows) == 0 {
-		return syncGroupModelProvidersAfterChannelProviderBackfillWithDB(tx)
+		return backfillGroupModelRouteProviderFromChannelModelsWithDB(tx)
 	}
 
 	candidates := make([]string, 0, len(rows)*2)
@@ -61,17 +61,5 @@ func backfillChannelModelProviderFromCatalogWithDB(tx *gorm.DB) error {
 			return err
 		}
 	}
-	return syncGroupModelProvidersAfterChannelProviderBackfillWithDB(tx)
-}
-
-func syncGroupModelProvidersAfterChannelProviderBackfillWithDB(tx *gorm.DB) error {
-	groupIDs := make([]string, 0)
-	groupCol := `"group"`
-	if err := tx.Model(&Ability{}).
-		Distinct(groupCol).
-		Where("channel_id <> ''").
-		Pluck(groupCol, &groupIDs).Error; err != nil {
-		return err
-	}
-	return SyncGroupModelProvidersForGroupsWithDB(tx, groupIDs...)
+	return backfillGroupModelRouteProviderFromChannelModelsWithDB(tx)
 }

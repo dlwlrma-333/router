@@ -346,14 +346,6 @@ const LogDetail = () => {
                       {renderBoolean(log?.is_stream)}
                     </pre>
                   </div>
-                  <div className='router-detail-item'>
-                    <div className='router-detail-label'>
-                      {t('log.detail.fields.system_prompt_reset')}
-                    </div>
-                    <pre className='router-detail-value'>
-                      {renderBoolean(log?.system_prompt_reset)}
-                    </pre>
-                  </div>
                 </div>
               </div>
 

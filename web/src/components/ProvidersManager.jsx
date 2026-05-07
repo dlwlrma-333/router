@@ -21,7 +21,16 @@ import {
 import { ITEMS_PER_PAGE } from '../constants';
 
 const PROVIDER_DETAIL_MODEL_PAGE_SIZE = 20;
-const PROVIDER_CAPABILITY_ORDER = ['text', 'image', 'audio', 'video'];
+const PROVIDER_ENDPOINT_SORT_ORDER = {
+  '/v1/chat/completions': 10,
+  '/v1/responses': 20,
+  '/v1/messages': 30,
+  '/v1/images/generations': 40,
+  '/v1/images/edits': 50,
+  '/v1/batches': 60,
+  '/v1/audio/speech': 70,
+  '/v1/videos': 80,
+};
 
 const normalizeProvider = (provider) => {
   if (typeof provider !== 'string') return '';
@@ -152,7 +161,7 @@ const defaultPriceUnitByComponent = (component) => {
   }
 };
 
-function normalizeProviderCapabilityType(value, model) {
+function normalizeProviderModelType(value, model) {
   const normalized = (value || '').toString().trim().toLowerCase();
   if (
     normalized === 'text' ||
@@ -165,23 +174,83 @@ function normalizeProviderCapabilityType(value, model) {
   return inferModelType(model);
 }
 
-const normalizeCapabilities = (capabilities, model) => {
-  const values = Array.isArray(capabilities)
-    ? capabilities
-    : typeof capabilities === 'string'
-      ? capabilities.split(',')
-      : [];
-  const set = new Set();
-  values.forEach((item) => {
-    const normalized = normalizeProviderCapabilityType(item, model);
-    if (normalized) {
-      set.add(normalized);
-    }
-  });
-  if (set.size === 0) {
-    set.add(inferModelType(model));
+const normalizeProviderEndpoint = (endpoint) => {
+  const normalized = (endpoint || '').toString().trim().toLowerCase();
+  if (normalized.startsWith('/v1/chat/completions')) {
+    return '/v1/chat/completions';
   }
-  return PROVIDER_CAPABILITY_ORDER.filter((type) => set.has(type));
+  if (normalized.startsWith('/v1/responses')) {
+    return '/v1/responses';
+  }
+  if (normalized.startsWith('/v1/messages')) {
+    return '/v1/messages';
+  }
+  if (normalized.startsWith('/v1/images/generations')) {
+    return '/v1/images/generations';
+  }
+  if (normalized.startsWith('/v1/images/edits')) {
+    return '/v1/images/edits';
+  }
+  if (normalized.startsWith('/v1/batches')) {
+    return '/v1/batches';
+  }
+  if (normalized.startsWith('/v1/audio/')) {
+    return '/v1/audio/speech';
+  }
+  if (normalized.startsWith('/v1/videos')) {
+    return '/v1/videos';
+  }
+  return '';
+};
+
+const isProviderEndpointAllowedForType = (type, endpoint) => {
+  const normalizedType = normalizeProviderModelType(type, '');
+  switch (normalizedType) {
+    case 'image':
+      return [
+        '/v1/responses',
+        '/v1/images/generations',
+        '/v1/images/edits',
+        '/v1/batches',
+      ].includes(endpoint);
+    case 'audio':
+      return endpoint === '/v1/audio/speech';
+    case 'video':
+      return endpoint === '/v1/videos';
+    case 'text':
+    default:
+      return [
+        '/v1/chat/completions',
+        '/v1/responses',
+        '/v1/messages',
+      ].includes(endpoint);
+  }
+};
+
+const normalizeSupportedEndpoints = (endpoints, type) => {
+  const values = Array.isArray(endpoints)
+    ? endpoints
+    : typeof endpoints === 'string'
+      ? endpoints.split(',')
+      : [];
+  const seen = new Set();
+  const result = [];
+  values.forEach((item) => {
+    const endpoint = normalizeProviderEndpoint(item);
+    if (!endpoint || !isProviderEndpointAllowedForType(type, endpoint)) {
+      return;
+    }
+    if (seen.has(endpoint)) {
+      return;
+    }
+    seen.add(endpoint);
+    result.push(endpoint);
+  });
+  return result.sort(
+    (a, b) =>
+      (PROVIDER_ENDPOINT_SORT_ORDER[a] || 1000) -
+        (PROVIDER_ENDPOINT_SORT_ORDER[b] || 1000) || a.localeCompare(b),
+  );
 };
 
 const createEmptyPriceComponent = (component = '') => ({
@@ -253,7 +322,7 @@ const createEmptyModelDetail = (model = '') => {
   return {
     model,
     type: t,
-    capabilities: normalizeCapabilities([], model),
+    supported_endpoints: [],
     input_price: 0,
     output_price: 0,
     price_unit: defaultPriceUnitByType(t, model),
@@ -298,7 +367,10 @@ const normalizeModelDetails = (details) => {
     unique.set(model, {
       model,
       type,
-      capabilities: normalizeCapabilities(item.capabilities, model),
+      supported_endpoints: normalizeSupportedEndpoints(
+        item.supported_endpoints,
+        type,
+      ),
       input_price:
         Number.isFinite(inputPrice) && inputPrice > 0 ? inputPrice : 0,
       output_price:
@@ -380,6 +452,38 @@ const MODEL_TYPE_OPTIONS = [
   { key: 'audio', value: 'audio', text: 'audio' },
   { key: 'video', value: 'video', text: 'video' },
 ];
+
+const PROVIDER_ENDPOINT_OPTIONS = [
+  {
+    key: '/v1/chat/completions',
+    value: '/v1/chat/completions',
+    text: '/v1/chat/completions',
+  },
+  { key: '/v1/responses', value: '/v1/responses', text: '/v1/responses' },
+  { key: '/v1/messages', value: '/v1/messages', text: '/v1/messages' },
+  {
+    key: '/v1/images/generations',
+    value: '/v1/images/generations',
+    text: '/v1/images/generations',
+  },
+  {
+    key: '/v1/images/edits',
+    value: '/v1/images/edits',
+    text: '/v1/images/edits',
+  },
+  { key: '/v1/batches', value: '/v1/batches', text: '/v1/batches' },
+  {
+    key: '/v1/audio/speech',
+    value: '/v1/audio/speech',
+    text: '/v1/audio/speech',
+  },
+  { key: '/v1/videos', value: '/v1/videos', text: '/v1/videos' },
+];
+
+const providerEndpointOptionsForType = (type) =>
+  PROVIDER_ENDPOINT_OPTIONS.filter((option) =>
+    isProviderEndpointAllowedForType(type, option.value),
+  );
 
 const PRICE_UNIT_OPTIONS = [
   { key: 'per_1k_tokens', value: 'per_1k_tokens', text: 'per_1k_tokens' },
@@ -471,15 +575,6 @@ const buildConditionString = (attrs, orderedKeys) => {
     })
     .filter(Boolean)
     .join(';');
-};
-
-const collectProviderCapabilities = (row) => {
-  const capabilitySet = new Set();
-  detailsFromCatalogItem(row).forEach((detail) => {
-    const type = normalizeProviderCapabilityType(detail?.type, detail?.model);
-    capabilitySet.add(type);
-  });
-  return PROVIDER_CAPABILITY_ORDER.filter((type) => capabilitySet.has(type));
 };
 
 const formatProviderPriceCellValue = (value) => {
@@ -688,9 +783,9 @@ const ProvidersManager = () => {
         const normalizedType =
           (value || '').toLowerCase() || inferModelType(next.model || '');
         next.type = normalizedType;
-        next.capabilities = normalizeCapabilities(
-          next.capabilities,
-          next.model || '',
+        next.supported_endpoints = normalizeSupportedEndpoints(
+          next.supported_endpoints,
+          normalizedType,
         );
         if (!next.price_unit) {
           next.price_unit = defaultPriceUnitByType(
@@ -703,15 +798,18 @@ const ProvidersManager = () => {
         if (!next.type) {
           next.type = inferModelType(next.model);
         }
-        next.capabilities = normalizeCapabilities(
-          next.capabilities,
-          next.model || '',
+        next.supported_endpoints = normalizeSupportedEndpoints(
+          next.supported_endpoints,
+          next.type,
         );
         if (!next.price_unit) {
           next.price_unit = defaultPriceUnitByType(next.type, next.model);
         }
-      } else if (key === 'capabilities') {
-        next.capabilities = normalizeCapabilities(value, next.model || '');
+      } else if (key === 'supported_endpoints') {
+        next.supported_endpoints = normalizeSupportedEndpoints(
+          value,
+          next.type,
+        );
       } else {
         next[key] = value || '';
       }
@@ -1260,7 +1358,7 @@ const ProvidersManager = () => {
             const haystack = [
               detail.model || '',
               detail.type || '',
-              (detail.capabilities || []).join(','),
+              (detail.supported_endpoints || []).join(','),
               detail.price_unit || '',
               detail.currency || '',
               detail.source || '',
@@ -1311,14 +1409,14 @@ const ProvidersManager = () => {
         <Table compact celled className='router-detail-table'>
           <Table.Header>
             <Table.Row>
-              <Table.HeaderCell width={4}>
+              <Table.HeaderCell width={2}>
                 {t('channel.providers.model_detail_table.model')}
               </Table.HeaderCell>
               <Table.HeaderCell width={2}>
                 {t('channel.providers.model_detail_table.type')}
               </Table.HeaderCell>
-              <Table.HeaderCell width={3}>
-                {t('channel.providers.model_detail_table.capabilities')}
+              <Table.HeaderCell width={4}>
+                {t('channel.providers.model_detail_table.supported_endpoints')}
               </Table.HeaderCell>
               <Table.HeaderCell>
                 {t('channel.providers.model_detail_table.input_price')}
@@ -1326,7 +1424,7 @@ const ProvidersManager = () => {
               <Table.HeaderCell>
                 {t('channel.providers.model_detail_table.output_price')}
               </Table.HeaderCell>
-              <Table.HeaderCell>
+              <Table.HeaderCell width={1}>
                 {t('channel.providers.model_detail_table.price_unit')}
               </Table.HeaderCell>
               <Table.HeaderCell>
@@ -1360,7 +1458,7 @@ const ProvidersManager = () => {
                   key={`${detail.model || 'model'}-${detailIndex}`}
                 >
                   <Table.Row>
-                    <Table.Cell className='router-cell-min-260'>
+                    <Table.Cell className='router-cell-min-130'>
                       <Form.Input
                         className='router-inline-input'
                         fluid
@@ -1395,29 +1493,31 @@ const ProvidersManager = () => {
                         }
                       />
                     </Table.Cell>
-                    <Table.Cell className='router-cell-min-200'>
-                      <Form.Input
-                        className='router-inline-input'
+                    <Table.Cell className='router-cell-min-360'>
+                      <Form.Dropdown
+                        className='router-inline-dropdown'
                         fluid
-                        placeholder='text,image,audio'
-                        value={
-                          Array.isArray(detail.capabilities)
-                            ? detail.capabilities.join(', ')
-                            : ''
-                        }
+                        multiple
+                        selection
+                        clearable
+                        options={providerEndpointOptionsForType(detail.type)}
+                        placeholder={t(
+                          'channel.providers.model_detail_table.supported_endpoints',
+                        )}
+                        value={detail.supported_endpoints || []}
                         disabled={disabled}
                         onChange={(e, { value }) =>
                           setModelDetailField(
                             setValueFn,
                             row,
                             detailIndex,
-                            'capabilities',
-                            value || '',
+                            'supported_endpoints',
+                            Array.isArray(value) ? value : [],
                           )
                         }
                       />
                     </Table.Cell>
-                    <Table.Cell>
+                    <Table.Cell className='router-cell-min-120'>
                       <Form.Input
                         className='router-inline-input'
                         fluid
@@ -1861,7 +1961,7 @@ const ProvidersManager = () => {
             const haystack = [
               detail.model || '',
               detail.type || '',
-              (detail.capabilities || []).join(','),
+              (detail.supported_endpoints || []).join(','),
               detail.price_unit || '',
               detail.currency || '',
               detail.source || '',
@@ -1913,14 +2013,14 @@ const ProvidersManager = () => {
         <Table compact celled className='router-detail-table'>
           <Table.Header>
             <Table.Row>
-              <Table.HeaderCell width={4}>
+              <Table.HeaderCell width={2}>
                 {t('channel.providers.model_detail_table.model')}
               </Table.HeaderCell>
               <Table.HeaderCell width={1}>
                 {t('channel.providers.model_detail_table.type')}
               </Table.HeaderCell>
-              <Table.HeaderCell width={1}>
-                {t('channel.providers.model_detail_table.capabilities')}
+              <Table.HeaderCell width={4}>
+                {t('channel.providers.model_detail_table.supported_endpoints')}
               </Table.HeaderCell>
               <Table.HeaderCell>
                 {t('channel.providers.model_detail_table.input_price')}
@@ -1928,7 +2028,7 @@ const ProvidersManager = () => {
               <Table.HeaderCell>
                 {t('channel.providers.model_detail_table.output_price')}
               </Table.HeaderCell>
-              <Table.HeaderCell>
+              <Table.HeaderCell width={1}>
                 {t('channel.providers.model_detail_table.price_unit')}
               </Table.HeaderCell>
               <Table.HeaderCell>
@@ -1959,21 +2059,21 @@ const ProvidersManager = () => {
                 const showOutputDetail = hasComplexOutputPricing(detail);
                 return (
                   <Table.Row key={`${detail.model || 'model'}-${detailIndex}`}>
-                    <Table.Cell className='router-cell-min-260'>
+                    <Table.Cell className='router-cell-min-130'>
                       {detail.model || '-'}
                     </Table.Cell>
                     <Table.Cell className='router-cell-min-80'>
                       {detail.type || 'text'}
                     </Table.Cell>
-                    <Table.Cell className='router-cell-min-90'>
-                      {(detail.capabilities || []).length > 0
-                        ? detail.capabilities.map((type) => (
+                    <Table.Cell className='router-cell-min-300'>
+                      {(detail.supported_endpoints || []).length > 0
+                        ? detail.supported_endpoints.map((endpoint) => (
                             <Label
-                              key={`${detail.model || 'model'}-${type}`}
+                              key={`${detail.model || 'model'}-${endpoint}`}
                               basic
                               className='router-tag'
                             >
-                              {t(`channel.model_types.${type}`)}
+                              {endpoint}
                             </Label>
                           ))
                         : '-'}
@@ -2006,7 +2106,9 @@ const ProvidersManager = () => {
                         formatProviderPriceCellValue(detail.output_price)
                       )}
                     </Table.Cell>
-                    <Table.Cell>{detail.price_unit || '-'}</Table.Cell>
+                    <Table.Cell className='router-cell-min-120'>
+                      {detail.price_unit || '-'}
+                    </Table.Cell>
                     <Table.Cell>{detail.currency || 'USD'}</Table.Cell>
                     <Table.Cell>{detail.source || 'manual'}</Table.Cell>
                     <Table.Cell className='router-nowrap'>
@@ -2116,27 +2218,6 @@ const ProvidersManager = () => {
                   )
                 }
               />
-            </Form.Group>
-            <Form.Group widths='equal'>
-              <Form.Input
-                className='router-section-input'
-                label={t('channel.providers.model_detail_table.capabilities')}
-                placeholder='text,image,audio'
-                value={
-                  Array.isArray(detail.capabilities)
-                    ? detail.capabilities.join(', ')
-                    : ''
-                }
-                onChange={(e, { value }) =>
-                  setModelDetailField(
-                    setDetailModelsValue,
-                    detailModelsDraft,
-                    detailEditingModelIndex,
-                    'capabilities',
-                    value || '',
-                  )
-                }
-              />
               <Form.Select
                 className='router-section-dropdown'
                 label={t('channel.providers.model_detail_table.source')}
@@ -2153,6 +2234,28 @@ const ProvidersManager = () => {
                 }
               />
             </Form.Group>
+            <Form.Dropdown
+              className='router-section-dropdown'
+              label={t('channel.providers.model_detail_table.supported_endpoints')}
+              fluid
+              multiple
+              selection
+              clearable
+              options={providerEndpointOptionsForType(detail.type)}
+              placeholder={t(
+                'channel.providers.model_detail_table.supported_endpoints',
+              )}
+              value={detail.supported_endpoints || []}
+              onChange={(e, { value }) =>
+                setModelDetailField(
+                  setDetailModelsValue,
+                  detailModelsDraft,
+                  detailEditingModelIndex,
+                  'supported_endpoints',
+                  Array.isArray(value) ? value : [],
+                )
+              }
+            />
             <Form.Group widths='equal'>
               <Form.Input
                 className='router-section-input'
@@ -2568,9 +2671,6 @@ const ProvidersManager = () => {
               {t('channel.providers.table.name')}
             </Table.HeaderCell>
             <Table.HeaderCell width={3} textAlign='left'>
-              {t('channel.providers.table.capabilities')}
-            </Table.HeaderCell>
-            <Table.HeaderCell width={3} textAlign='left'>
               {t('channel.providers.table.created_at')}
             </Table.HeaderCell>
             <Table.HeaderCell width={3} textAlign='left'>
@@ -2586,7 +2686,7 @@ const ProvidersManager = () => {
             <Table.Row>
               <Table.Cell
                 className='router-empty-cell'
-                colSpan={6}
+                colSpan={5}
                 textAlign='center'
               >
                 {loading
@@ -2595,9 +2695,7 @@ const ProvidersManager = () => {
               </Table.Cell>
             </Table.Row>
           ) : (
-            rows.map((row, index) => {
-              const capabilities = collectProviderCapabilities(row);
-              return (
+            rows.map((row, index) => (
                 <Table.Row
                   key={`${row.id}-${index}`}
                   onClick={() => {
@@ -2611,19 +2709,6 @@ const ProvidersManager = () => {
                 >
                   <Table.Cell>{row.id || '-'}</Table.Cell>
                   <Table.Cell>{row.name || row.id || '-'}</Table.Cell>
-                  <Table.Cell textAlign='left'>
-                    {capabilities.length > 0
-                      ? capabilities.map((type) => (
-                          <Label
-                            key={`${row.id}-${type}`}
-                            basic
-                            className='router-tag'
-                          >
-                            {t(`channel.model_types.${type}`)}
-                          </Label>
-                        ))
-                      : '-'}
-                  </Table.Cell>
                   <Table.Cell textAlign='left'>
                     {row.created_at ? timestamp2string(row.created_at) : '-'}
                   </Table.Cell>
@@ -2660,8 +2745,7 @@ const ProvidersManager = () => {
                     </Button>
                   </Table.Cell>
                 </Table.Row>
-              );
-            })
+              ))
           )}
         </Table.Body>
       </Table>

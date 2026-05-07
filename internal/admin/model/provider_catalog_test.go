@@ -69,6 +69,41 @@ func TestBuildDefaultProviderCatalogSeeds_OpenAIIncludesGPTImage1ComplexPricing(
 	t.Fatalf("expected openai provider to exist")
 }
 
+func TestBuildDefaultProviderCatalogSeeds_OpenAIIncludesGPTImage2Pricing(t *testing.T) {
+	seeds := BuildDefaultProviderCatalogSeeds(1700000000)
+	for _, seed := range seeds {
+		if seed.Provider != "openai" {
+			continue
+		}
+		for _, detail := range seed.ModelDetails {
+			if detail.Model != "gpt-image-2" {
+				continue
+			}
+			if detail.Type != ProviderModelTypeImage {
+				t.Fatalf("gpt-image-2 type=%q, want %q", detail.Type, ProviderModelTypeImage)
+			}
+			if detail.InputPrice != 0.008 {
+				t.Fatalf("gpt-image-2 input_price=%v, want 0.008", detail.InputPrice)
+			}
+			if detail.OutputPrice != 0.03 {
+				t.Fatalf("gpt-image-2 output_price=%v, want 0.03", detail.OutputPrice)
+			}
+			if detail.PriceUnit != ProviderPriceUnitPer1KTokens {
+				t.Fatalf("gpt-image-2 price_unit=%q, want %q", detail.PriceUnit, ProviderPriceUnitPer1KTokens)
+			}
+			if len(detail.SupportedEndpoints) != 3 {
+				t.Fatalf("gpt-image-2 supported_endpoints=%#v, want 3 endpoints", detail.SupportedEndpoints)
+			}
+			if len(detail.PriceComponents) != 2 {
+				t.Fatalf("gpt-image-2 price_components=%d, want 2", len(detail.PriceComponents))
+			}
+			return
+		}
+		t.Fatalf("expected openai seed to include gpt-image-2")
+	}
+	t.Fatalf("expected openai provider to exist")
+}
+
 func TestBuildDefaultProviderCatalogSeeds_OpenAIIncludesGPT5xPricing(t *testing.T) {
 	seeds := BuildDefaultProviderCatalogSeeds(1700000000)
 	expected := map[string]struct {

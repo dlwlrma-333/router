@@ -138,7 +138,7 @@ func executeChannelModelTest(ctx context.Context, channel *model.Channel, option
 			return nil, false, message, 0, modelName, nil, 0, err
 		}
 		if savedChannel, getErr := channelsvc.GetByID(channel.Id); getErr == nil {
-			_ = savedChannel.UpdateAbilities()
+			_ = savedChannel.UpdateGroupModelRoutes()
 		}
 	}
 	success, responseMessage, latencyMs, modelName := summarizeModelTestResults(results)

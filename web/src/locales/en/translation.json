@@ -361,12 +361,12 @@
       "id": "Channel Identifier",
       "name": "Channel",
       "group": "Group",
-  "type": "Protocol Type",
-  "status": "Status",
-  "created_time": "Created Time",
-  "updated_at": "Updated At",
-  "response_time": "Response Time",
-  "capabilities": "Capabilities",
+      "type": "Protocol Type",
+      "status": "Status",
+      "created_time": "Created Time",
+      "updated_at": "Updated At",
+      "response_time": "Response Time",
+      "capabilities": "Capabilities",
       "balance": "Balance",
       "priority": "Priority",
       "actions": "Actions",
@@ -440,25 +440,24 @@
       "table": {
         "provider": "Provider ID",
         "name": "Display Name",
-        "capabilities": "Capabilities",
         "key": "API Key",
         "key_set": "Configured",
         "key_not_set": "Not Set",
-    "models": "Supported Models",
-    "source": "Source",
-    "complex_pricing_count": "{{count}} complex pricing models",
-    "created_at": "Created At",
-    "updated_at": "Updated At",
-    "actions": "Actions",
-    "empty": "No provider catalog",
-    "model_count": "{{count}} models"
-  },
+        "models": "Supported Models",
+        "source": "Source",
+        "complex_pricing_count": "{{count}} complex pricing models",
+        "created_at": "Created At",
+        "updated_at": "Updated At",
+        "actions": "Actions",
+        "empty": "No provider catalog",
+        "model_count": "{{count}} models"
+      },
       "model_detail_table": {
         "add": "Add Model",
         "search_placeholder": "Search model details...",
         "model": "Model",
         "type": "Type",
-        "capabilities": "Capabilities",
+        "supported_endpoints": "Supported Endpoints",
         "input_price": "Input Price",
         "output_price": "Output Price",
         "price_unit": "Price Unit",
@@ -549,13 +548,92 @@
       "group": "Group",
       "group_placeholder": "Please select groups that can use this channel",
       "group_addition": "You can add a group in Group Management:",
-  "models": "Models",
-  "models_placeholder": "Please select models supported by this channel",
-  "detail_basic_title": "Basic Info",
-  "detail_models_title": "Model Selection",
-  "created_time": "Created Time",
-  "system_prompt": "System Prompt",
-      "system_prompt_placeholder": "Optional, used to force set system prompt. Use with custom model & model mapping. First create a unique custom model name above, then map it to a natively supported model",
+      "models": "Models",
+      "models_placeholder": "Please select models supported by this channel",
+      "detail_basic_title": "Basic Info",
+      "detail_models_title": "Model Selection",
+      "detail_tabs": {
+        "overview": "Overview",
+        "models": "Models",
+        "endpoints": "Endpoints",
+        "tests": "Tests"
+      },
+      "endpoint_capabilities": {
+        "title": "Endpoints",
+        "summary": "{{total}} total, {{capability_enabled}} enabled, {{configured}} with policy, {{policy_enabled}} policy-enabled",
+        "hint": "This table shows channel endpoints by model + endpoint. The list comes from provider-supported default candidate endpoints, while the enabled state follows the channel's saved configuration. You can enable endpoints and configure their policies here.",
+        "loading": "Loading endpoint capabilities...",
+        "empty": "No endpoint capability data yet. Sync models or run model tests first.",
+        "filtered_empty": "No endpoint rows match the current filter.",
+        "load_failed": "Failed to load endpoint capabilities",
+        "update_success": "Endpoint capability updated",
+        "enable_success": "Endpoint capability enabled",
+        "disable_success": "Endpoint capability disabled",
+        "update_failed": "Failed to update endpoint capability",
+        "enable_confirm_title": "Confirm Enable Endpoint",
+        "enable_confirm_content": "This endpoint has no successful test record, or the latest test result is not successful. Enabling it is not recommended because it may be exposed for real requests.",
+        "enable_confirm_target": "Model: {{model}}, endpoint: {{endpoint}}",
+        "enable_confirm_action": "Enable Anyway",
+        "filters": {
+          "test_status": "Test Status",
+          "all_test_status": "All Test Statuses"
+        },
+        "table": {
+          "model": "Model",
+          "endpoint": "Endpoint",
+          "enabled": "Enabled",
+          "latest_test": "Latest Test",
+          "test_status": "Test Status",
+          "updated_at": "Updated At"
+        }
+      },
+      "endpoint_policies": {
+        "title": "Endpoint Policies",
+        "summary": "{{total}} total, {{enabled}} enabled",
+        "hint": "Endpoint policies describe compatibility adjustments inside a specific channel model endpoint, such as dropping unsupported fields, rejecting certain inputs, or converting image URLs to base64. This section manages channel endpoint policies only and does not change endpoint enablement itself.",
+        "cards": {
+          "configured": "Configured",
+          "enabled": "Enabled",
+          "disabled": "Disabled",
+          "not_configured": "Not Configured"
+        },
+        "loading": "Loading endpoint policies...",
+        "empty": "No configurable endpoint policies yet. Make sure endpoint capabilities exist first.",
+        "load_failed": "Failed to load endpoint policies",
+        "update_success": "Endpoint policy updated",
+        "update_failed": "Failed to update endpoint policy",
+        "invalid": "Incomplete endpoint policy payload",
+        "create": "Create Policy",
+        "edit": "Edit Policy",
+        "action": "Endpoint Policy",
+        "status": {
+          "enabled": "Enabled",
+          "disabled": "Disabled",
+          "not_configured": "Not Configured"
+        },
+        "table": {
+          "model": "Model",
+          "endpoint": "Endpoint",
+          "status": "Status",
+          "reason": "Reason",
+          "policy": "Policy Key",
+          "updated_at": "Updated At",
+          "actions": "Actions"
+        },
+        "editor": {
+          "title": "Edit Endpoint Policy",
+          "hint": "Only endpoint policy is edited here. JSON text is validated by backend rules: `capabilities` describes support, `request_policy` describes request-side actions, and `response_policy` is reserved for now.",
+          "anthropic_image_url_hint": "ANTHROPIC_IMAGE_URL_TO_BASE64 only fetches image URLs that Router is allowed to access. By default, localhost, 127.0.0.1, and other private-network addresses are rejected. If you really need local share URLs, explicitly add them to `relay.user_content_request_private_host_allowlist`.",
+          "template": "Policy Template",
+          "template_placeholder": "Choose a common template for quick fill",
+          "template_key": "Policy Key",
+          "template_key_placeholder": "Leave empty without a template; custom policies are shown as MANUAL",
+          "capabilities": "Capabilities JSON",
+          "request_policy": "Request Policy JSON",
+          "response_policy": "Response Policy JSON"
+        }
+      },
+      "created_time": "Created Time",
       "proxy_url": "Address",
       "proxy_url_placeholder": "This is optional and used for API calls via a proxy. Please enter the proxy URL, formatted as: https://domain.com",
       "base_url": "Address",
@@ -582,12 +660,18 @@
       },
       "model_selector": {
         "summary": "Selected {{selected}} / {{total}}",
+        "cards": {
+          "enabled": "Enabled Models",
+          "selectable": "Ready to Enable",
+          "unselectable": "Needs Setup",
+          "inactive": "Inactive Models"
+        },
         "table": {
           "selected": "Enabled",
           "name": "Name",
           "alias": "Alias",
           "type": "Type",
-          "providers": "Provider Ownership",
+          "providers": "Provider",
           "price_unit": "Price Unit",
           "input_price": "Input Price",
           "output_price": "Output Price",
@@ -598,19 +682,21 @@
           "enabled": "Enabled",
           "disabled": "Disabled"
         },
-        "assignment_summary": "Assigned {{assigned}}, unassigned {{unassigned}}",
+        "enable_hint": "Only models already in the provider model catalog can be enabled. Models not in the catalog stay unselectable until you add them there and sync again.",
         "auto_assign": "Auto Import",
         "auto_assign_empty": "No models can be auto-imported right now",
         "auto_assign_success": "Imported {{success}} models, failed {{failed}}",
         "provider_loading": "Loading providers...",
-        "provider_unassigned": "Unassigned",
+        "provider_unassigned": "Pending",
         "inactive": "Inactive",
         "provider_add": "Add",
         "provider_no_options": "Please create a provider first",
         "provider_load_failed": "Failed to load provider list",
         "provider_append_invalid": "Please select a provider and enter a model name",
-        "provider_append_success": "Model added to provider",
-        "provider_append_failed": "Failed to add model to provider",
+        "provider_append_success": "Model added to provider catalog",
+        "provider_append_failed": "Failed to add model to provider catalog",
+        "selection_disabled_unassigned": "This model is not in the provider model catalog and cannot be enabled.",
+        "selection_skipped_unassigned": "Skipped {{count}} models on this page that are not in the provider model catalog.",
         "realtime_enabled": "Realtime model sync is enabled: changing address or key refreshes the model list, but does not select all by default.",
         "realtime_hint": "After address and key are filled, supported models will be fetched automatically.",
         "flow_title": "Create Channel Flow",
@@ -649,7 +735,7 @@
           "pricing_title": "Pricing",
           "status_hint": "When disabled, this model will not participate in the current channel's available model set.",
           "provider_placeholder": "Select a provider",
-          "provider_empty": "No provider is assigned to this model yet"
+          "provider_empty": "This model is not in the provider model catalog"
         },
         "pricing_detail_table": {
           "component": "Component",
@@ -664,12 +750,23 @@
       },
       "model_tester": {
         "title": "Model Test",
-        "hint": "Shows the models selected in step 2 and lets you choose the real upstream endpoint for each model. Text models default to /v1/responses and can be switched to /v1/chat/completions or /v1/messages. Other model types use fixed endpoints. Supports both single-row and bulk testing.",
-        "button": "Test Selected Models",
+        "hint": "This section shows the selected models and lets you confirm the test endpoint for each model. Supports both single-row and batch testing. Only publish model endpoints that pass testing.",
+        "button_enter_batch": "Batch Test",
+        "button_run_batch": "Run Batch Test",
+        "settings_button": "Settings",
+        "settings_title": "Test Settings",
+        "settings_stream": "Stream Test",
         "single": "Test",
         "task_created": "{{count}} test tasks submitted, {{reused}} active tasks reused.",
-        "selection": "Selected {{selected}} / {{total}}",
-        "selection_notice": "Model test results are used for the publish review step. Only tested-and-supported endpoints should be published.",
+        "group_count": "{{count}} models",
+        "group_type": "Type: {{type}}",
+        "history_tasks": "Test History",
+        "filters": {
+          "all_provider": "All Providers",
+          "all_type": "All Types",
+          "provider": "Provider",
+          "type": "Model Type"
+        },
         "review_hint": "Confirm the final configuration of enabled models here. If you change model endpoints, go back to Step 3 and pass tests again before publishing.",
         "review_pending_notice": "{{count}} models still have current endpoints that are not tested/supported, so publishing cannot continue.",
         "verify_required": "Please finish the current model tests before continuing.",
@@ -679,6 +776,7 @@
         "test_failed": "Model test failed",
         "download_failed": "Failed to download the test artifact",
         "download_unavailable": "No downloadable artifact is available for this test result",
+        "history": "History",
         "stale": "Connection info, model selection, or endpoint changed. Please run model tests again.",
         "untested": "The current endpoint has not been tested yet.",
         "latest_result_from_endpoint": "Current endpoint is untested. Showing latest test result from endpoint: {{endpoint}}.",
@@ -697,11 +795,9 @@
           "endpoint": "Endpoint",
           "batch_set": "Batch",
           "supported_endpoints": "Supported Endpoints",
-          "is_stream": "Stream",
-          "status": "Status",
-          "latency": "Latency",
-          "tested_at": "Last Tested",
-          "message": "Message",
+          "status": "Success/Fail",
+          "latency": "Min/Avg/Max (ms)",
+          "tested_at": "Latest Test Time",
           "actions": "Actions"
         }
       },
@@ -737,7 +833,6 @@
         "step_review": "Step 4: Publish Review",
         "step_advanced": "Step 5: Advanced Settings"
       },
-      "advanced_title": "Advanced Settings",
       "aws_region_placeholder": "region, e.g.: us-west-2",
       "aws_ak_placeholder": "AWS IAM Access Key",
       "aws_sk_placeholder": "AWS IAM Secret Key",
@@ -754,7 +849,8 @@
         "spark": "Enter in format: APPID|APISecret|APIKey",
         "fastgpt": "Enter in format: APIKey-AppId, e.g.: fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041",
         "tencent": "Enter in format: AppId|SecretId|SecretKey"
-      }
+      },
+      "updated_at": "Updated At"
     }
   },
   "group_manage": {
@@ -768,12 +864,12 @@
       "billing_ratio": "Billing Ratio",
       "daily_quota_limit": "Daily Limit",
       "source": "Source",
-    "status": "Status",
-    "sort_order": "Sort Order",
-    "created_at": "Created At",
-    "updated_at": "Updated At",
-    "actions": "Actions"
-  },
+      "status": "Status",
+      "sort_order": "Sort Order",
+      "created_at": "Created At",
+      "updated_at": "Updated At",
+      "actions": "Actions"
+    },
     "status": {
       "enabled": "Enabled",
       "disabled": "Disabled"
@@ -787,6 +883,7 @@
       "description_placeholder": "Optional description for this group",
       "billing_ratio": "Billing Ratio",
       "billing_ratio_placeholder": "Defaults to 1, use 0 or greater",
+      "billing_ratio_help": "Adjusts the final billed amount for this group. 0 makes it free, values between 0 and 1 apply a discount, 1 keeps the base price, and values greater than 1 add a markup.",
       "daily_quota_limit": "Daily Limit",
       "daily_quota_limit_placeholder": "0 means unlimited",
       "sort_order": "Sort Value",
@@ -799,6 +896,9 @@
       "back": "Back",
       "refresh": "Refresh",
       "edit": "Edit",
+      "add_channel": "Add Channel",
+      "remove_channel": "Remove",
+      "view_channel": "View Channel",
       "bind_channels": "Configure Channels",
       "enable": "Enable",
       "disable": "Disable",
@@ -809,26 +909,32 @@
     "modal": {
       "create_title": "Create Group",
       "edit_title": "Edit Group",
+      "add_channel_title": "Add Channel",
       "delete_title": "Confirm Delete Group",
       "delete_confirm": "Are you sure you want to delete group {{id}}?",
       "bind_channels_title": "Configure Channels for Group {{id}}"
     },
-  "detail": {
-    "title": "Group Detail",
-    "model": "Model",
-    "enabled": "Enabled",
-    "selected": "Use",
-    "priority": "Priority",
-    "channel_count": "Channel Count",
-    "model_channels": "Channels",
-    "model_search_placeholder": "Search model or channel",
-    "supported_models": "Supported Models",
-    "empty_models": "No supported models",
-    "empty_model_channels": "No configurable channels for this model",
-    "edit_model_title": "Edit Model {{model}}",
-    "bound_channels": "Related Channels",
-    "empty_channels": "No related channels"
-  },
+    "detail_tabs": {
+      "overview": "Overview",
+      "channels": "Channels",
+      "models": "Models"
+    },
+    "detail": {
+      "title": "Group Detail",
+      "model": "Model",
+      "enabled": "Enabled",
+      "selected": "Use",
+      "priority": "Priority",
+      "channel_count": "Channel Count",
+      "model_channels": "Channels",
+      "model_search_placeholder": "Search model or channel",
+      "supported_models": "Supported Models",
+      "empty_models": "No supported models",
+      "empty_model_channels": "No configurable channels for this model",
+      "edit_model_title": "Edit Model {{model}}",
+      "bound_channels": "Related Channels",
+      "empty_channels": "No related channels"
+    },
     "edit": {
       "model_configs": "Group Model Mappings",
       "model": "Visible Model",
@@ -844,17 +950,18 @@
       "loading": "Loading...",
       "empty": "No groups",
       "id_required": "Group ID is required",
+      "channel_required": "Please select a channel",
       "billing_ratio_invalid": "Billing ratio must be greater than or equal to 0",
       "daily_quota_limit_invalid": "Daily limit must be greater than or equal to 0",
       "load_failed": "Failed to load groups",
       "bind_load_failed": "Failed to load group channels",
-    "model_load_failed": "Failed to load group models",
-    "model_config_load_failed": "Failed to load group model configs",
-    "model_config_incomplete": "Please complete the group model config before submitting",
-    "model_config_duplicate": "The same visible model cannot use the same channel twice",
-    "model_channel_empty": "This model has no available related channels",
-    "model_channel_required": "Please select at least one channel",
-    "create_success": "Group created successfully",
+      "model_load_failed": "Failed to load group models",
+      "model_config_load_failed": "Failed to load group model configs",
+      "model_config_incomplete": "Please complete the group model config before submitting",
+      "model_config_duplicate": "The same visible model cannot use the same channel twice",
+      "model_channel_empty": "This model has no available related channels",
+      "model_channel_required": "Please select at least one channel",
+      "create_success": "Group created successfully",
       "create_failed": "Failed to create group",
       "update_success": "Group updated successfully",
       "update_failed": "Failed to update group",
@@ -1323,7 +1430,9 @@
       "retry_success": "Task requeued",
       "retry_failed": "Failed to retry task",
       "cancel_success": "Task canceled",
-      "cancel_failed": "Failed to cancel task"
+      "cancel_failed": "Failed to cancel task",
+      "download_failed": "Failed to download task artifact",
+      "download_unavailable": "No downloadable artifact is available for this task"
     }
   },
   "user": {
@@ -1614,11 +1723,43 @@
         "label": "Period"
       },
       "updated_at": "Updated: {{time}}",
-      "buttons": {
-        "refresh": "Refresh"
+    "buttons": {
+      "refresh": "Refresh"
+    },
+    "usage_rank": {
+      "title": "Usage Ranking",
+      "description": "Aggregate user consumption in the current period, including requests, tokens, and spend share.",
+      "summary": {
+        "title": "Current Top-Rank Summary",
+        "top_user": "Top User",
+        "top_share": "Top Share",
+        "user_count": "Users in Rank",
+        "total_tokens": "Rank Tokens"
       },
-      "metrics": {
-        "consume": "Spend (USD)",
+      "totals": {
+        "title": "Matched Totals",
+        "user_count": "Matched Users",
+        "request_count": "Matched Requests",
+        "total_tokens": "Matched Tokens",
+        "total_spend": "Matched Spend (USD)"
+      },
+      "search": {
+        "placeholder": "Search username or user ID",
+        "submit": "Search",
+        "reset": "Clear"
+      },
+      "columns": {
+        "rank": "Rank",
+        "user": "User",
+        "requests": "Requests",
+        "tokens": "Tokens",
+        "spend": "Spend (USD)",
+        "share": "Share",
+        "last_used_at": "Last Used"
+      }
+    },
+    "metrics": {
+      "consume": "Spend (USD)",
         "topup": "Top-up (USD)",
         "net": "Net Inflow (USD)",
         "request_count": "Requests",
@@ -1709,12 +1850,13 @@
           "unknown": "Unknown"
         }
       },
-      "empty": {
-        "trend": "No trend data",
-        "channels": "No channel data",
-        "tasks": "No task data"
-      }
+    "empty": {
+      "trend": "No trend data",
+      "channels": "No channel data",
+      "tasks": "No task data",
+      "usage_rank": "No user usage data in the current period"
     }
+  }
   },
   "setting": {
     "title": "System Settings",
@@ -2133,27 +2275,27 @@
       "empty": "No rates",
       "columns": {
         "pair": "Pair",
-      "rate": "Rate",
-      "provider": "Provider",
-      "rate_date": "Rate Date",
-      "created_at": "Created At",
-      "updated_at": "Updated At",
-      "action": "Action"
-    },
+        "rate": "Rate",
+        "provider": "Provider",
+        "rate_date": "Rate Date",
+        "created_at": "Created At",
+        "updated_at": "Updated At",
+        "action": "Action"
+      },
       "rate_display": "1 {{base}} = {{value}} {{quote}}",
       "providers": {
         "manual": "Manual"
       },
-  "buttons": {
-    "sync": "Sync",
-    "save": "Save",
-    "edit": "Edit"
-  },
-  "dialogs": {
-    "edit_title": "Edit Rate",
-    "rate_label": "Rate"
-  },
-  "messages": {
+      "buttons": {
+        "sync": "Sync",
+        "save": "Save",
+        "edit": "Edit"
+      },
+      "dialogs": {
+        "edit_title": "Edit Rate",
+        "rate_label": "Rate"
+      },
+      "messages": {
         "load_failed": "Failed to load rates",
         "sync_failed": "Failed to sync rates",
         "sync_success": "Rates synced, updated {{count}} items",

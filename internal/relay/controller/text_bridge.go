@@ -377,17 +377,6 @@ func resolveRequestedTextEndpoint(meta *meta.Meta) string {
 }
 
 func resolveSelectedModelDirectTextEndpointSupport(meta *meta.Meta, row adminmodel.ChannelModel, originModelName string, actualModelName string) (supportsChat bool, supportsResponses bool, supportsMessages bool) {
-	directEndpoints := adminmodel.ResolveChannelModelDirectEndpoints(row)
-	for _, endpoint := range directEndpoints {
-		switch adminmodel.NormalizeRequestedChannelModelEndpoint(endpoint) {
-		case adminmodel.ChannelModelEndpointChat:
-			supportsChat = true
-		case adminmodel.ChannelModelEndpointResponses:
-			supportsResponses = true
-		case adminmodel.ChannelModelEndpointMessages:
-			supportsMessages = true
-		}
-	}
 	if meta == nil {
 		return supportsChat, supportsResponses, supportsMessages
 	}
@@ -401,14 +390,14 @@ func resolveSelectedModelDirectTextEndpointSupport(meta *meta.Meta, row adminmod
 	if len(endpointMap) == 0 {
 		return supportsChat, supportsResponses, supportsMessages
 	}
-	if enabled, ok := endpointMap[adminmodel.ChannelModelEndpointChat]; ok && supportsChat && !enabled {
-		supportsChat = false
+	if enabled, ok := endpointMap[adminmodel.ChannelModelEndpointChat]; ok && enabled {
+		supportsChat = true
 	}
-	if enabled, ok := endpointMap[adminmodel.ChannelModelEndpointResponses]; ok && supportsResponses && !enabled {
-		supportsResponses = false
+	if enabled, ok := endpointMap[adminmodel.ChannelModelEndpointResponses]; ok && enabled {
+		supportsResponses = true
 	}
-	if enabled, ok := endpointMap[adminmodel.ChannelModelEndpointMessages]; ok && supportsMessages && !enabled {
-		supportsMessages = false
+	if enabled, ok := endpointMap[adminmodel.ChannelModelEndpointMessages]; ok && enabled {
+		supportsMessages = true
 	}
 	return supportsChat, supportsResponses, supportsMessages
 }
@@ -468,20 +457,7 @@ func resolveChannelTextUpstream(meta *meta.Meta, originModelName string, actualM
 		}
 		return 0, "", fmt.Errorf("requested model %q is not selected for this channel", requestModel)
 	}
-	if supportsMessagesUpstream(meta) {
-		if requestEndpoint != adminmodel.ChannelModelEndpointMessages {
-			return 0, "", fmt.Errorf("channel does not support %s without selected model endpoint config", requestEndpoint)
-		}
-		return relaymode.Messages, adminmodel.ChannelModelEndpointMessages, nil
-	}
-	switch requestEndpoint {
-	case adminmodel.ChannelModelEndpointChat:
-		return relaymode.ChatCompletions, adminmodel.ChannelModelEndpointChat, nil
-	case adminmodel.ChannelModelEndpointResponses:
-		return relaymode.Responses, adminmodel.ChannelModelEndpointResponses, nil
-	default:
-		return 0, "", fmt.Errorf("channel does not support %s without selected model endpoint config", requestEndpoint)
-	}
+	return 0, "", fmt.Errorf("channel does not have selected model endpoint config for %s", requestEndpoint)
 }
 
 func convertTextRequestForUpstream(req *relaymodel.GeneralOpenAIRequest, downstreamMode int, upstreamMode int) (*relaymodel.GeneralOpenAIRequest, error) {

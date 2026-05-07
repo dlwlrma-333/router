@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	commonutils "github.com/yeying-community/router/common/utils"
 	"gorm.io/gorm"
 )
 
@@ -15,6 +16,7 @@ type GroupChannelBindingItem struct {
 	Status   int    `json:"status"`
 	Models   string `json:"models"`
 	Bound    bool   `json:"bound"`
+	Priority *int64 `json:"priority,omitempty"`
 	Updated  int64  `json:"updated_at"`
 }
 
@@ -49,23 +51,22 @@ func listGroupChannelBindingsWithDB(db *gorm.DB, groupID string, enabledOnly boo
 		return nil, err
 	}
 
-	boundIDs := make([]string, 0)
-	if groupID != "" {
-		groupCol := `"group"`
-		query := db.Model(&Ability{}).
-			Distinct("channel_id").
-			Where(groupCol+" = ?", groupID)
-		if err := query.Pluck("channel_id", &boundIDs).Error; err != nil {
-			return nil, err
-		}
+	bindingRows, err := listGroupChannelBindingRowsWithDB(db, groupID)
+	if err != nil {
+		return nil, err
 	}
-	boundSet := make(map[string]struct{}, len(boundIDs))
-	for _, id := range boundIDs {
-		normalized := strings.TrimSpace(id)
+	boundSet := make(map[string]struct{}, len(bindingRows))
+	priorityByChannelID := make(map[string]*int64, len(bindingRows))
+	updatedByChannelID := make(map[string]int64, len(bindingRows))
+	for _, row := range bindingRows {
+		normalized := strings.TrimSpace(row.ChannelId)
 		if normalized == "" {
 			continue
 		}
 		boundSet[normalized] = struct{}{}
+		priority := row.Priority
+		priorityByChannelID[normalized] = &priority
+		updatedByChannelID[normalized] = row.UpdatedAt
 	}
 
 	items := make([]GroupChannelBindingItem, 0, len(channels))
@@ -83,7 +84,8 @@ func listGroupChannelBindingsWithDB(db *gorm.DB, groupID string, enabledOnly boo
 			Status:   channel.Status,
 			Models:   strings.TrimSpace(channel.Models),
 			Bound:    bound,
-			Updated:  channel.CreatedTime,
+			Priority: resolveGroupChannelBindingPriority(bound, priorityByChannelID[channelID], channel.Priority),
+			Updated:  resolveGroupChannelBindingUpdatedAt(bound, updatedByChannelID[channelID], channel.CreatedTime),
 		})
 	}
 	return items, nil
@@ -95,7 +97,24 @@ func ReplaceGroupChannelBindings(groupID string, channelIDs []string) error {
 	})
 }
 
+func ReplaceGroupChannelBindingsWithItems(groupID string, items []GroupChannelBindingItem) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		return replaceGroupChannelBindingsWithItemsDB(tx, groupID, items)
+	})
+}
+
 func replaceGroupChannelBindingsWithDB(db *gorm.DB, groupID string, channelIDs []string) error {
+	items := make([]GroupChannelBindingItem, 0, len(channelIDs))
+	for _, channelID := range normalizeChannelIDList(channelIDs) {
+		items = append(items, GroupChannelBindingItem{
+			Id:    channelID,
+			Bound: true,
+		})
+	}
+	return replaceGroupChannelBindingsWithItemsDB(db, groupID, items)
+}
+
+func replaceGroupChannelBindingsWithItemsDB(db *gorm.DB, groupID string, items []GroupChannelBindingItem) error {
 	if db == nil {
 		return fmt.Errorf("database handle is nil")
 	}
@@ -110,8 +129,18 @@ func replaceGroupChannelBindingsWithDB(db *gorm.DB, groupID string, channelIDs [
 	}
 	groupID = groupCatalog.Id
 
-	normalizedChannelIDs := normalizeChannelIDList(channelIDs)
-
+	normalizedItems := normalizeGroupChannelBindingItems(items)
+	if err := replaceGroupChannelBindingRowsWithItemsDB(db, groupID, normalizedItems); err != nil {
+		return err
+	}
+	normalizedChannelIDs, err := listGroupBoundChannelIDsWithDB(db, groupID)
+	if err != nil {
+		return err
+	}
+	priorityByChannelID, err := listGroupChannelBindingPriorityByChannelWithDB(db, groupID)
+	if err != nil {
+		return err
+	}
 	channelsByID := make(map[string]Channel, len(normalizedChannelIDs))
 	if len(normalizedChannelIDs) > 0 {
 		enabledChannels, err := loadEnabledChannelsByIDWithDB(db, normalizedChannelIDs)
@@ -124,36 +153,79 @@ func replaceGroupChannelBindingsWithDB(db *gorm.DB, groupID string, channelIDs [
 	}
 
 	groupCol := `"group"`
-	existing := make([]Ability, 0)
-	if err := db.Where(groupCol+" = ?", groupID).Find(&existing).Error; err != nil {
+	groupModels, err := listGroupModelRowsWithDB(db, groupID, true)
+	if err != nil {
 		return err
 	}
-	existingByChannelID := make(map[string][]Ability, len(existing))
-	for _, item := range existing {
-		channelID := strings.TrimSpace(item.ChannelId)
-		if channelID == "" {
+	routes := make([]GroupModelRoute, 0)
+	for _, id := range normalizedChannelIDs {
+		channel, ok := channelsByID[id]
+		if !ok {
 			continue
 		}
-		existingByChannelID[channelID] = append(existingByChannelID[channelID], item)
+		channelAbilities := SyncGroupModelRoutesForChannel(groupID, &channel, groupModels, priorityByChannelID[id])
+		if priority, ok := priorityByChannelID[id]; ok {
+			for idx := range channelAbilities {
+				channelAbilities[idx].Priority = helperInt64Pointer(priority)
+			}
+		}
+		routes = append(routes, channelAbilities...)
 	}
+	routes = normalizeGroupModelRouteRowsPreserveOrder(routes)
 
-	abilities := make([]Ability, 0)
-	for _, id := range normalizedChannelIDs {
-		channel := channelsByID[id]
-		channelAbilities := SyncGroupAbilitiesForChannel(groupID, &channel, existingByChannelID[id])
-		abilities = append(abilities, channelAbilities...)
-	}
-	abilities = normalizeAbilityRowsPreserveOrder(abilities)
-
-	if err := db.Where(groupCol+" = ?", groupID).Delete(&Ability{}).Error; err != nil {
+	if err := db.Where(groupCol+" = ?", groupID).Delete(&GroupModelRoute{}).Error; err != nil {
 		return err
 	}
-	if len(abilities) > 0 {
-		if err := db.Create(&abilities).Error; err != nil {
+	if len(routes) > 0 {
+		if err := db.Create(&routes).Error; err != nil {
 			return err
 		}
 	}
-	return SyncGroupModelProvidersForGroupsWithDB(db, groupID)
+	if _, err := buildGroupModelRouteProviderMap(routes); err != nil {
+		return err
+	}
+	return nil
+}
+
+func normalizeGroupChannelBindingItems(items []GroupChannelBindingItem) []GroupChannelBindingItem {
+	if len(items) == 0 {
+		return []GroupChannelBindingItem{}
+	}
+	result := make([]GroupChannelBindingItem, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		channelID := strings.TrimSpace(item.Id)
+		if channelID == "" {
+			continue
+		}
+		if _, ok := seen[channelID]; ok {
+			continue
+		}
+		seen[channelID] = struct{}{}
+		result = append(result, GroupChannelBindingItem{
+			Id:       channelID,
+			Bound:    item.Bound,
+			Priority: helperInt64Pointer(item.Priority),
+		})
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		return result[i].Id < result[j].Id
+	})
+	return result
+}
+
+func resolveGroupChannelBindingPriority(bound bool, abilityPriority *int64, channelPriority *int64) *int64 {
+	if bound && abilityPriority != nil {
+		return helperInt64Pointer(abilityPriority)
+	}
+	return helperInt64Pointer(channelPriority)
+}
+
+func resolveGroupChannelBindingUpdatedAt(bound bool, bindingUpdatedAt int64, fallback int64) int64 {
+	if bound && bindingUpdatedAt > 0 {
+		return bindingUpdatedAt
+	}
+	return fallback
 }
 
 func loadEnabledChannelsByIDWithDB(db *gorm.DB, channelIDs []string) (map[string]*Channel, error) {
@@ -255,75 +327,77 @@ func normalizeModelNames(models []string) []string {
 	return result
 }
 
-func SyncGroupAbilitiesForChannel(groupID string, channel *Channel, existing []Ability) []Ability {
+func SyncGroupModelRoutesForChannel(groupID string, channel *Channel, groupModels []GroupModel, channelPriority *int64) []GroupModelRoute {
 	if channel == nil {
 		return nil
 	}
-	selectedConfigs := channelSelectedModelConfigs(channel)
-	if len(existing) == 0 {
-		return buildDefaultAbilitiesForGroupChannel(groupID, channel)
+	catalog := buildGroupModelConfigChannelCatalog(channel)
+	result := make([]GroupModelRoute, 0, len(groupModels))
+	seenGroupModelRouteKeys := make(map[string]struct{}, len(groupModels))
+	priority := helperInt64Pointer(channel.Priority)
+	if channelPriority != nil {
+		priority = helperInt64Pointer(channelPriority)
 	}
-
-	selectedUpstreamSet := make(map[string]struct{}, len(selectedConfigs))
-	defaultByUpstream := make(map[string]Ability, len(selectedConfigs))
-	for _, row := range selectedConfigs {
-		upstream := NormalizeAbilityUpstreamModel(row.Model, row.UpstreamModel)
+	configuredModels := make(map[string]GroupModel, len(groupModels))
+	for _, groupModel := range groupModels {
+		modelName := strings.TrimSpace(groupModel.Model)
+		if modelName == "" {
+			continue
+		}
+		configuredModels[modelName] = groupModel
+		upstream, ok := catalog.aliasToUpstream[modelName]
+		if !ok || strings.TrimSpace(upstream) == "" {
+			continue
+		}
+		key := modelName + "::" + strings.TrimSpace(channel.Id)
+		if _, ok := seenGroupModelRouteKeys[key]; ok {
+			continue
+		}
+		seenGroupModelRouteKeys[key] = struct{}{}
+		provider := NormalizeGroupModelRouteProvider(groupModel.Provider)
+		if provider == "" {
+			provider = NormalizeGroupModelRouteProvider(catalog.ResolveProvider(GroupModelConfigItem{Model: modelName}, upstream))
+		}
+		result = append(result, GroupModelRoute{
+			Group:         strings.TrimSpace(groupID),
+			Model:         modelName,
+			ChannelId:     strings.TrimSpace(channel.Id),
+			UpstreamModel: NormalizeGroupModelRouteUpstreamModel(modelName, upstream),
+			Provider:      provider,
+			Enabled:       channel.Status == ChannelStatusEnabled && groupModel.Enabled,
+			Priority:      priority,
+		})
+	}
+	for _, row := range channelSelectedModelConfigs(channel) {
+		modelName := strings.TrimSpace(row.Model)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := configuredModels[modelName]; ok {
+			continue
+		}
+		upstream := NormalizeGroupModelRouteUpstreamModel(modelName, row.UpstreamModel)
 		if upstream == "" {
 			continue
 		}
-		selectedUpstreamSet[upstream] = struct{}{}
-		if _, ok := defaultByUpstream[upstream]; ok {
+		key := modelName + "::" + strings.TrimSpace(channel.Id)
+		if _, ok := seenGroupModelRouteKeys[key]; ok {
 			continue
 		}
-		defaultByUpstream[upstream] = Ability{
+		seenGroupModelRouteKeys[key] = struct{}{}
+		provider := NormalizeGroupModelRouteProvider(commonutils.NormalizeProvider(row.Provider))
+		if provider == "" {
+			provider = NormalizeGroupModelRouteProvider(catalog.ResolveProvider(GroupModelConfigItem{Model: modelName}, upstream))
+		}
+		result = append(result, GroupModelRoute{
 			Group:         strings.TrimSpace(groupID),
-			Model:         strings.TrimSpace(row.Model),
+			Model:         modelName,
 			ChannelId:     strings.TrimSpace(channel.Id),
 			UpstreamModel: upstream,
-			Enabled:       channel.Status == ChannelStatusEnabled,
-			Priority:      channel.Priority,
-		}
-	}
-
-	result := make([]Ability, 0, len(existing)+len(defaultByUpstream))
-	existingUpstreamSet := make(map[string]struct{}, len(existing))
-	seenAbilityKeys := make(map[string]struct{}, len(existing))
-	for _, item := range existing {
-		modelName := strings.TrimSpace(item.Model)
-		channelID := strings.TrimSpace(item.ChannelId)
-		upstream := NormalizeAbilityUpstreamModel(modelName, item.UpstreamModel)
-		if modelName == "" || channelID == "" || upstream == "" {
-			continue
-		}
-		if _, ok := selectedUpstreamSet[upstream]; !ok {
-			continue
-		}
-		key := modelName + "::" + channelID
-		if _, ok := seenAbilityKeys[key]; ok {
-			continue
-		}
-		seenAbilityKeys[key] = struct{}{}
-		existingUpstreamSet[upstream] = struct{}{}
-		item.Group = strings.TrimSpace(groupID)
-		item.ChannelId = channelID
-		item.Model = modelName
-		item.UpstreamModel = upstream
-		item.Enabled = item.Enabled && channel.Status == ChannelStatusEnabled
-		if item.Priority == nil {
-			item.Priority = helperInt64Pointer(channel.Priority)
-		}
-		result = append(result, item)
-	}
-	for upstream, ability := range defaultByUpstream {
-		if _, ok := existingUpstreamSet[upstream]; ok {
-			continue
-		}
-		key := ability.Model + "::" + ability.ChannelId
-		if _, ok := seenAbilityKeys[key]; ok {
-			continue
-		}
-		seenAbilityKeys[key] = struct{}{}
-		result = append(result, ability)
+			Provider:      provider,
+			Enabled:       false,
+			Priority:      priority,
+		})
 	}
 	return result
 }

@@ -199,6 +199,7 @@ var LogRotateCompress = false
 var RelayProxy = ""
 var UserContentRequestProxy = ""
 var UserContentRequestTimeout = 30
+var UserContentRequestPrivateHostAllowlist = []string{}
 
 var EnforceIncludeUsage = false
 var TestPrompt = "Output only your specific model name with no additional text."

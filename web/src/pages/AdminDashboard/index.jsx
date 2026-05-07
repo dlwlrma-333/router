@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
-import { Button, Card, Dropdown } from 'semantic-ui-react';
+import { Button, Card, Dropdown, Input } from 'semantic-ui-react';
 import {
   Bar,
   BarChart,
@@ -32,6 +32,8 @@ const PERIOD_OPTIONS = [
   'this_year',
   'all_time',
 ];
+
+const USAGE_RANK_PERIOD_OPTIONS = ['today', 'last_7_days', 'this_month', 'all_time'];
 
 const TREND_METRIC_OPTIONS = [
   'spend_amount',
@@ -70,6 +72,21 @@ const EMPTY_DASHBOARD = {
   summary: EMPTY_SUMMARY,
   trend: [],
   top_channels: [],
+  usage_summary: {
+    user_count: 0,
+    request_count: 0,
+    total_tokens: 0,
+    spend_yyc: 0,
+    top_username: '',
+    top_user_share: 0,
+  },
+  usage_totals: {
+    user_count: 0,
+    request_count: 0,
+    total_tokens: 0,
+    spend_yyc: 0,
+  },
+  usage_rank: [],
   generated_at: 0,
 };
 
@@ -92,6 +109,9 @@ const normalizeAdminDashboardPayload = (payload) => {
   const topChannels = Array.isArray(payload?.top_channels)
     ? payload.top_channels
     : [];
+  const usageSummary = payload?.usage_summary || {};
+  const usageTotals = payload?.usage_totals || {};
+  const usageRank = Array.isArray(payload?.usage_rank) ? payload.usage_rank : [];
   return {
     ...EMPTY_DASHBOARD,
     ...(payload || {}),
@@ -110,6 +130,28 @@ const normalizeAdminDashboardPayload = (payload) => {
     top_channels: topChannels.map((item) => ({
       ...item,
       usedYyc: Number(item?.yyc_used ?? item?.used_quota ?? 0),
+    })),
+    usage_summary: {
+      user_count: Number(usageSummary?.user_count || 0),
+      request_count: Number(usageSummary?.request_count || 0),
+      total_tokens: Number(usageSummary?.total_tokens || 0),
+      spend_yyc: Number(usageSummary?.spend_yyc ?? usageSummary?.spend_quota ?? 0),
+      top_username: String(usageSummary?.top_username || ''),
+      top_user_share: Number(usageSummary?.top_user_share || 0),
+    },
+    usage_totals: {
+      user_count: Number(usageTotals?.user_count || 0),
+      request_count: Number(usageTotals?.request_count || 0),
+      total_tokens: Number(usageTotals?.total_tokens || 0),
+      spend_yyc: Number(usageTotals?.spend_yyc ?? usageTotals?.spend_quota ?? 0),
+    },
+    usage_rank: usageRank.map((item) => ({
+      ...item,
+      request_count: Number(item?.request_count || 0),
+      total_tokens: Number(item?.total_tokens || 0),
+      spend_yyc: Number(item?.spend_yyc ?? item?.spend_quota ?? 0),
+      share_rate: Number(item?.share_rate || 0),
+      last_used_at: Number(item?.last_used_at || 0),
     })),
   };
 };
@@ -134,6 +176,8 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [trendMetric, setTrendMetric] = useState('spend_amount');
   const [dashboard, setDashboard] = useState(EMPTY_DASHBOARD);
+  const [usageKeywordInput, setUsageKeywordInput] = useState('');
+  const [usageKeyword, setUsageKeyword] = useState('');
 
   const activeSection = useMemo(() => {
     const params = new URLSearchParams(location.search || '');
@@ -174,8 +218,12 @@ const AdminDashboard = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const params = { period, section: activeSection };
+      if (activeSection === 'overview' && usageKeyword.trim() !== '') {
+        params.user_keyword = usageKeyword.trim();
+      }
       const res = await API.get('/api/v1/admin/dashboard/', {
-        params: { period, section: activeSection },
+        params,
       });
       if (res.data?.success) {
         setDashboard(normalizeAdminDashboardPayload(res.data.data || {}));
@@ -188,7 +236,7 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeSection, period]);
+  }, [activeSection, period, usageKeyword]);
 
   useEffect(() => {
     loadData();
@@ -343,6 +391,15 @@ const AdminDashboard = () => {
     </div>
   );
 
+  const applyUsageKeyword = useCallback(() => {
+    setUsageKeyword(usageKeywordInput.trim());
+  }, [usageKeywordInput]);
+
+  const clearUsageKeyword = useCallback(() => {
+    setUsageKeywordInput('');
+    setUsageKeyword('');
+  }, []);
+
   const renderOverviewSection = () => (
     <Card fluid className='chart-card'>
       <Card.Content>
@@ -439,6 +496,182 @@ const AdminDashboard = () => {
               {formatCount(dashboard.summary.task_failed_total)}
             </div>
           </div>
+        </div>
+        <div className='admin-dashboard-usage-rank'>
+          <div className='admin-dashboard-subsection-header'>
+            <div className='admin-dashboard-subsection-header-main'>
+              <div className='admin-dashboard-subsection-title'>
+                {t('dashboard.admin.usage_rank.title')}
+              </div>
+              <div className='admin-dashboard-subsection-description'>
+                {t('dashboard.admin.usage_rank.description')}
+              </div>
+            </div>
+            <div className='admin-dashboard-usage-rank-toolbar'>
+              <Button.Group basic size='small'>
+                {USAGE_RANK_PERIOD_OPTIONS.map((value) => (
+                  <Button
+                    key={value}
+                    active={period === value}
+                    className='router-inline-button'
+                    onClick={() => setPeriod(value)}
+                  >
+                    {t(`dashboard.spending.period.${value}`)}
+                  </Button>
+                ))}
+              </Button.Group>
+              <Input
+                className='admin-dashboard-usage-rank-search'
+                value={usageKeywordInput}
+                placeholder={t('dashboard.admin.usage_rank.search.placeholder')}
+                onChange={(e) => setUsageKeywordInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    applyUsageKeyword();
+                  }
+                }}
+                action={{
+                  color: 'blue',
+                  icon: 'search',
+                  content: t('dashboard.admin.usage_rank.search.submit'),
+                  onClick: applyUsageKeyword,
+                }}
+              />
+              {usageKeyword ? (
+                <Button
+                  type='button'
+                  className='router-inline-button'
+                  onClick={clearUsageKeyword}
+                >
+                  {t('dashboard.admin.usage_rank.search.reset')}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          {dashboard.usage_rank.length === 0 ? (
+            <div className='admin-dashboard-empty'>
+              {t('dashboard.admin.empty.usage_rank')}
+            </div>
+          ) : (
+            <>
+              <div className='admin-dashboard-usage-rank-section-title'>
+                {t('dashboard.admin.usage_rank.summary.title')}
+              </div>
+              <div className='admin-dashboard-usage-rank-summary-grid'>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.summary.top_user')}
+                  </div>
+                  <div
+                    className='admin-dashboard-kpi-value admin-dashboard-usage-rank-top-user'
+                    title={dashboard.usage_summary.top_username || '-'}
+                  >
+                    {dashboard.usage_summary.top_username || '-'}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.summary.top_share')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatPercent(dashboard.usage_summary.top_user_share)}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.summary.user_count')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatCount(dashboard.usage_summary.user_count)}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.summary.total_tokens')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatCount(dashboard.usage_summary.total_tokens)}
+                  </div>
+                </div>
+              </div>
+              <div className='admin-dashboard-usage-rank-section-title'>
+                {t('dashboard.admin.usage_rank.totals.title')}
+              </div>
+              <div className='admin-dashboard-usage-rank-summary-grid'>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.totals.user_count')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatCount(dashboard.usage_totals.user_count)}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.totals.request_count')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatCount(dashboard.usage_totals.request_count)}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.totals.total_tokens')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatCount(dashboard.usage_totals.total_tokens)}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.totals.total_spend')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatUsd(dashboard.usage_totals.spend_yyc)}
+                  </div>
+                </div>
+              </div>
+              <div className='admin-dashboard-rank-table'>
+                <div className='admin-dashboard-rank-head'>
+                  <span>{t('dashboard.admin.usage_rank.columns.rank')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.user')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.requests')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.tokens')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.spend')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.share')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.last_used_at')}</span>
+                </div>
+                <div className='admin-dashboard-rank-body'>
+                  {dashboard.usage_rank.map((item, index) => (
+                    <div className='admin-dashboard-rank-row' key={`${item.user_id || item.username}-${index}`}>
+                      <span className='admin-dashboard-rank-index'>{index + 1}</span>
+                      <span
+                        className='admin-dashboard-rank-user'
+                        title={item.username || item.user_id || '-'}
+                      >
+                        {item.username || item.user_id || '-'}
+                      </span>
+                      <span>{formatCount(item.request_count)}</span>
+                      <span>{formatCount(item.total_tokens)}</span>
+                      <span>{formatUsd(item.spend_yyc)}</span>
+                      <span className='admin-dashboard-rank-share-cell'>
+                        <span className='admin-dashboard-rank-share-text'>
+                          {formatPercent(item.share_rate)}
+                        </span>
+                        <span className='admin-dashboard-rank-share-track'>
+                          <span
+                            className='admin-dashboard-rank-share-bar'
+                            style={{ width: `${Math.max(4, toPercent(item.share_rate))}%` }}
+                          />
+                        </span>
+                      </span>
+                      <span>{formatUpdatedAt(item.last_used_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </Card.Content>
     </Card>

@@ -111,7 +111,7 @@ func CreateGroupCatalogWithChannelBindings(item GroupCatalog, channelIDs []strin
 	if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
 		return GroupCatalog{}, err
 	}
-	RefreshAbilityCachesForGroups(row.Id)
+	RefreshGroupModelRouteCachesForGroups(row.Id)
 	return row, nil
 }
 
@@ -144,7 +144,7 @@ func UpdateGroupCatalogWithChannelBindings(item GroupCatalog, channelIDs []strin
 	if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
 		return GroupCatalog{}, err
 	}
-	RefreshAbilityCachesForGroups(row.Id)
+	RefreshGroupModelRouteCachesForGroups(row.Id)
 	return row, nil
 }
 
@@ -153,7 +153,7 @@ func DeleteGroupCatalog(id string) error {
 	if err != nil {
 		return err
 	}
-	RefreshAbilityCachesForGroups(groupRefValues...)
+	RefreshGroupModelRouteCachesForGroups(groupRefValues...)
 	return syncGroupRuntimeCachesWithDB(DB)
 }
 
@@ -181,7 +181,7 @@ func CreateGroupCatalogWithConfig(item GroupCatalog, channelIDs []string, modelC
 	if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
 		return GroupCatalog{}, err
 	}
-	RefreshAbilityCachesForGroups(row.Id)
+	RefreshGroupModelRouteCachesForGroups(row.Id)
 	return row, nil
 }
 
@@ -207,7 +207,7 @@ func UpdateGroupCatalogWithConfig(item GroupCatalog, channelIDs []string, modelC
 	if err := syncGroupRuntimeCachesWithDB(DB); err != nil {
 		return GroupCatalog{}, err
 	}
-	RefreshAbilityCachesForGroups(row.Id)
+	RefreshGroupModelRouteCachesForGroups(row.Id)
 	return row, nil
 }
 
@@ -280,26 +280,25 @@ func hydrateGroupCatalogChannelsWithDB(db *gorm.DB, rows []GroupCatalog) error {
 		return nil
 	}
 
-	type abilityRow struct {
+	type bindingRow struct {
 		Group     string `gorm:"column:group"`
 		ChannelId string `gorm:"column:channel_id"`
 	}
 
-	abilityRows := make([]abilityRow, 0)
+	bindingRows := make([]bindingRow, 0)
 	groupCol := `"group"`
-	if err := db.Model(&Ability{}).
+	if err := db.Model(&GroupChannelBinding{}).
 		Select(groupCol+" as \"group\", channel_id").
-		Distinct().
 		Where(groupCol+" IN ?", groupIDs).
 		Where("enabled = ?", true).
 		Where("channel_id <> ''").
-		Find(&abilityRows).Error; err != nil {
+		Find(&bindingRows).Error; err != nil {
 		return err
 	}
 
 	groupChannelIDs := make(map[string][]string, len(groupIDs))
 	channelIDSet := make(map[string]struct{})
-	for _, item := range abilityRows {
+	for _, item := range bindingRows {
 		groupID := strings.TrimSpace(item.Group)
 		channelID := strings.TrimSpace(item.ChannelId)
 		if groupID == "" || channelID == "" {
@@ -536,10 +535,13 @@ func deleteGroupCatalogWithDB(db *gorm.DB, id string) ([]string, error) {
 	}
 	groupCol := `"group"`
 	if err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where(groupCol+" IN ?", groupRefValues).Delete(&Ability{}).Error; err != nil {
+		if err := tx.Where(groupCol+" IN ?", groupRefValues).Delete(&GroupModelRoute{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where(groupCol+" IN ?", groupRefValues).Delete(&GroupModelProvider{}).Error; err != nil {
+		if err := tx.Where(groupCol+" IN ?", groupRefValues).Delete(&GroupModel{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where(groupCol+" IN ?", groupRefValues).Delete(&GroupChannelBinding{}).Error; err != nil {
 			return err
 		}
 		return tx.Where("id = ?", row.Id).Delete(&GroupCatalog{}).Error

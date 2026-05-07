@@ -40,13 +40,14 @@ type providerCatalogListData struct {
 }
 
 type appendProviderModelRequest struct {
-	Model       string  `json:"model"`
-	Type        string  `json:"type,omitempty"`
-	InputPrice  float64 `json:"input_price,omitempty"`
-	OutputPrice float64 `json:"output_price,omitempty"`
-	PriceUnit   string  `json:"price_unit,omitempty"`
-	Currency    string  `json:"currency,omitempty"`
-	Source      string  `json:"source,omitempty"`
+	Model              string   `json:"model"`
+	Type               string   `json:"type,omitempty"`
+	SupportedEndpoints []string `json:"supported_endpoints,omitempty"`
+	InputPrice         float64  `json:"input_price,omitempty"`
+	OutputPrice        float64  `json:"output_price,omitempty"`
+	PriceUnit          string   `json:"price_unit,omitempty"`
+	Currency           string   `json:"currency,omitempty"`
+	Source             string   `json:"source,omitempty"`
 }
 
 func providerModelNames(details []model.ProviderModelDetail) []string {
@@ -88,6 +89,22 @@ func mergeProviderDetailInputs(current []model.ProviderModelDetail, fallbackMode
 		})
 	}
 	return model.NormalizeProviderModelDetails(merged)
+}
+
+func applyProviderModelEndpointDefaults(provider string, details []model.ProviderModelDetail) []model.ProviderModelDetail {
+	normalizedProvider := commonutils.NormalizeProvider(provider)
+	normalizedDetails := model.NormalizeProviderModelDetails(details)
+	for i := range normalizedDetails {
+		if len(normalizedDetails[i].SupportedEndpoints) > 0 {
+			continue
+		}
+		normalizedDetails[i].SupportedEndpoints = model.DefaultProviderModelSupportedEndpoints(
+			normalizedProvider,
+			normalizedDetails[i].Type,
+			normalizedDetails[i].Model,
+		)
+	}
+	return model.NormalizeProviderModelDetails(normalizedDetails)
 }
 
 func normalizeProviderCatalogID(item providerCatalogItem) string {
@@ -293,6 +310,7 @@ func normalizeProviderUpsertItem(providerID string, item providerCatalogItem, ex
 	if len(details) == 0 && existing != nil {
 		details = mergeProviderDetailInputs(existing.ModelDetails, existing.Models, now)
 	}
+	details = applyProviderModelEndpointDefaults(provider, details)
 
 	sortOrder := normalizeCatalogSortOrder(item.SortOrder)
 	if sortOrder <= 0 && existing != nil {
@@ -469,14 +487,15 @@ func appendModelToProviderItem(id string, req appendProviderModelRequest) (provi
 
 	now := helper.GetTimestamp()
 	detail := model.ProviderModelDetail{
-		Model:       strings.TrimSpace(req.Model),
-		Type:        strings.TrimSpace(strings.ToLower(req.Type)),
-		InputPrice:  req.InputPrice,
-		OutputPrice: req.OutputPrice,
-		PriceUnit:   strings.TrimSpace(strings.ToLower(req.PriceUnit)),
-		Currency:    strings.TrimSpace(strings.ToUpper(req.Currency)),
-		Source:      strings.TrimSpace(strings.ToLower(req.Source)),
-		UpdatedAt:   now,
+		Model:              strings.TrimSpace(req.Model),
+		Type:               strings.TrimSpace(strings.ToLower(req.Type)),
+		SupportedEndpoints: req.SupportedEndpoints,
+		InputPrice:         req.InputPrice,
+		OutputPrice:        req.OutputPrice,
+		PriceUnit:          strings.TrimSpace(strings.ToLower(req.PriceUnit)),
+		Currency:           strings.TrimSpace(strings.ToUpper(req.Currency)),
+		Source:             strings.TrimSpace(strings.ToLower(req.Source)),
+		UpdatedAt:          now,
 	}
 	if detail.Model == "" {
 		return providerCatalogItem{}, errors.New("模型名称不能为空")

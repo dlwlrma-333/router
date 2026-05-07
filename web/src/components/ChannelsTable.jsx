@@ -57,64 +57,6 @@ function renderTimestamp(timestamp) {
   return <>{timestamp2string(timestamp)}</>;
 }
 
-async function fetchSelectedChannelModels(channelId) {
-  const normalizedChannelId = (channelId || '').toString().trim();
-  if (normalizedChannelId === '') {
-    return [];
-  }
-  const items = [];
-    let page = 1;
-    while (page < 50) {
-      const res = await API.get(`/api/v1/admin/channel/${normalizedChannelId}/models`, {
-        params: {
-          page,
-          page_size: 100,
-        },
-      });
-    const { success, data } = res.data || {};
-    if (!success) {
-      return [];
-    }
-    const pageItems = Array.isArray(data?.items) ? data.items : [];
-    items.push(...pageItems);
-    const total = Number(data?.total || pageItems.length || 0);
-    if (
-      pageItems.length === 0 ||
-      items.length >= total ||
-      pageItems.length < 100
-    ) {
-      break;
-    }
-      page += 1;
-    }
-  return items
-    .filter((item) => item && item.selected === true && item.inactive !== true)
-    .map((item) => (item.model || '').toString().trim())
-    .filter((item) => item !== '');
-}
-
-async function fetchChannelLatestTests(channelId) {
-  const normalizedChannelId = (channelId || '').toString().trim();
-  if (normalizedChannelId === '') {
-    return {
-      last_tested_at: 0,
-      items: [],
-    };
-  }
-  const res = await API.get(`/api/v1/admin/channel/${normalizedChannelId}/tests`);
-  const { success, data } = res.data || {};
-  if (!success) {
-    return {
-      last_tested_at: 0,
-      items: [],
-    };
-  }
-  return {
-    last_tested_at: Number(data?.last_tested_at || 0),
-    items: Array.isArray(data?.items) ? data.items : [],
-  };
-}
-
 function buildProtocolMap(options, t) {
   const protocolMap = {};
   if (Array.isArray(options)) {
@@ -202,51 +144,6 @@ function renderBalance(protocol, balance, t) {
 const selectionModeNone = '';
 const selectionModeDelete = 'delete';
 const selectionModeDisable = 'disable';
-const channelStatusCreating = 4;
-const CHANNEL_CREATE_CACHE_KEY = 'router.channel.create.v3';
-const CREATE_CHANNEL_STEP_MIN = 1;
-const CREATE_CHANNEL_STEP_MAX = 4;
-
-function parseCreateStep(rawStep) {
-  const step = Number(rawStep);
-  if (!Number.isInteger(step)) {
-    return CREATE_CHANNEL_STEP_MIN;
-  }
-  if (step < CREATE_CHANNEL_STEP_MIN) {
-    return CREATE_CHANNEL_STEP_MIN;
-  }
-  if (step > CREATE_CHANNEL_STEP_MAX) {
-    return CREATE_CHANNEL_STEP_MAX;
-  }
-  return step;
-}
-
-function readStoredCreatingStep(channelId) {
-  if (typeof window === 'undefined') {
-    return 0;
-  }
-  const targetChannelId = (channelId || '').toString().trim();
-  if (targetChannelId === '') {
-    return 0;
-  }
-  try {
-    const raw = localStorage.getItem(CHANNEL_CREATE_CACHE_KEY);
-    if (!raw) {
-      return 0;
-    }
-    const cachedState = JSON.parse(raw);
-    if (!cachedState || typeof cachedState !== 'object') {
-      return 0;
-    }
-    if ((cachedState.channel_id || '').toString().trim() !== targetChannelId) {
-      return 0;
-    }
-    return parseCreateStep(cachedState.step);
-  } catch {
-    return 0;
-  }
-}
-
 const ChannelsTable = () => {
   const { t } = useTranslation();
   const location = useLocation();
@@ -265,25 +162,6 @@ const ChannelsTable = () => {
   const [balanceRefreshTasks, setBalanceRefreshTasks] = useState({});
   const [protocolMap, setProtocolMap] = useState(() =>
     buildProtocolMap(getChannelProtocolOptions(), t)
-  );
-
-  const openChannelTasksPage = useCallback(
-    (channelId, extraParams = {}) => {
-      const normalizedChannelId = (channelId || '').toString().trim();
-      const query = new URLSearchParams();
-      if (normalizedChannelId !== '') {
-        query.set('channel_id', normalizedChannelId);
-      }
-      Object.entries(extraParams || {}).forEach(([key, value]) => {
-        const normalizedValue = (value || '').toString().trim();
-        if (normalizedValue !== '') {
-          query.set(key, normalizedValue);
-        }
-      });
-      const search = query.toString();
-      navigate(`/admin/channel/tasks${search ? `?${search}` : ''}`);
-    },
-    [navigate]
   );
 
   const processChannelData = useCallback((channel) => {
@@ -659,57 +537,8 @@ const ChannelsTable = () => {
     setSelectedChannelIds([]);
   };
 
-  const inferCreatingStepFromState = (channel, selectedModels, testData) => {
-    if (!channel || typeof channel !== 'object') {
-      return 1;
-    }
-    if (channel.protocol === 'proxy') {
-      return 1;
-    }
-    const models = Array.isArray(selectedModels) ? selectedModels : [];
-    if (models.length === 0) {
-      return 2;
-    }
-    const testedAt = Number(testData?.last_tested_at || 0);
-    const testResults = Array.isArray(testData?.items) ? testData.items : [];
-    if (testedAt > 0 || testResults.length > 0) {
-      return 4;
-    }
-    if (models.length > 0) {
-      return 3;
-    }
-    return 2;
-  };
-
-  const resolveCreatingStep = async (channel) => {
-    if (!channel) {
-      return 1;
-    }
-    const storedStep = readStoredCreatingStep(channel.id);
-    if (storedStep > 0) {
-      return storedStep;
-    }
-    try {
-      const [selectedModels, testData] = await Promise.all([
-        fetchSelectedChannelModels(channel.id),
-        fetchChannelLatestTests(channel.id),
-      ]);
-      return inferCreatingStepFromState(channel, selectedModels, testData);
-    } catch {
-      // Fallback to step 1 when details cannot be loaded.
-    }
-    return 1;
-  };
-
   const openChannelByStatus = async (channel) => {
     if (!channel || !channel.id || inBatchSelectMode) {
-      return;
-    }
-    if (channel.status === channelStatusCreating) {
-      const step = await resolveCreatingStep(channel);
-      navigate(
-        `/channel/add?channel_id=${encodeURIComponent(channel.id)}&step=${step}`
-      );
       return;
     }
     navigate(`/channel/detail/${channel.id}`, {
@@ -916,14 +745,6 @@ const ChannelsTable = () => {
               </Button>
             </>
           )}
-          <Button
-            className='router-page-button'
-            type='button'
-            onClick={() => openChannelTasksPage('')}
-            disabled={batchDeleting || batchDisabling}
-          >
-            {t('channel.buttons.tasks')}
-          </Button>
           <Button
             className='router-page-button'
             onClick={refresh}
@@ -1148,15 +969,6 @@ const ChannelsTable = () => {
                       to={`/channel/add?copy_from=${channel.id}`}
                     >
                       {t('channel.buttons.copy')}
-                    </Button>
-                    <Button
-                      className='router-inline-button'
-                      type='button'
-                      onClick={() => {
-                        openChannelTasksPage(channel.id);
-                      }}
-                    >
-                      {t('channel.buttons.tasks')}
                     </Button>
                     <Button
                       className='router-inline-button'

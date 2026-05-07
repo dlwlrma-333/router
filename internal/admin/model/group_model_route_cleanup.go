@@ -7,11 +7,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func CleanupDanglingAbilityChannels() (int64, error) {
-	return cleanupDanglingAbilityChannelsWithDB(DB)
+func CleanupDanglingGroupModelRoutes() (int64, error) {
+	return cleanupDanglingGroupModelRoutesWithDB(DB)
 }
 
-func cleanupDanglingAbilityChannelsWithDB(db *gorm.DB) (int64, error) {
+func cleanupDanglingGroupModelRoutesWithDB(db *gorm.DB) (int64, error) {
 	if db == nil {
 		return 0, fmt.Errorf("database handle is nil")
 	}
@@ -20,18 +20,18 @@ func cleanupDanglingAbilityChannelsWithDB(db *gorm.DB) (int64, error) {
 	result := db.
 		Where("channel_id <> ''").
 		Where("channel_id NOT IN (?)", channelIDSubQuery).
-		Delete(&Ability{})
+		Delete(&GroupModelRoute{})
 	if result.Error != nil {
 		return 0, result.Error
 	}
 	return result.RowsAffected, nil
 }
 
-func filterEnabledGroupAbilityRows(rows []Ability) []Ability {
+func filterEnabledGroupModelRouteRows(rows []GroupModelRoute) []GroupModelRoute {
 	if len(rows) == 0 {
-		return []Ability{}
+		return []GroupModelRoute{}
 	}
-	filtered := make([]Ability, 0, len(rows))
+	filtered := make([]GroupModelRoute, 0, len(rows))
 	for _, row := range rows {
 		if !row.Enabled {
 			continue

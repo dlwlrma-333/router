@@ -131,14 +131,15 @@ type OperationRuntimeConfig struct {
 }
 
 type RelayRuntimeConfig struct {
-	TimeoutSeconds                int    `yaml:"timeout_seconds"`
-	Proxy                         string `yaml:"proxy"`
-	UserContentRequestProxy       string `yaml:"user_content_request_proxy"`
-	UserContentRequestTimeoutSecs int    `yaml:"user_content_request_timeout_seconds"`
-	GeminiSafetySetting           string `yaml:"gemini_safety_setting"`
-	GeminiVersion                 string `yaml:"gemini_version"`
-	EnforceIncludeUsage           bool   `yaml:"enforce_include_usage"`
-	TestPrompt                    string `yaml:"test_prompt"`
+	TimeoutSeconds                         int      `yaml:"timeout_seconds"`
+	Proxy                                  string   `yaml:"proxy"`
+	UserContentRequestProxy                string   `yaml:"user_content_request_proxy"`
+	UserContentRequestTimeoutSecs          int      `yaml:"user_content_request_timeout_seconds"`
+	UserContentRequestPrivateHostAllowlist []string `yaml:"user_content_request_private_host_allowlist"`
+	GeminiSafetySetting                    string   `yaml:"gemini_safety_setting"`
+	GeminiVersion                          string   `yaml:"gemini_version"`
+	EnforceIncludeUsage                    bool     `yaml:"enforce_include_usage"`
+	TestPrompt                             string   `yaml:"test_prompt"`
 }
 
 type RateLimitRuntimeConfig struct {
@@ -242,14 +243,15 @@ func defaultRuntimeConfig() RuntimeConfig {
 			ChatLink:               "",
 		},
 		Relay: RelayRuntimeConfig{
-			TimeoutSeconds:                0,
-			Proxy:                         "",
-			UserContentRequestProxy:       "",
-			UserContentRequestTimeoutSecs: 30,
-			GeminiSafetySetting:           "BLOCK_NONE",
-			GeminiVersion:                 "v1",
-			EnforceIncludeUsage:           false,
-			TestPrompt:                    "Output only your specific model name with no additional text.",
+			TimeoutSeconds:                         0,
+			Proxy:                                  "",
+			UserContentRequestProxy:                "",
+			UserContentRequestTimeoutSecs:          30,
+			UserContentRequestPrivateHostAllowlist: []string{},
+			GeminiSafetySetting:                    "BLOCK_NONE",
+			GeminiVersion:                          "v1",
+			EnforceIncludeUsage:                    false,
+			TestPrompt:                             "Output only your specific model name with no additional text.",
 		},
 		RateLimit: RateLimitRuntimeConfig{
 			GlobalAPIRateLimit:                480,
@@ -427,6 +429,9 @@ func ApplyRuntimeConfig(cfg *RuntimeConfig, portFlagSet bool, logDirFlagSet bool
 	} else {
 		config.UserContentRequestTimeout = 30
 	}
+	config.UserContentRequestPrivateHostAllowlist = normalizeRelayHostAllowlist(
+		cfg.Relay.UserContentRequestPrivateHostAllowlist,
+	)
 	if geminiSafetySetting := strings.TrimSpace(cfg.Relay.GeminiSafetySetting); geminiSafetySetting != "" {
 		config.GeminiSafetySetting = geminiSafetySetting
 	} else {
@@ -565,6 +570,23 @@ func normalizeStringSlice(values []string) []string {
 	return result
 }
 
+func normalizeRelayHostAllowlist(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(strings.ToLower(value))
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	return result
+}
+
 func setCompatibilityEnvs() {
 	_ = os.Setenv("PORT", strconv.Itoa(*Port))
 	_ = os.Setenv("GIN_MODE", GinMode)
@@ -610,6 +632,9 @@ func setCompatibilityEnvs() {
 	_ = os.Setenv("DEBUG", strconv.FormatBool(config.DebugEnabled))
 	_ = os.Setenv("DEBUG_SQL", strconv.FormatBool(config.DebugSQLEnabled))
 	_ = os.Setenv("RELAY_TIMEOUT", strconv.Itoa(config.RelayTimeout))
+	_ = os.Setenv("USER_CONTENT_REQUEST_PROXY", config.UserContentRequestProxy)
+	_ = os.Setenv("USER_CONTENT_REQUEST_TIMEOUT", strconv.Itoa(config.UserContentRequestTimeout))
+	_ = os.Setenv("USER_CONTENT_REQUEST_PRIVATE_HOST_ALLOWLIST", strings.Join(config.UserContentRequestPrivateHostAllowlist, ","))
 	_ = os.Setenv("GEMINI_SAFETY_SETTING", config.GeminiSafetySetting)
 	_ = os.Setenv("GLOBAL_API_RATE_LIMIT", strconv.Itoa(config.GlobalApiRateLimitNum))
 	_ = os.Setenv("GLOBAL_WEB_RATE_LIMIT", strconv.Itoa(config.GlobalWebRateLimitNum))

@@ -37,13 +37,26 @@ var defaultProviderCatalogTemplates = normalizeDefaultProviderCatalogTemplates([
 			{Model: "o3", Type: ProviderModelTypeText, InputPrice: 0.002, OutputPrice: 0.008, PriceUnit: ProviderPriceUnitPer1KTokens, Currency: ProviderPriceCurrencyUSD, Source: "default"},
 			{Model: "o4-mini", Type: ProviderModelTypeText, InputPrice: 0.0011, OutputPrice: 0.0044, PriceUnit: ProviderPriceUnitPer1KTokens, Currency: ProviderPriceCurrencyUSD, Source: "default"},
 			{
-				Model:        "gpt-image-1",
-				Type:         ProviderModelTypeImage,
-				Capabilities: []string{ProviderModelTypeImage},
-				InputPrice:   0.011,
-				PriceUnit:    ProviderPriceUnitPerImage,
-				Currency:     ProviderPriceCurrencyUSD,
-				Source:       "default",
+				Model:              "gpt-image-2",
+				Type:               ProviderModelTypeImage,
+				SupportedEndpoints: []string{ChannelModelEndpointResponses, ChannelModelEndpointImages, ChannelModelEndpointImageEdit},
+				InputPrice:         0.008,
+				OutputPrice:        0.03,
+				PriceUnit:          ProviderPriceUnitPer1KTokens,
+				Currency:           ProviderPriceCurrencyUSD,
+				Source:             "default",
+				PriceComponents: []ProviderModelPriceComponentDetail{
+					{Component: ProviderModelPriceComponentText, InputPrice: 0.005, PriceUnit: ProviderPriceUnitPer1KTokens, Currency: ProviderPriceCurrencyUSD, Source: "default", SourceURL: "https://openai.com/api/pricing/", SortOrder: 10},
+					{Component: ProviderModelPriceComponentImageGeneration, InputPrice: 0.008, OutputPrice: 0.03, PriceUnit: ProviderPriceUnitPer1KTokens, Currency: ProviderPriceCurrencyUSD, Source: "default", SourceURL: "https://openai.com/api/pricing/", SortOrder: 20},
+				},
+			},
+			{
+				Model:      "gpt-image-1",
+				Type:       ProviderModelTypeImage,
+				InputPrice: 0.011,
+				PriceUnit:  ProviderPriceUnitPerImage,
+				Currency:   ProviderPriceCurrencyUSD,
+				Source:     "default",
 				PriceComponents: []ProviderModelPriceComponentDetail{
 					{Component: ProviderModelPriceComponentImageGeneration, Condition: "quality=low;size=1024x1024", InputPrice: 0.011, PriceUnit: ProviderPriceUnitPerImage, Currency: ProviderPriceCurrencyUSD, Source: "default", SourceURL: "https://platform.openai.com/docs/pricing", SortOrder: 10},
 					{Component: ProviderModelPriceComponentImageGeneration, Condition: "quality=low;size=1024x1536", InputPrice: 0.016, PriceUnit: ProviderPriceUnitPerImage, Currency: ProviderPriceCurrencyUSD, Source: "default", SourceURL: "https://platform.openai.com/docs/pricing", SortOrder: 20},
@@ -57,13 +70,12 @@ var defaultProviderCatalogTemplates = normalizeDefaultProviderCatalogTemplates([
 				},
 			},
 			{
-				Model:        "dall-e-3",
-				Type:         ProviderModelTypeImage,
-				Capabilities: []string{ProviderModelTypeImage},
-				InputPrice:   0.04,
-				PriceUnit:    ProviderPriceUnitPerImage,
-				Currency:     ProviderPriceCurrencyUSD,
-				Source:       "default",
+				Model:      "dall-e-3",
+				Type:       ProviderModelTypeImage,
+				InputPrice: 0.04,
+				PriceUnit:  ProviderPriceUnitPerImage,
+				Currency:   ProviderPriceCurrencyUSD,
+				Source:     "default",
 				PriceComponents: []ProviderModelPriceComponentDetail{
 					{Component: ProviderModelPriceComponentImageGeneration, Condition: "quality=standard;size=1024x1024", InputPrice: 0.04, PriceUnit: ProviderPriceUnitPerImage, Currency: ProviderPriceCurrencyUSD, Source: "default", SourceURL: "https://platform.openai.com/docs/pricing", SortOrder: 10},
 					{Component: ProviderModelPriceComponentImageGeneration, Condition: "quality=standard;size=1024x1792", InputPrice: 0.08, PriceUnit: ProviderPriceUnitPerImage, Currency: ProviderPriceCurrencyUSD, Source: "default", SourceURL: "https://platform.openai.com/docs/pricing", SortOrder: 20},
@@ -341,7 +353,32 @@ func normalizeDefaultProviderSeedModelDetails(provider string, details []Provide
 		if next.UpdatedAt <= 0 {
 			next.UpdatedAt = now
 		}
+		if len(next.SupportedEndpoints) == 0 {
+			next.SupportedEndpoints = DefaultProviderModelSupportedEndpoints(normalizedProvider, next.Type, next.Model)
+		} else {
+			next.SupportedEndpoints = NormalizeProviderModelSupportedEndpoints(next.Type, next.SupportedEndpoints)
+		}
 		cloned = append(cloned, next)
 	}
 	return NormalizeProviderModelDetails(cloned)
+}
+
+func DefaultProviderModelSupportedEndpoints(provider string, modelType string, modelName string) []string {
+	normalizedProvider := strings.TrimSpace(strings.ToLower(provider))
+	switch normalizeModelType(modelType, modelName) {
+	case ProviderModelTypeImage:
+		return []string{ChannelModelEndpointImages}
+	case ProviderModelTypeAudio:
+		return []string{ChannelModelEndpointAudio}
+	case ProviderModelTypeVideo:
+		return []string{ChannelModelEndpointVideos}
+	}
+	switch normalizedProvider {
+	case "anthropic":
+		return []string{ChannelModelEndpointMessages}
+	case "openai":
+		return []string{ChannelModelEndpointResponses, ChannelModelEndpointChat}
+	default:
+		return []string{ChannelModelEndpointChat}
+	}
 }
