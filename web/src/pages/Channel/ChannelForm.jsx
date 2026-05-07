@@ -1390,6 +1390,13 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     const normalized = from.trim();
     return normalized.startsWith('/') ? normalized : '';
   }, [location.state]);
+  const returnChannelLabel = useMemo(() => {
+    const raw = location.state?.channelLabel;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    return raw.trim();
+  }, [location.state]);
   const copyFromId = useMemo(() => {
     if (hasChannelID) return '';
     const query = new URLSearchParams(location.search);
@@ -1416,31 +1423,6 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     }
     navigate('/admin/channel');
   };
-  const openChannelTaskView = useCallback(
-    (extraParams = {}) => {
-      const targetChannelId = (channelId || '')
-        .toString()
-        .trim();
-      const query = new URLSearchParams();
-      if (targetChannelId !== '') {
-        query.set('channel_id', targetChannelId);
-      }
-      Object.entries(extraParams || {}).forEach(([key, value]) => {
-        const normalizedValue = (value || '').toString().trim();
-        if (normalizedValue !== '') {
-          query.set(key, normalizedValue);
-        }
-      });
-      const search = query.toString();
-      navigate(`/admin/channel/tasks${search ? `?${search}` : ''}`, {
-        state: {
-          from: `${location.pathname}${location.search}${location.hash}`,
-          fromLabel: channelId || t('header.channel'),
-        },
-      });
-    },
-    [channelId, location.hash, location.pathname, location.search, navigate, t],
-  );
   const goToDetailTab = useCallback(
     (nextTab) => {
       if (!isDetailMode) {
@@ -1493,6 +1475,40 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
   const [modelTestingTargets, setModelTestingTargets] = useState([]);
   const [channelTasks, setChannelTasks] = useState([]);
   const [modelTestError, setModelTestError] = useState('');
+  const openChannelTaskView = useCallback(
+    (extraParams = {}) => {
+      const targetChannelId = (channelId || '')
+        .toString()
+        .trim();
+      const query = new URLSearchParams();
+      if (targetChannelId !== '') {
+        query.set('channel_id', targetChannelId);
+      }
+      Object.entries(extraParams || {}).forEach(([key, value]) => {
+        const normalizedValue = (value || '').toString().trim();
+        if (normalizedValue !== '') {
+          query.set(key, normalizedValue);
+        }
+      });
+      const search = query.toString();
+      navigate(`/admin/channel/tasks${search ? `?${search}` : ''}`, {
+        state: {
+          from: `${location.pathname}${location.search}${location.hash}`,
+          fromLabel: (inputs.name || channelId || '').toString().trim(),
+          contextType: 'channel_test_history',
+          contextLabel: (inputs.name || channelId || '').toString().trim(),
+        },
+      });
+    },
+    [
+      channelId,
+      inputs.name,
+      location.hash,
+      location.pathname,
+      location.search,
+      navigate,
+    ],
+  );
   const [modelTestedAt, setModelTestedAt] = useState(0);
   const [modelTestedSignature, setModelTestedSignature] = useState('');
   const [modelTestTargetModels, setModelTestTargetModels] = useState([]);
@@ -4285,7 +4301,7 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
                 </Breadcrumb.Section>
                 <Breadcrumb.Divider icon='right chevron' />
                 <Breadcrumb.Section active>
-                  {inputs.name || channelId || '-'}
+                  {inputs.name || returnChannelLabel || channelId || '-'}
                 </Breadcrumb.Section>
               </Breadcrumb>
             </div>

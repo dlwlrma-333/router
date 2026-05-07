@@ -196,6 +196,36 @@ const Task = () => {
     }
     return raw.trim();
   }, [location.state]);
+  const contextType = useMemo(() => {
+    const raw = location.state?.contextType;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    return raw.trim();
+  }, [location.state]);
+  const contextLabel = useMemo(() => {
+    const raw = location.state?.contextLabel;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    return raw.trim();
+  }, [location.state]);
+  const taskPageNavState = useMemo(() => {
+    if (
+      returnPath === '' &&
+      returnLabel === '' &&
+      contextType === '' &&
+      contextLabel === ''
+    ) {
+      return undefined;
+    }
+    return {
+      from: returnPath,
+      fromLabel: returnLabel,
+      contextType,
+      contextLabel,
+    };
+  }, [contextLabel, contextType, returnLabel, returnPath]);
   const pageKind = useMemo(
     () => resolveTaskPageKind(location.pathname),
     [location.pathname],
@@ -534,12 +564,18 @@ const Task = () => {
       query.set('channel_id', filters.channel_id.trim());
     }
     const nextSearch = query.toString();
+    const currentSearch = location.search.startsWith('?')
+      ? location.search.slice(1)
+      : location.search;
+    if (nextSearch === currentSearch) {
+      return;
+    }
     navigate(
       {
         pathname: location.pathname,
         search: nextSearch ? `?${nextSearch}` : '',
       },
-      { replace: true },
+      { replace: true, state: taskPageNavState },
     );
   }, [
     activeFilterKeys,
@@ -550,9 +586,11 @@ const Task = () => {
     filters.user_keyword,
     isAdminUserTaskPage,
     isSystemTaskPage,
+    location.search,
     location.pathname,
     navigate,
     page,
+    taskPageNavState,
   ]);
 
   useEffect(() => {
@@ -743,11 +781,27 @@ const Task = () => {
     : isAdminPage
       ? '/admin/task'
       : '/workspace/task';
+  const isChannelTestHistoryContext =
+    contextType === 'channel_test_history' && returnPath !== '';
   const pageTitle = isSystemTaskPage
-    ? t('task.scopes.admin')
+    ? isChannelTestHistoryContext
+      ? t('channel.edit.model_tester.history_tasks')
+      : t('task.scopes.admin')
     : isAdminUserTaskPage
       ? t('task.scopes.user')
       : t('task.title');
+  const goToChannelList = useCallback(() => {
+    navigate('/admin/channel');
+  }, [navigate]);
+  const goBackToOrigin = useCallback(() => {
+    if (returnPath !== '') {
+      navigate(returnPath, {
+        state: {
+          channelLabel: contextLabel || returnLabel,
+        },
+      });
+    }
+  }, [contextLabel, navigate, returnLabel, returnPath]);
   const resolveFilterOptionLabel = useCallback(
     (filterKey, value) => {
       const normalizedValue = (value || '').toString().trim();
@@ -784,17 +838,56 @@ const Task = () => {
           {returnPath !== '' ? (
             <div className='router-entity-detail-breadcrumb router-block-gap-sm'>
               <Breadcrumb size='small'>
-                <Breadcrumb.Section link onClick={() => navigate(returnPath)}>
-                  {returnLabel || t('header.channel')}
-                </Breadcrumb.Section>
-                <Breadcrumb.Divider icon='right chevron' />
-                <Breadcrumb.Section active>{pageTitle}</Breadcrumb.Section>
+                {isChannelTestHistoryContext ? (
+                  <>
+                    <Breadcrumb.Section
+                      link
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goToChannelList();
+                      }}
+                    >
+                      {t('header.channel')}
+                    </Breadcrumb.Section>
+                    <Breadcrumb.Divider icon='right chevron' />
+                    <Breadcrumb.Section
+                      link
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goBackToOrigin();
+                      }}
+                    >
+                      {contextLabel || returnLabel || '-'}
+                    </Breadcrumb.Section>
+                    <Breadcrumb.Divider icon='right chevron' />
+                    <Breadcrumb.Section active>{pageTitle}</Breadcrumb.Section>
+                  </>
+                ) : (
+                  <>
+                    <Breadcrumb.Section
+                      link
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goBackToOrigin();
+                      }}
+                    >
+                      {returnLabel || t('header.channel')}
+                    </Breadcrumb.Section>
+                    <Breadcrumb.Divider icon='right chevron' />
+                    <Breadcrumb.Section active>{pageTitle}</Breadcrumb.Section>
+                  </>
+                )}
               </Breadcrumb>
             </div>
           ) : null}
-          <Header as='h3' className='router-section-title'>
-            {pageTitle}
-          </Header>
+          {!isChannelTestHistoryContext ? (
+            <Header as='h3' className='router-section-title'>
+              {pageTitle}
+            </Header>
+          ) : null}
           <Form className='router-toolbar router-log-toolbar router-block-gap-sm'>
             <div className='router-toolbar-start router-log-toolbar-start'>
               <Popup
@@ -1008,6 +1101,10 @@ const Task = () => {
                           state: {
                             from: currentPagePath,
                             fromLabel: pageTitle,
+                            contextType,
+                            contextLabel,
+                            originPath: returnPath,
+                            originLabel: contextLabel || returnLabel,
                           },
                         })
                       }
@@ -1059,6 +1156,10 @@ const Task = () => {
                                 state: {
                                   from: currentPagePath,
                                   fromLabel: pageTitle,
+                                  contextType,
+                                  contextLabel,
+                                  originPath: returnPath,
+                                  originLabel: contextLabel || returnLabel,
                                 },
                               });
                             }}

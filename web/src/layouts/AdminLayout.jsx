@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Container, Icon } from 'semantic-ui-react';
+import { Button, Container, Icon } from 'semantic-ui-react';
 import Footer from '../components/Footer';
 import Header from '../components/Header';
 import AdminSidebar from '../components/AdminSidebar';
@@ -38,29 +38,34 @@ const AdminLayout = () => {
         <aside
           className={`router-admin-sidebar ${sidebarCompact ? 'compact' : ''}`}
         >
+          <div className='router-admin-sidebar-toolbar'>
+            <Button
+              type='button'
+              basic
+              icon
+              size='small'
+              className='router-admin-sidebar-toggle'
+              title={
+                sidebarCompact
+                  ? t('header.sidebar_expand')
+                  : t('header.sidebar_compact')
+              }
+              aria-label={
+                sidebarCompact
+                  ? t('header.sidebar_expand')
+                  : t('header.sidebar_compact')
+              }
+              onClick={() => setSidebarCompact((previous) => !previous)}
+            >
+              <Icon
+                name={
+                  sidebarCompact ? 'angle double right' : 'angle double left'
+                }
+              />
+            </Button>
+          </div>
           <AdminSidebar compact={sidebarCompact} />
         </aside>
-        <span
-          className='router-admin-divider-toggle'
-          role='button'
-          tabIndex={0}
-          title={
-            sidebarCompact
-              ? t('header.sidebar_expand')
-              : t('header.sidebar_compact')
-          }
-          onClick={() => setSidebarCompact((previous) => !previous)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              setSidebarCompact((previous) => !previous);
-            }
-          }}
-        >
-          <Icon
-            name={sidebarCompact ? 'angle double right' : 'angle double left'}
-          />
-        </span>
         <Container className='main-content router-admin-main'>
           <Outlet />
         </Container>
