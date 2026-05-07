@@ -1729,6 +1729,12 @@
     "usage_rank": {
       "title": "用量排行",
       "description": "按当前统计周期聚合用户消费，展示请求量、Token 和消费占比。",
+      "summary": {
+        "top_user": "榜首用户",
+        "top_share": "榜首占比",
+        "user_count": "榜单用户数",
+        "total_tokens": "榜单总 Tokens"
+      },
       "search": {
         "placeholder": "搜索用户名或用户 ID",
         "submit": "搜索",

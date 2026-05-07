@@ -72,6 +72,14 @@ const EMPTY_DASHBOARD = {
   summary: EMPTY_SUMMARY,
   trend: [],
   top_channels: [],
+  usage_summary: {
+    user_count: 0,
+    request_count: 0,
+    total_tokens: 0,
+    spend_yyc: 0,
+    top_username: '',
+    top_user_share: 0,
+  },
   usage_rank: [],
   generated_at: 0,
 };
@@ -95,6 +103,7 @@ const normalizeAdminDashboardPayload = (payload) => {
   const topChannels = Array.isArray(payload?.top_channels)
     ? payload.top_channels
     : [];
+  const usageSummary = payload?.usage_summary || {};
   const usageRank = Array.isArray(payload?.usage_rank) ? payload.usage_rank : [];
   return {
     ...EMPTY_DASHBOARD,
@@ -115,6 +124,14 @@ const normalizeAdminDashboardPayload = (payload) => {
       ...item,
       usedYyc: Number(item?.yyc_used ?? item?.used_quota ?? 0),
     })),
+    usage_summary: {
+      user_count: Number(usageSummary?.user_count || 0),
+      request_count: Number(usageSummary?.request_count || 0),
+      total_tokens: Number(usageSummary?.total_tokens || 0),
+      spend_yyc: Number(usageSummary?.spend_yyc ?? usageSummary?.spend_quota ?? 0),
+      top_username: String(usageSummary?.top_username || ''),
+      top_user_share: Number(usageSummary?.top_user_share || 0),
+    },
     usage_rank: usageRank.map((item) => ({
       ...item,
       request_count: Number(item?.request_count || 0),
@@ -523,45 +540,84 @@ const AdminDashboard = () => {
               {t('dashboard.admin.empty.usage_rank')}
             </div>
           ) : (
-            <div className='admin-dashboard-rank-table'>
-              <div className='admin-dashboard-rank-head'>
-                <span>{t('dashboard.admin.usage_rank.columns.rank')}</span>
-                <span>{t('dashboard.admin.usage_rank.columns.user')}</span>
-                <span>{t('dashboard.admin.usage_rank.columns.requests')}</span>
-                <span>{t('dashboard.admin.usage_rank.columns.tokens')}</span>
-                <span>{t('dashboard.admin.usage_rank.columns.spend')}</span>
-                <span>{t('dashboard.admin.usage_rank.columns.share')}</span>
-                <span>{t('dashboard.admin.usage_rank.columns.last_used_at')}</span>
-              </div>
-              <div className='admin-dashboard-rank-body'>
-                {dashboard.usage_rank.map((item, index) => (
-                  <div className='admin-dashboard-rank-row' key={`${item.user_id || item.username}-${index}`}>
-                    <span className='admin-dashboard-rank-index'>{index + 1}</span>
-                    <span
-                      className='admin-dashboard-rank-user'
-                      title={item.username || item.user_id || '-'}
-                    >
-                      {item.username || item.user_id || '-'}
-                    </span>
-                    <span>{formatCount(item.request_count)}</span>
-                    <span>{formatCount(item.total_tokens)}</span>
-                    <span>{formatUsd(item.spend_yyc)}</span>
-                    <span className='admin-dashboard-rank-share-cell'>
-                      <span className='admin-dashboard-rank-share-text'>
-                        {formatPercent(item.share_rate)}
-                      </span>
-                      <span className='admin-dashboard-rank-share-track'>
-                        <span
-                          className='admin-dashboard-rank-share-bar'
-                          style={{ width: `${Math.max(4, toPercent(item.share_rate))}%` }}
-                        />
-                      </span>
-                    </span>
-                    <span>{formatUpdatedAt(item.last_used_at)}</span>
+            <>
+              <div className='admin-dashboard-usage-rank-summary-grid'>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.summary.top_user')}
                   </div>
-                ))}
+                  <div
+                    className='admin-dashboard-kpi-value admin-dashboard-usage-rank-top-user'
+                    title={dashboard.usage_summary.top_username || '-'}
+                  >
+                    {dashboard.usage_summary.top_username || '-'}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.summary.top_share')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatPercent(dashboard.usage_summary.top_user_share)}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.summary.user_count')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatCount(dashboard.usage_summary.user_count)}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.summary.total_tokens')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatCount(dashboard.usage_summary.total_tokens)}
+                  </div>
+                </div>
               </div>
-            </div>
+              <div className='admin-dashboard-rank-table'>
+                <div className='admin-dashboard-rank-head'>
+                  <span>{t('dashboard.admin.usage_rank.columns.rank')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.user')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.requests')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.tokens')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.spend')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.share')}</span>
+                  <span>{t('dashboard.admin.usage_rank.columns.last_used_at')}</span>
+                </div>
+                <div className='admin-dashboard-rank-body'>
+                  {dashboard.usage_rank.map((item, index) => (
+                    <div className='admin-dashboard-rank-row' key={`${item.user_id || item.username}-${index}`}>
+                      <span className='admin-dashboard-rank-index'>{index + 1}</span>
+                      <span
+                        className='admin-dashboard-rank-user'
+                        title={item.username || item.user_id || '-'}
+                      >
+                        {item.username || item.user_id || '-'}
+                      </span>
+                      <span>{formatCount(item.request_count)}</span>
+                      <span>{formatCount(item.total_tokens)}</span>
+                      <span>{formatUsd(item.spend_yyc)}</span>
+                      <span className='admin-dashboard-rank-share-cell'>
+                        <span className='admin-dashboard-rank-share-text'>
+                          {formatPercent(item.share_rate)}
+                        </span>
+                        <span className='admin-dashboard-rank-share-track'>
+                          <span
+                            className='admin-dashboard-rank-share-bar'
+                            style={{ width: `${Math.max(4, toPercent(item.share_rate))}%` }}
+                          />
+                        </span>
+                      </span>
+                      <span>{formatUpdatedAt(item.last_used_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
       </Card.Content>

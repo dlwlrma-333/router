@@ -1729,6 +1729,12 @@
     "usage_rank": {
       "title": "Usage Ranking",
       "description": "Aggregate user consumption in the current period, including requests, tokens, and spend share.",
+      "summary": {
+        "top_user": "Top User",
+        "top_share": "Top Share",
+        "user_count": "Users in Rank",
+        "total_tokens": "Rank Tokens"
+      },
       "search": {
         "placeholder": "Search username or user ID",
         "submit": "Search",
