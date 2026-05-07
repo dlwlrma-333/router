@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	commonutils "github.com/yeying-community/router/common/utils"
 	"gorm.io/gorm"
 )
 
@@ -327,7 +328,7 @@ func normalizeModelNames(models []string) []string {
 }
 
 func SyncGroupModelRoutesForChannel(groupID string, channel *Channel, groupModels []GroupModel, channelPriority *int64) []GroupModelRoute {
-	if channel == nil || len(groupModels) == 0 {
+	if channel == nil {
 		return nil
 	}
 	catalog := buildGroupModelConfigChannelCatalog(channel)
@@ -337,11 +338,13 @@ func SyncGroupModelRoutesForChannel(groupID string, channel *Channel, groupModel
 	if channelPriority != nil {
 		priority = helperInt64Pointer(channelPriority)
 	}
+	configuredModels := make(map[string]GroupModel, len(groupModels))
 	for _, groupModel := range groupModels {
 		modelName := strings.TrimSpace(groupModel.Model)
-		if modelName == "" || !groupModel.Enabled {
+		if modelName == "" {
 			continue
 		}
+		configuredModels[modelName] = groupModel
 		upstream, ok := catalog.aliasToUpstream[modelName]
 		if !ok || strings.TrimSpace(upstream) == "" {
 			continue
@@ -361,7 +364,38 @@ func SyncGroupModelRoutesForChannel(groupID string, channel *Channel, groupModel
 			ChannelId:     strings.TrimSpace(channel.Id),
 			UpstreamModel: NormalizeGroupModelRouteUpstreamModel(modelName, upstream),
 			Provider:      provider,
-			Enabled:       channel.Status == ChannelStatusEnabled,
+			Enabled:       channel.Status == ChannelStatusEnabled && groupModel.Enabled,
+			Priority:      priority,
+		})
+	}
+	for _, row := range channelSelectedModelConfigs(channel) {
+		modelName := strings.TrimSpace(row.Model)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := configuredModels[modelName]; ok {
+			continue
+		}
+		upstream := NormalizeGroupModelRouteUpstreamModel(modelName, row.UpstreamModel)
+		if upstream == "" {
+			continue
+		}
+		key := modelName + "::" + strings.TrimSpace(channel.Id)
+		if _, ok := seenGroupModelRouteKeys[key]; ok {
+			continue
+		}
+		seenGroupModelRouteKeys[key] = struct{}{}
+		provider := NormalizeGroupModelRouteProvider(commonutils.NormalizeProvider(row.Provider))
+		if provider == "" {
+			provider = NormalizeGroupModelRouteProvider(catalog.ResolveProvider(GroupModelConfigItem{Model: modelName}, upstream))
+		}
+		result = append(result, GroupModelRoute{
+			Group:         strings.TrimSpace(groupID),
+			Model:         modelName,
+			ChannelId:     strings.TrimSpace(channel.Id),
+			UpstreamModel: upstream,
+			Provider:      provider,
+			Enabled:       false,
 			Priority:      priority,
 		})
 	}

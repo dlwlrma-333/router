@@ -1741,6 +1741,10 @@ const GroupsManager = ({ detailGroupId = '' }) => {
           : null
       )
         .filter(Boolean)
+        .map((item) => ({
+        ...item,
+        enabled: !!item.enabled,
+      }))
     );
     await saveSingleDetailModelConfigs(
       normalizedModel,
