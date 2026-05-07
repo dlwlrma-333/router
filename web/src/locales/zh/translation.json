@@ -889,6 +889,7 @@
       "description_placeholder": "可选，用于说明该分组用途",
       "billing_ratio": "业务倍率",
       "billing_ratio_placeholder": "默认为 1，可填 0 或更大值",
+      "billing_ratio_help": "用于调整该分组的最终结算金额。0 表示不收费，0 到 1 之间表示打折，1 表示原价，大于 1 表示加价。",
       "daily_quota_limit": "每日限额",
       "daily_quota_limit_placeholder": "0 表示不限额",
       "sort_order": "排序值",

@@ -889,6 +889,7 @@
       "description_placeholder": "Optional description for this group",
       "billing_ratio": "Billing Ratio",
       "billing_ratio_placeholder": "Defaults to 1, use 0 or greater",
+      "billing_ratio_help": "Adjusts the final billed amount for this group. 0 makes it free, values between 0 and 1 apply a discount, 1 keeps the base price, and values greater than 1 add a markup.",
       "daily_quota_limit": "Daily Limit",
       "daily_quota_limit_placeholder": "0 means unlimited",
       "sort_order": "Sort Value",

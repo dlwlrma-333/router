@@ -2045,26 +2045,30 @@ const GroupsManager = ({ detailGroupId = '' }) => {
                 }
               />
               <Form.Group widths='equal'>
-                <Form.Input
-                  className='router-section-input'
-                  type='number'
-                  min='0'
-                  step='0.01'
-                  label={t('group_manage.form.billing_ratio')}
-                  value={
-                    detailBasicEditing
-                      ? form.billing_ratio
-                      : Number(activeGroup.billing_ratio ?? 1).toFixed(2)
-                  }
-                  readOnly={!detailBasicEditing}
-                  placeholder={t('group_manage.form.billing_ratio_placeholder')}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      billing_ratio: e.target.value,
-                    }))
-                  }
-                />
+                <Form.Field className='router-section-input'>
+                  <label>{t('group_manage.form.billing_ratio')}</label>
+                  <Form.Input
+                    type='number'
+                    min='0'
+                    step='0.01'
+                    value={
+                      detailBasicEditing
+                        ? form.billing_ratio
+                        : Number(activeGroup.billing_ratio ?? 1).toFixed(2)
+                    }
+                    readOnly={!detailBasicEditing}
+                    placeholder={t('group_manage.form.billing_ratio_placeholder')}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        billing_ratio: e.target.value,
+                      }))
+                    }
+                  />
+                  <div className='router-text-muted'>
+                    {t('group_manage.form.billing_ratio_help')}
+                  </div>
+                </Form.Field>
               </Form.Group>
               <Form.Group widths='equal'>
                 <Form.Input
@@ -2161,21 +2165,25 @@ const GroupsManager = ({ detailGroupId = '' }) => {
           }
         />
         <Form.Group widths='equal'>
-          <Form.Input
-            className='router-section-input'
-            type='number'
-            min='0'
-            step='0.01'
-            label={t('group_manage.form.billing_ratio')}
-            placeholder={t('group_manage.form.billing_ratio_placeholder')}
-            value={form.billing_ratio}
-            onChange={(e) =>
-              setForm((prev) => ({
-                ...prev,
-                billing_ratio: e.target.value,
-              }))
-            }
-          />
+          <Form.Field className='router-section-input'>
+            <label>{t('group_manage.form.billing_ratio')}</label>
+            <Form.Input
+              type='number'
+              min='0'
+              step='0.01'
+              placeholder={t('group_manage.form.billing_ratio_placeholder')}
+              value={form.billing_ratio}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  billing_ratio: e.target.value,
+                }))
+              }
+            />
+            <div className='router-text-muted'>
+              {t('group_manage.form.billing_ratio_help')}
+            </div>
+          </Form.Field>
           <Form.Input
             className='router-section-input'
             type='number'
@@ -2267,21 +2275,25 @@ const GroupsManager = ({ detailGroupId = '' }) => {
           }
         />
         <Form.Group widths='equal'>
-          <Form.Input
-            className='router-section-input'
-            type='number'
-            min='0'
-            step='0.01'
-            label={t('group_manage.form.billing_ratio')}
-            placeholder={t('group_manage.form.billing_ratio_placeholder')}
-            value={form.billing_ratio}
-            onChange={(e) =>
-              setForm((prev) => ({
-                ...prev,
-                billing_ratio: e.target.value,
-              }))
-            }
-          />
+          <Form.Field className='router-section-input'>
+            <label>{t('group_manage.form.billing_ratio')}</label>
+            <Form.Input
+              type='number'
+              min='0'
+              step='0.01'
+              placeholder={t('group_manage.form.billing_ratio_placeholder')}
+              value={form.billing_ratio}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  billing_ratio: e.target.value,
+                }))
+              }
+            />
+            <div className='router-text-muted'>
+              {t('group_manage.form.billing_ratio_help')}
+            </div>
+          </Form.Field>
           <Form.Dropdown
             className='router-section-dropdown'
             fluid
