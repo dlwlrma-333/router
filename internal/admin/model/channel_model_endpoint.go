@@ -79,6 +79,9 @@ func BuildChannelModelEndpointRowsWithProviderEndpoints(existing []ChannelModelE
 			continue
 		}
 		eligibleForEnable := row.Selected && !row.Inactive
+		if !eligibleForEnable {
+			continue
+		}
 		for _, endpoint := range resolveProviderEndpointCandidatesForChannelModel(row, providerEndpoints) {
 			normalizedEndpoint := NormalizeRequestedChannelModelEndpoint(endpoint)
 			if normalizedEndpoint == "" {
@@ -140,12 +143,6 @@ func MergeChannelModelEndpointListRows(snapshotRows []ChannelModelEndpoint, expl
 		}
 		seen[key] = struct{}{}
 		items = append(items, normalized)
-	}
-	for key, row := range explicitByKey {
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		items = append(items, row)
 	}
 	return items
 }
@@ -429,7 +426,17 @@ func replaceChannelModelEndpointRowsWithDB(db *gorm.DB, channelID string, rows [
 		if len(normalizedRows) == 0 {
 			return nil
 		}
-		return tx.Create(&normalizedRows).Error
+		payloads := make([]map[string]any, 0, len(normalizedRows))
+		for _, row := range normalizedRows {
+			payloads = append(payloads, map[string]any{
+				"channel_id": row.ChannelId,
+				"model":      row.Model,
+				"endpoint":   row.Endpoint,
+				"enabled":    row.Enabled,
+				"updated_at": row.UpdatedAt,
+			})
+		}
+		return tx.Table(ChannelModelEndpointsTableName).Create(&payloads).Error
 	})
 }
 

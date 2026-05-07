@@ -91,6 +91,31 @@ func TestBuildChannelModelEndpointRowsPreservesExistingDisabledEndpointState(t *
 	}
 }
 
+func TestBuildChannelModelEndpointRowsSkipsInactiveOrUnselectedModels(t *testing.T) {
+	rows := []ChannelModel{
+		{
+			ChannelId:     "channel-1",
+			Model:         "gpt-5.4",
+			UpstreamModel: "gpt-5.4",
+			Provider:      "openai",
+			Type:          ProviderModelTypeText,
+			Selected:      false,
+			Inactive:      true,
+		},
+	}
+	providerEndpoints := map[string][]string{
+		buildProviderModelEndpointKey("openai", "gpt-5.4"): {
+			ChannelModelEndpointChat,
+			ChannelModelEndpointResponses,
+		},
+	}
+
+	got := BuildChannelModelEndpointRowsWithProviderEndpoints(nil, rows, providerEndpoints)
+	if len(got) != 0 {
+		t.Fatalf("len(got)=%d, want 0 for inactive/unselected model", len(got))
+	}
+}
+
 func TestBuildChannelModelEndpointRowsPreservesExistingUpdatedAt(t *testing.T) {
 	existing := []ChannelModelEndpoint{
 		{ChannelId: "channel-1", Model: "gpt-5.4", Endpoint: ChannelModelEndpointResponses, Enabled: true, UpdatedAt: 123},
@@ -144,14 +169,8 @@ func TestMergeChannelModelEndpointListRowsKeepsExplicitOnlyRows(t *testing.T) {
 	}
 
 	got := MergeChannelModelEndpointListRows(nil, explicitRows)
-	if len(got) != 1 {
-		t.Fatalf("len(got) = %d, want 1", len(got))
-	}
-	if got[0].Endpoint != ChannelModelEndpointChat || got[0].Enabled {
-		t.Fatalf("explicit-only row = (%q, %t), want (%q, false)", got[0].Endpoint, got[0].Enabled, ChannelModelEndpointChat)
-	}
-	if got[0].UpdatedAt != 789 {
-		t.Fatalf("explicit-only updated_at = %d, want 789", got[0].UpdatedAt)
+	if len(got) != 0 {
+		t.Fatalf("len(got) = %d, want 0 for explicit-only orphan rows", len(got))
 	}
 }
 

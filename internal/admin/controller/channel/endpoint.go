@@ -152,8 +152,8 @@ func UpdateChannelEndpoint(c *gin.Context) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
-	if enabled && !model.HasChannelModelEndpoint(snapshotRows, modelName, endpoint) {
-		message := "该渠道模型未声明该端点，不能保存端点能力"
+	if !model.HasChannelModelEndpoint(snapshotRows, modelName, endpoint) {
+		message := "该渠道当前未启用该模型端点，无法更新端点状态"
 		logChannelAdminWarn(c, "update_endpoint", stringField("channel_id", channelID), stringField("model", modelName), stringField("endpoint", endpoint), stringField("reason", message))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
