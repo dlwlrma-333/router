@@ -71,6 +71,51 @@ func ListGroupModelNamesByDB(db *gorm.DB, groupID string) ([]string, error) {
 	return listGroupModelNamesWithDB(db, groupID, true)
 }
 
+func RebuildGroupModelsFromRoutesWithDB(db *gorm.DB, groupID string) error {
+	if db == nil {
+		return fmt.Errorf("database handle is nil")
+	}
+	groupCatalog, err := resolveGroupCatalogByReferenceWithDB(db, groupID)
+	if err != nil {
+		return err
+	}
+	groupID = groupCatalog.Id
+
+	groupCol := `"group"`
+	routeRows := make([]GroupModelRoute, 0)
+	if err := db.
+		Where(groupCol+" = ? AND enabled = ?", groupID, true).
+		Order("model asc, channel_id asc").
+		Find(&routeRows).Error; err != nil {
+		return err
+	}
+
+	nextRows := make([]GroupModel, 0)
+	indexByModel := make(map[string]int)
+	for _, route := range routeRows {
+		modelName := strings.TrimSpace(route.Model)
+		if modelName == "" {
+			continue
+		}
+		provider := NormalizeGroupModelRouteProvider(route.Provider)
+		if idx, ok := indexByModel[modelName]; ok {
+			if nextRows[idx].Provider == "" {
+				nextRows[idx].Provider = provider
+			}
+			continue
+		}
+		indexByModel[modelName] = len(nextRows)
+		nextRows = append(nextRows, GroupModel{
+			Group:    groupID,
+			Model:    modelName,
+			Provider: provider,
+			Enabled:  true,
+		})
+	}
+
+	return replaceGroupModelsWithDB(db, groupID, nextRows)
+}
+
 func replaceGroupModelsWithDB(db *gorm.DB, groupID string, rows []GroupModel) error {
 	if db == nil {
 		return fmt.Errorf("database handle is nil")

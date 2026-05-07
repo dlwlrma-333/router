@@ -149,6 +149,11 @@ func DeleteGroupModelRoutes(channel *model.Channel) error {
 	if err := model.DB.Where("channel_id = ?", channel.Id).Delete(&model.GroupModelRoute{}).Error; err != nil {
 		return err
 	}
+	for _, groupID := range groups {
+		if err := model.RebuildGroupModelsFromRoutesWithDB(model.DB, groupID); err != nil {
+			return err
+		}
+	}
 	model.RefreshGroupModelRouteCachesForGroups(groups...)
 	return nil
 }
@@ -181,9 +186,15 @@ func UpdateGroupModelRoutes(channel *model.Channel) error {
 				return err
 			}
 			if len(next) == 0 {
+				if err := model.RebuildGroupModelsFromRoutesWithDB(tx, groupID); err != nil {
+					return err
+				}
 				continue
 			}
 			if err := tx.Create(&next).Error; err != nil {
+				return err
+			}
+			if err := model.RebuildGroupModelsFromRoutesWithDB(tx, groupID); err != nil {
 				return err
 			}
 		}
@@ -203,6 +214,11 @@ func UpdateGroupModelRouteStatus(channelId string, status bool) error {
 	}
 	if err := model.DB.Model(&model.GroupModelRoute{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error; err != nil {
 		return err
+	}
+	for _, groupID := range groups {
+		if err := model.RebuildGroupModelsFromRoutesWithDB(model.DB, groupID); err != nil {
+			return err
+		}
 	}
 	model.RefreshGroupModelRouteCachesForGroups(groups...)
 	return nil
