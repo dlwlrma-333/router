@@ -211,6 +211,9 @@ func migrateGroupModelsWithDB(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("database handle is nil")
 	}
+	if err := migrateGroupModelRoutesTableWithDB(db); err != nil {
+		return err
+	}
 	if err := db.AutoMigrate(&GroupModel{}); err != nil {
 		return err
 	}

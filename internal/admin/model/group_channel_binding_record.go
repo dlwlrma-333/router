@@ -237,6 +237,9 @@ func migrateGroupChannelBindingsWithDB(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("database handle is nil")
 	}
+	if err := migrateGroupModelRoutesTableWithDB(db); err != nil {
+		return err
+	}
 	if err := db.AutoMigrate(&GroupChannelBinding{}); err != nil {
 		return err
 	}

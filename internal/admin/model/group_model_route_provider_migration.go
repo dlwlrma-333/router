@@ -16,7 +16,7 @@ func backfillGroupModelRouteProviderFromChannelModelsWithDB(tx *gorm.DB) error {
 	if tx == nil {
 		return fmt.Errorf("database handle is nil")
 	}
-	if err := tx.AutoMigrate(&GroupModelRoute{}); err != nil {
+	if err := migrateGroupModelRoutesTableWithDB(tx); err != nil {
 		return err
 	}
 
