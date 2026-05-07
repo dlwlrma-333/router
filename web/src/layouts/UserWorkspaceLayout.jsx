@@ -39,6 +39,11 @@ const UserWorkspaceLayout = () => {
           className={`router-admin-sidebar ${sidebarCompact ? 'compact' : ''}`}
         >
           <div className='router-admin-sidebar-toolbar'>
+            {!sidebarCompact ? (
+              <div className='router-admin-sidebar-heading'>
+                {t('header.user_workspace')}
+              </div>
+            ) : null}
             <Button
               type='button'
               basic
