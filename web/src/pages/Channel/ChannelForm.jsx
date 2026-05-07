@@ -305,9 +305,6 @@ const IMAGE_MODEL_ENDPOINT_OPTIONS = [
   { key: 'batches', value: '/v1/batches', text: '/v1/batches' },
 ];
 
-const CHANNEL_ENDPOINT_SOURCE_EXPLICIT = 'explicit';
-const CHANNEL_ENDPOINT_SOURCE_PROVIDER_CATALOG = 'provider_catalog';
-
 const CHANNEL_ENDPOINT_SORT_ORDER = {
   '/v1/chat/completions': 10,
   '/v1/responses': 20,
@@ -346,14 +343,6 @@ const buildEndpointOptionsFromValues = (type, values, protocol) => {
   );
 };
 
-const normalizeChannelEndpointSource = (value) => {
-  const normalized = (value || '').toString().trim().toLowerCase();
-  if (normalized === CHANNEL_ENDPOINT_SOURCE_EXPLICIT) {
-    return CHANNEL_ENDPOINT_SOURCE_EXPLICIT;
-  }
-  return CHANNEL_ENDPOINT_SOURCE_PROVIDER_CATALOG;
-};
-
 const buildChannelEndpointKey = (modelName, endpoint) =>
   `${(modelName || '').toString().trim()}::${(endpoint || '')
     .toString()
@@ -385,7 +374,6 @@ const normalizeChannelEndpointRows = (items) => {
       endpoint,
       enabled: item.enabled === true,
       updated_at: Number(item.updated_at || 0),
-      source: normalizeChannelEndpointSource(item.source),
     });
   });
   rows.sort((left, right) => {
@@ -2117,19 +2105,12 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         } else {
           acc.disabled += 1;
         }
-        if (row.source === CHANNEL_ENDPOINT_SOURCE_EXPLICIT) {
-          acc.explicit += 1;
-        } else {
-          acc.candidate += 1;
-        }
         return acc;
       },
       {
         total: 0,
         enabled: 0,
         disabled: 0,
-        explicit: 0,
-        candidate: 0,
       },
     );
   }, [channelEndpoints]);

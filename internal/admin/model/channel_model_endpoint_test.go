@@ -91,6 +91,70 @@ func TestBuildChannelModelEndpointRowsPreservesExistingDisabledEndpointState(t *
 	}
 }
 
+func TestBuildChannelModelEndpointRowsPreservesExistingUpdatedAt(t *testing.T) {
+	existing := []ChannelModelEndpoint{
+		{ChannelId: "channel-1", Model: "gpt-5.4", Endpoint: ChannelModelEndpointResponses, Enabled: true, UpdatedAt: 123},
+	}
+	rows := []ChannelModel{
+		{
+			ChannelId:     "channel-1",
+			Model:         "gpt-5.4",
+			UpstreamModel: "gpt-5.4",
+			Provider:      "openai",
+			Type:          ProviderModelTypeText,
+			Selected:      true,
+		},
+	}
+	providerEndpoints := map[string][]string{
+		buildProviderModelEndpointKey("openai", "gpt-5.4"): {ChannelModelEndpointResponses},
+	}
+
+	got := BuildChannelModelEndpointRowsWithProviderEndpoints(existing, rows, providerEndpoints)
+	if len(got) != 1 {
+		t.Fatalf("BuildChannelModelEndpointRows len = %d, want 1", len(got))
+	}
+	if got[0].UpdatedAt != 123 {
+		t.Fatalf("responses updated_at = %d, want 123", got[0].UpdatedAt)
+	}
+}
+
+func TestMergeChannelModelEndpointListRowsExplicitOverridesSnapshotState(t *testing.T) {
+	snapshotRows := []ChannelModelEndpoint{
+		{ChannelId: "channel-1", Model: "gpt-5.4", Endpoint: ChannelModelEndpointResponses, Enabled: false, UpdatedAt: 0},
+	}
+	explicitRows := []ChannelModelEndpoint{
+		{ChannelId: "channel-1", Model: "gpt-5.4", Endpoint: ChannelModelEndpointResponses, Enabled: true, UpdatedAt: 456},
+	}
+
+	got := MergeChannelModelEndpointListRows(snapshotRows, explicitRows)
+	if len(got) != 1 {
+		t.Fatalf("len(got) = %d, want 1", len(got))
+	}
+	if !got[0].Enabled {
+		t.Fatalf("merged enabled = false, want true")
+	}
+	if got[0].UpdatedAt != 456 {
+		t.Fatalf("merged updated_at = %d, want 456", got[0].UpdatedAt)
+	}
+}
+
+func TestMergeChannelModelEndpointListRowsKeepsExplicitOnlyRows(t *testing.T) {
+	explicitRows := []ChannelModelEndpoint{
+		{ChannelId: "channel-1", Model: "gpt-5.4", Endpoint: ChannelModelEndpointChat, Enabled: false, UpdatedAt: 789},
+	}
+
+	got := MergeChannelModelEndpointListRows(nil, explicitRows)
+	if len(got) != 1 {
+		t.Fatalf("len(got) = %d, want 1", len(got))
+	}
+	if got[0].Endpoint != ChannelModelEndpointChat || got[0].Enabled {
+		t.Fatalf("explicit-only row = (%q, %t), want (%q, false)", got[0].Endpoint, got[0].Enabled, ChannelModelEndpointChat)
+	}
+	if got[0].UpdatedAt != 789 {
+		t.Fatalf("explicit-only updated_at = %d, want 789", got[0].UpdatedAt)
+	}
+}
+
 func TestBuildChannelModelEndpointRowsDoesNotFallbackToChannelModelEndpoint(t *testing.T) {
 	rows := []ChannelModel{
 		{

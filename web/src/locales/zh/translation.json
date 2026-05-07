@@ -561,13 +561,7 @@
       "endpoint_capabilities": {
         "title": "端点",
         "summary": "共 {{total}} 条，已启用 {{capability_enabled}} 条，已配策略 {{configured}} 条，策略启用 {{policy_enabled}} 条",
-        "hint": "这里按模型 + 端点展示当前渠道的端点信息，可直接启用端点并配置对应策略。",
-        "cards": {
-          "total": "端点总数",
-          "enabled": "已启用",
-          "explicit": "显式配置",
-          "candidate": "供应商候选"
-        },
+        "hint": "这里按模型 + 端点展示当前渠道的端点信息。端点列表来自供应商模型支持的默认候选端点，启用状态以当前渠道已保存的配置为准，可直接在这里启用端点并配置对应策略。",
         "loading": "加载端点能力中...",
         "empty": "当前没有端点能力数据，请先同步模型或执行模型测试。",
         "filtered_empty": "当前筛选条件下没有端点记录。",
@@ -583,21 +577,16 @@
         "table": {
           "model": "模型",
           "endpoint": "端点",
-          "source": "来源",
           "enabled": "启用",
           "latest_test": "最近测试",
           "test_status": "测试状态",
           "updated_at": "更新时间"
-        },
-        "source": {
-          "explicit": "显式配置",
-          "provider_catalog": "供应商候选"
         }
       },
       "endpoint_policies": {
         "title": "端点策略",
         "summary": "共 {{total}} 条，启用 {{enabled}} 条",
-        "hint": "端点策略用于描述某个渠道模型端点内部的兼容性修正，例如删除不支持字段、拒绝某类输入、把图片 URL 转成 base64。这里只管理显式策略，不改变端点能力本身。",
+        "hint": "端点策略用于描述某个渠道模型端点内部的兼容性修正，例如删除不支持字段、拒绝某类输入、把图片 URL 转成 base64。这里只管理渠道端点策略，不改变端点启用状态本身。",
         "cards": {
           "configured": "已配置策略",
           "enabled": "已启用",

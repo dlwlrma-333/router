@@ -97,11 +97,57 @@ func BuildChannelModelEndpointRowsWithProviderEndpoints(existing []ChannelModelE
 			}
 			if existingRow, ok := existingByKey[key]; ok {
 				item.Enabled = existingRow.Enabled && eligibleForEnable
+				item.UpdatedAt = existingRow.UpdatedAt
 			}
 			result = append(result, item)
 		}
 	}
 	return result
+}
+
+func MergeChannelModelEndpointListRows(snapshotRows []ChannelModelEndpoint, explicitRows []ChannelModelEndpoint) []ChannelModelEndpoint {
+	explicitByKey := make(map[string]ChannelModelEndpoint, len(explicitRows))
+	for _, row := range explicitRows {
+		normalized := ChannelModelEndpoint{
+			ChannelId: strings.TrimSpace(row.ChannelId),
+			Model:     strings.TrimSpace(row.Model),
+			Endpoint:  NormalizeRequestedChannelModelEndpoint(row.Endpoint),
+			Enabled:   row.Enabled,
+			UpdatedAt: row.UpdatedAt,
+		}
+		if normalized.ChannelId == "" || normalized.Model == "" || normalized.Endpoint == "" {
+			continue
+		}
+		explicitByKey[normalized.ChannelId+"::"+normalized.Model+"::"+normalized.Endpoint] = normalized
+	}
+	items := make([]ChannelModelEndpoint, 0, len(snapshotRows)+len(explicitRows))
+	seen := make(map[string]struct{}, len(snapshotRows)+len(explicitRows))
+	for _, row := range snapshotRows {
+		normalized := ChannelModelEndpoint{
+			ChannelId: strings.TrimSpace(row.ChannelId),
+			Model:     strings.TrimSpace(row.Model),
+			Endpoint:  NormalizeRequestedChannelModelEndpoint(row.Endpoint),
+			Enabled:   row.Enabled,
+			UpdatedAt: row.UpdatedAt,
+		}
+		if normalized.ChannelId == "" || normalized.Model == "" || normalized.Endpoint == "" {
+			continue
+		}
+		key := normalized.ChannelId + "::" + normalized.Model + "::" + normalized.Endpoint
+		if explicitRow, ok := explicitByKey[key]; ok {
+			normalized.Enabled = explicitRow.Enabled
+			normalized.UpdatedAt = explicitRow.UpdatedAt
+		}
+		seen[key] = struct{}{}
+		items = append(items, normalized)
+	}
+	for key, row := range explicitByKey {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		items = append(items, row)
+	}
+	return items
 }
 
 func SyncChannelModelEndpointsWithDB(db *gorm.DB, channelID string, rows []ChannelModel) error {
@@ -383,17 +429,7 @@ func replaceChannelModelEndpointRowsWithDB(db *gorm.DB, channelID string, rows [
 		if len(normalizedRows) == 0 {
 			return nil
 		}
-		payloads := make([]map[string]any, 0, len(normalizedRows))
-		for _, row := range normalizedRows {
-			payloads = append(payloads, map[string]any{
-				"channel_id": row.ChannelId,
-				"model":      row.Model,
-				"endpoint":   row.Endpoint,
-				"enabled":    row.Enabled,
-				"updated_at": row.UpdatedAt,
-			})
-		}
-		return tx.Table(ChannelModelEndpointsTableName).Create(&payloads).Error
+		return tx.Create(&normalizedRows).Error
 	})
 }
 

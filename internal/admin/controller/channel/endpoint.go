@@ -22,7 +22,6 @@ type channelEndpointItem struct {
 	Endpoint  string `json:"endpoint"`
 	Enabled   bool   `json:"enabled"`
 	UpdatedAt int64  `json:"updated_at"`
-	Source    string `json:"source"`
 }
 
 // GetChannelEndpoints godoc
@@ -65,40 +64,15 @@ func GetChannelEndpoints(c *gin.Context) {
 		})
 		return
 	}
-	explicitKeys := make(map[string]model.ChannelModelEndpoint, len(explicitRows))
-	for _, row := range explicitRows {
-		key := strings.TrimSpace(row.ChannelId) + "::" + strings.TrimSpace(row.Model) + "::" + model.NormalizeRequestedChannelModelEndpoint(row.Endpoint)
-		explicitKeys[key] = row
-	}
-	items := make([]channelEndpointItem, 0, len(snapshotRows)+len(explicitRows))
-	seen := make(map[string]struct{}, len(snapshotRows)+len(explicitRows))
-	for _, row := range snapshotRows {
-		key := strings.TrimSpace(row.ChannelId) + "::" + strings.TrimSpace(row.Model) + "::" + model.NormalizeRequestedChannelModelEndpoint(row.Endpoint)
-		source := "provider_catalog"
-		if _, ok := explicitKeys[key]; ok {
-			source = "explicit"
-		}
-		seen[key] = struct{}{}
+	mergedRows := model.MergeChannelModelEndpointListRows(snapshotRows, explicitRows)
+	items := make([]channelEndpointItem, 0, len(mergedRows))
+	for _, row := range mergedRows {
 		items = append(items, channelEndpointItem{
 			ChannelId: row.ChannelId,
 			Model:     row.Model,
 			Endpoint:  row.Endpoint,
 			Enabled:   row.Enabled,
 			UpdatedAt: row.UpdatedAt,
-			Source:    source,
-		})
-	}
-	for key, row := range explicitKeys {
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		items = append(items, channelEndpointItem{
-			ChannelId: row.ChannelId,
-			Model:     row.Model,
-			Endpoint:  row.Endpoint,
-			Enabled:   row.Enabled,
-			UpdatedAt: row.UpdatedAt,
-			Source:    "explicit",
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -219,7 +193,6 @@ func UpdateChannelEndpoint(c *gin.Context) {
 			Model:     modelName,
 			Endpoint:  endpoint,
 			Enabled:   enabled,
-			Source:    "explicit",
 		},
 	})
 }

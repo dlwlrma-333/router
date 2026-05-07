@@ -561,13 +561,7 @@
       "endpoint_capabilities": {
         "title": "Endpoints",
         "summary": "{{total}} total, {{capability_enabled}} enabled, {{configured}} with policy, {{policy_enabled}} policy-enabled",
-        "hint": "This table shows endpoint data by model + endpoint. You can enable endpoints and configure their policies here.",
-        "cards": {
-          "total": "Total Endpoints",
-          "enabled": "Enabled",
-          "explicit": "Explicit",
-          "candidate": "Provider Candidates"
-        },
+        "hint": "This table shows channel endpoints by model + endpoint. The list comes from provider-supported default candidate endpoints, while the enabled state follows the channel's saved configuration. You can enable endpoints and configure their policies here.",
         "loading": "Loading endpoint capabilities...",
         "empty": "No endpoint capability data yet. Sync models or run model tests first.",
         "filtered_empty": "No endpoint rows match the current filter.",
@@ -583,21 +577,16 @@
         "table": {
           "model": "Model",
           "endpoint": "Endpoint",
-          "source": "Source",
           "enabled": "Enabled",
           "latest_test": "Latest Test",
           "test_status": "Test Status",
           "updated_at": "Updated At"
-        },
-        "source": {
-          "explicit": "Explicit",
-          "provider_catalog": "Provider Candidate"
         }
       },
       "endpoint_policies": {
         "title": "Endpoint Policies",
         "summary": "{{total}} total, {{enabled}} enabled",
-        "hint": "Endpoint policies describe compatibility adjustments inside a specific channel model endpoint, such as dropping unsupported fields, rejecting certain inputs, or converting image URLs to base64. This section manages explicit policies only and does not change endpoint capability state itself.",
+        "hint": "Endpoint policies describe compatibility adjustments inside a specific channel model endpoint, such as dropping unsupported fields, rejecting certain inputs, or converting image URLs to base64. This section manages channel endpoint policies only and does not change endpoint enablement itself.",
         "cards": {
           "configured": "Configured",
           "enabled": "Enabled",
