@@ -25,7 +25,8 @@ type upsertGroupRequest struct {
 }
 
 type updateGroupChannelsRequest struct {
-	ChannelIDs []string `json:"channel_ids"`
+	ChannelIDs []string                        `json:"channel_ids"`
+	Channels   []model.GroupChannelBindingItem `json:"channels"`
 }
 
 const maxGroupListPageSize = 100
@@ -582,7 +583,15 @@ func UpdateGroupChannels(c *gin.Context) {
 		})
 		return
 	}
-	if err := groupsvc.ReplaceChannelBindings(id, req.ChannelIDs); err != nil {
+	if len(req.Channels) > 0 {
+		if err := groupsvc.ReplaceChannelBindingsWithItems(id, req.Channels); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+	} else if err := groupsvc.ReplaceChannelBindings(id, req.ChannelIDs); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),

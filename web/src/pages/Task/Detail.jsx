@@ -155,6 +155,50 @@ const TaskDetail = () => {
   const isAdminUserTaskPage = detailKind === TASK_DETAIL_KIND_ADMIN_USER;
   const isUserTaskPage = !isSystemTaskPage;
   const currentPagePath = `${location.pathname}${location.search}${location.hash}`;
+  const returnPath = useMemo(() => {
+    const raw = location.state?.from;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    const normalized = raw.trim();
+    return normalized.startsWith('/') ? normalized : '';
+  }, [location.state]);
+  const returnLabel = useMemo(() => {
+    const raw = location.state?.fromLabel;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    return raw.trim();
+  }, [location.state]);
+  const contextType = useMemo(() => {
+    const raw = location.state?.contextType;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    return raw.trim();
+  }, [location.state]);
+  const contextLabel = useMemo(() => {
+    const raw = location.state?.contextLabel;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    return raw.trim();
+  }, [location.state]);
+  const originPath = useMemo(() => {
+    const raw = location.state?.originPath;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    const normalized = raw.trim();
+    return normalized.startsWith('/') ? normalized : '';
+  }, [location.state]);
+  const originLabel = useMemo(() => {
+    const raw = location.state?.originLabel;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    return raw.trim();
+  }, [location.state]);
   const [loading, setLoading] = useState(true);
   const [task, setTask] = useState(null);
 
@@ -215,8 +259,20 @@ const TaskDetail = () => {
   );
 
   const backToList = useCallback(() => {
-    navigate(buildTaskListPath());
-  }, [buildTaskListPath, navigate]);
+    navigate(returnPath || buildTaskListPath());
+  }, [buildTaskListPath, navigate, returnPath]);
+  const goToChannelList = useCallback(() => {
+    navigate('/admin/channel');
+  }, [navigate]);
+  const goBackToOrigin = useCallback(() => {
+    if (originPath !== '') {
+      navigate(originPath, {
+        state: {
+          channelLabel: originLabel || contextLabel,
+        },
+      });
+    }
+  }, [contextLabel, navigate, originLabel, originPath]);
 
   const loadTask = useCallback(async () => {
     setLoading(true);
@@ -284,6 +340,8 @@ const TaskDetail = () => {
     isAdminPage && task?.channel_id
       ? `/admin/channel/detail/${task.channel_id}`
       : '';
+  const isChannelTestHistoryContext =
+    contextType === 'channel_test_history' && originPath !== '';
 
   return (
     <div className='dashboard-container'>
@@ -292,10 +350,43 @@ const TaskDetail = () => {
           <div className='router-entity-detail-page'>
             <div className='router-entity-detail-breadcrumb'>
               <Breadcrumb size='small'>
-                <Breadcrumb.Section link onClick={backToList}>
-                  {t('header.task')}
-                </Breadcrumb.Section>
-                <Breadcrumb.Divider icon='right chevron' />
+                {isChannelTestHistoryContext ? (
+                  <>
+                    <Breadcrumb.Section
+                      link
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goToChannelList();
+                      }}
+                    >
+                      {t('header.channel')}
+                    </Breadcrumb.Section>
+                    <Breadcrumb.Divider icon='right chevron' />
+                    <Breadcrumb.Section
+                      link
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goBackToOrigin();
+                      }}
+                    >
+                      {originLabel || contextLabel || '-'}
+                    </Breadcrumb.Section>
+                    <Breadcrumb.Divider icon='right chevron' />
+                    <Breadcrumb.Section link onClick={backToList}>
+                      {returnLabel || t('channel.edit.model_tester.history_tasks')}
+                    </Breadcrumb.Section>
+                    <Breadcrumb.Divider icon='right chevron' />
+                  </>
+                ) : (
+                  <>
+                    <Breadcrumb.Section link onClick={backToList}>
+                      {returnLabel || t('header.task')}
+                    </Breadcrumb.Section>
+                    <Breadcrumb.Divider icon='right chevron' />
+                  </>
+                )}
                 <Breadcrumb.Section active>
                   {task?.id || id}
                 </Breadcrumb.Section>

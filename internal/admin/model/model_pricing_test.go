@@ -73,8 +73,8 @@ func TestResolveChannelModelPricingUsesProviderDefaultAndChannelOverride(t *test
 	if pricing.OutputPrice != 0.015 {
 		t.Fatalf("expected provider output price 0.015000, got %.6f", pricing.OutputPrice)
 	}
-	if len(pricing.Capabilities) == 0 || pricing.Capabilities[0] != ProviderModelTypeText {
-		t.Fatalf("expected text capability, got %#v", pricing.Capabilities)
+	if pricing.Type != ProviderModelTypeText {
+		t.Fatalf("expected text type, got %q", pricing.Type)
 	}
 }
 
@@ -108,12 +108,11 @@ func TestResolveChannelModelPricingCarriesPriceComponents(t *testing.T) {
 			"openai:dall-e-3": {
 				Provider: "openai",
 				Detail: ProviderModelDetail{
-					Model:        "dall-e-3",
-					Type:         ProviderModelTypeImage,
-					Capabilities: []string{ProviderModelTypeImage},
-					InputPrice:   0.04,
-					PriceUnit:    ProviderPriceUnitPerImage,
-					Currency:     ProviderPriceCurrencyUSD,
+					Model:      "dall-e-3",
+					Type:       ProviderModelTypeImage,
+					InputPrice: 0.04,
+					PriceUnit:  ProviderPriceUnitPerImage,
+					Currency:   ProviderPriceCurrencyUSD,
 					PriceComponents: []ProviderModelPriceComponentDetail{
 						{
 							Component:  ProviderModelPriceComponentImageGeneration,
@@ -132,12 +131,11 @@ func TestResolveChannelModelPricingCarriesPriceComponents(t *testing.T) {
 				{
 					Provider: "openai",
 					Detail: ProviderModelDetail{
-						Model:        "dall-e-3",
-						Type:         ProviderModelTypeImage,
-						Capabilities: []string{ProviderModelTypeImage},
-						InputPrice:   0.04,
-						PriceUnit:    ProviderPriceUnitPerImage,
-						Currency:     ProviderPriceCurrencyUSD,
+						Model:      "dall-e-3",
+						Type:       ProviderModelTypeImage,
+						InputPrice: 0.04,
+						PriceUnit:  ProviderPriceUnitPerImage,
+						Currency:   ProviderPriceCurrencyUSD,
 						PriceComponents: []ProviderModelPriceComponentDetail{
 							{
 								Component:  ProviderModelPriceComponentImageGeneration,

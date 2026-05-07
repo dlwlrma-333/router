@@ -1108,6 +1108,13 @@ func parseTextModelTestResponseByEndpoint(path string, resp string) (string, err
 		if messagesErr == nil {
 			return messagesText, nil
 		}
+		if isLikelySSEPayload(resp) {
+			streamText, streamErr := parseTextModelTestStreamResponse(resp)
+			if streamErr == nil {
+				return streamText, nil
+			}
+			return "", fmt.Errorf("parse as messages failed: %v; parse as stream failed: %v", messagesErr, streamErr)
+		}
 		return "", fmt.Errorf("parse as messages failed: %v", messagesErr)
 	case model.ChannelModelEndpointChat:
 		_, chatText, chatErr := parseChatModelTestResponse(resp)
@@ -1573,11 +1580,7 @@ func persistChannelModelTests(channelID string, results []model.ChannelTest) err
 	}
 	targetModels = model.NormalizeChannelModelIDsPreserveOrder(targetModels)
 	return model.DB.Transaction(func(tx *gorm.DB) error {
-		insertedResults, err := model.AppendChannelTestsForModelsWithDB(tx, normalizedChannelID, targetModels, results)
-		if err != nil {
-			return err
-		}
-		if err := model.ApplyChannelModelEndpointSupportFromTestsWithDB(tx, normalizedChannelID, insertedResults); err != nil {
+		if _, err := model.AppendChannelTestsForModelsWithDB(tx, normalizedChannelID, targetModels, results); err != nil {
 			return err
 		}
 		return model.EnsureChannelTestModelWithDB(tx, normalizedChannelID)
@@ -1639,7 +1642,7 @@ func buildChannelModelListData(channelID string, page int, pageSize int, keyword
 }
 
 func buildChannelTestListData(channelID string) (channelTestListData, error) {
-	rows, err := model.ListLatestChannelTestsByChannelIDWithDB(model.DB, channelID)
+	rows, err := model.ListChannelTestsByChannelIDWithDB(model.DB, channelID)
 	if err != nil {
 		return channelTestListData{}, err
 	}

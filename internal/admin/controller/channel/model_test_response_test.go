@@ -175,6 +175,51 @@ func TestParseTextModelTestResponse_ChatSSE(t *testing.T) {
 	}
 }
 
+func TestParseTextModelTestResponse_AnthropicMessagesSSE(t *testing.T) {
+	resp := strings.Join([]string{
+		"event: message_start",
+		`data: {"type":"message_start","message":{"content":[]}}`,
+		"",
+		"event: content_block_start",
+		`data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}`,
+		"",
+		"event: content_block_delta",
+		`data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"claude-"}}`,
+		"",
+		"event: content_block_delta",
+		`data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"haiku-4-5-20251001"}}`,
+		"",
+		"event: message_stop",
+		`data: {"type":"message_stop"}`,
+	}, "\n")
+
+	got, err := parseTextModelTestResponse(resp)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got != "claude-haiku-4-5-20251001" {
+		t.Fatalf("unexpected parsed text: %q", got)
+	}
+}
+
+func TestParseTextModelTestResponseByEndpoint_MessagesSSE(t *testing.T) {
+	resp := strings.Join([]string{
+		"event: content_block_delta",
+		`data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"claude-opus-4-6"}}`,
+		"",
+		"event: message_stop",
+		`data: {"type":"message_stop"}`,
+	}, "\n")
+
+	got, err := parseTextModelTestResponseByEndpoint(adminmodel.ChannelModelEndpointMessages, resp)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got != "claude-opus-4-6" {
+		t.Fatalf("unexpected parsed text: %q", got)
+	}
+}
+
 func TestParseTextModelTestResponse_SSEError(t *testing.T) {
 	resp := strings.Join([]string{
 		"event: error",

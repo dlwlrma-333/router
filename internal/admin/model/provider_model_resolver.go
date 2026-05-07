@@ -12,6 +12,13 @@ type providerModelLookupRow struct {
 	Model    string `gorm:"column:model"`
 }
 
+type providerModelEndpointLookupRow struct {
+	Provider           string `gorm:"column:provider"`
+	Model              string `gorm:"column:model"`
+	Type               string `gorm:"column:type"`
+	SupportedEndpoints string `gorm:"column:supported_endpoints"`
+}
+
 func LoadUniqueProviderMapByModels(modelNames []string) (map[string]string, error) {
 	return LoadUniqueProviderMapByModelsWithDB(DB, modelNames)
 }
@@ -103,4 +110,43 @@ func ResolveProviderFromCatalogMap(providerByModel map[string]string, values ...
 		}
 	}
 	return ""
+}
+
+func LoadProviderModelEndpointMapByModelsWithDB(db *gorm.DB, provider string, modelNames []string) (map[string][]string, error) {
+	if db == nil {
+		return nil, fmt.Errorf("database handle is nil")
+	}
+	normalizedProvider := NormalizeGroupModelProviderValue(provider)
+	candidates := NormalizeProviderLookupCandidates(modelNames...)
+	result := make(map[string][]string, len(candidates))
+	if normalizedProvider == "" || len(candidates) == 0 {
+		return result, nil
+	}
+	rows := make([]providerModelEndpointLookupRow, 0)
+	if err := db.
+		Model(&ProviderModel{}).
+		Select("provider", "model", "type", "supported_endpoints").
+		Where("provider = ? AND model IN ?", normalizedProvider, candidates).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		modelName := canonicalizeModelNameForProvider(normalizedProvider, row.Model)
+		endpoints := NormalizeProviderModelSupportedEndpoints(
+			row.Type,
+			splitProviderModelSupportedEndpoints(row.SupportedEndpoints),
+		)
+		if len(endpoints) == 0 {
+			endpoints = DefaultProviderModelSupportedEndpoints(
+				normalizedProvider,
+				row.Type,
+				modelName,
+			)
+		}
+		if modelName == "" || len(endpoints) == 0 {
+			continue
+		}
+		result[modelName] = endpoints
+	}
+	return result, nil
 }

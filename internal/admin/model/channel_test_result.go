@@ -102,6 +102,7 @@ func NormalizeChannelTestRows(rows []ChannelTest) []ChannelTest {
 		key := normalized.ChannelId + "::" + normalized.Model
 		if normalized.Round > 0 {
 			key += "::round:" + strconv.FormatInt(normalized.Round, 10)
+			key += "::endpoint:" + normalized.Endpoint
 		} else {
 			key += "::endpoint:" + normalized.Endpoint
 		}
@@ -291,6 +292,21 @@ func ListLatestChannelTestsByChannelIDWithDB(db *gorm.DB, channelID string) ([]C
 	return NormalizeChannelTestRows(rowsByChannelID[normalizedChannelID]), nil
 }
 
+func ListChannelTestsByChannelIDWithDB(db *gorm.DB, channelID string) ([]ChannelTest, error) {
+	if db == nil {
+		return nil, fmt.Errorf("database handle is nil")
+	}
+	normalizedChannelID := strings.TrimSpace(channelID)
+	if normalizedChannelID == "" {
+		return []ChannelTest{}, nil
+	}
+	rowsByChannelID, err := loadAllChannelTestRowsByChannelIDs(db, []string{normalizedChannelID})
+	if err != nil {
+		return nil, err
+	}
+	return NormalizeChannelTestRows(rowsByChannelID[normalizedChannelID]), nil
+}
+
 // ListLatestChannelTestSupportByChannelIDsWithDB returns latest endpoint test support by
 // channel + model + endpoint.
 // The returned map shape is:
@@ -376,6 +392,32 @@ func GetLatestChannelTestByModelEndpointWithDB(db *gorm.DB, channelID string, mo
 }
 
 func loadChannelTestRowsByChannelIDs(db *gorm.DB, channelIDs []string) (map[string][]ChannelTest, error) {
+	allRowsByChannelID, err := loadAllChannelTestRowsByChannelIDs(db, channelIDs)
+	if err != nil {
+		return nil, err
+	}
+	rowsByChannelID := make(map[string][]ChannelTest, len(allRowsByChannelID))
+	for channelID, rows := range allRowsByChannelID {
+		latestByKey := make(map[string]ChannelTest, len(rows))
+		for _, row := range NormalizeChannelTestRows(rows) {
+			key := row.ChannelId + "::" + row.Model + "::" + row.Endpoint
+			if existing, ok := latestByKey[key]; ok {
+				if existing.Round > row.Round || (existing.Round == row.Round && existing.TestedAt >= row.TestedAt) {
+					continue
+				}
+			}
+			latestByKey[key] = row
+		}
+		latestRows := make([]ChannelTest, 0, len(latestByKey))
+		for _, row := range latestByKey {
+			latestRows = append(latestRows, row)
+		}
+		rowsByChannelID[channelID] = NormalizeChannelTestRows(latestRows)
+	}
+	return rowsByChannelID, nil
+}
+
+func loadAllChannelTestRowsByChannelIDs(db *gorm.DB, channelIDs []string) (map[string][]ChannelTest, error) {
 	rowsByChannelID := make(map[string][]ChannelTest)
 	normalizedIDs := normalizeTrimmedValuesPreserveOrder(channelIDs)
 	if len(normalizedIDs) == 0 {
@@ -387,21 +429,7 @@ func loadChannelTestRowsByChannelIDs(db *gorm.DB, channelIDs []string) (map[stri
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	latestByKey := make(map[string]ChannelTest, len(rows))
 	for _, row := range NormalizeChannelTestRows(rows) {
-		key := row.ChannelId + "::" + row.Model + "::" + row.Endpoint
-		if existing, ok := latestByKey[key]; ok {
-			if existing.Round > row.Round || (existing.Round == row.Round && existing.TestedAt >= row.TestedAt) {
-				continue
-			}
-		}
-		latestByKey[key] = row
-	}
-	latestRows := make([]ChannelTest, 0, len(latestByKey))
-	for _, row := range latestByKey {
-		latestRows = append(latestRows, row)
-	}
-	for _, row := range NormalizeChannelTestRows(latestRows) {
 		rowsByChannelID[row.ChannelId] = append(rowsByChannelID[row.ChannelId], row)
 	}
 	return rowsByChannelID, nil

@@ -14,7 +14,6 @@ type ResolvedModelPricing struct {
 	Model              string                              `json:"model"`
 	Provider           string                              `json:"provider,omitempty"`
 	Type               string                              `json:"type"`
-	Capabilities       []string                            `json:"capabilities,omitempty"`
 	InputPrice         float64                             `json:"input_price"`
 	OutputPrice        float64                             `json:"output_price"`
 	PriceUnit          string                              `json:"price_unit"`
@@ -77,15 +76,14 @@ func SyncModelPricingCatalogWithDB(db *gorm.DB) error {
 		}
 
 		detail := ProviderModelDetail{
-			Model:        modelName,
-			Type:         normalizeModelType(row.Type, modelName),
-			Capabilities: splitProviderModelCapabilities(row.Capabilities),
-			InputPrice:   row.InputPrice,
-			OutputPrice:  row.OutputPrice,
-			PriceUnit:    strings.TrimSpace(strings.ToLower(row.PriceUnit)),
-			Currency:     strings.TrimSpace(strings.ToUpper(row.Currency)),
-			Source:       strings.TrimSpace(strings.ToLower(row.Source)),
-			UpdatedAt:    row.UpdatedAt,
+			Model:       modelName,
+			Type:        normalizeModelType(row.Type, modelName),
+			InputPrice:  row.InputPrice,
+			OutputPrice: row.OutputPrice,
+			PriceUnit:   strings.TrimSpace(strings.ToLower(row.PriceUnit)),
+			Currency:    strings.TrimSpace(strings.ToUpper(row.Currency)),
+			Source:      strings.TrimSpace(strings.ToLower(row.Source)),
+			UpdatedAt:   row.UpdatedAt,
 		}
 		detail = NormalizeProviderModelDetails([]ProviderModelDetail{detail})[0]
 		entry := providerModelPricingEntry{
@@ -249,7 +247,6 @@ func resolvedModelPricingFromProviderEntry(modelName string, entry providerModel
 		Model:           modelName,
 		Provider:        entry.Provider,
 		Type:            normalizeModelType(entry.Detail.Type, entry.Detail.Model),
-		Capabilities:    normalizeProviderModelCapabilities(entry.Detail.Capabilities, entry.Detail.Type, entry.Detail.PriceComponents),
 		InputPrice:      entry.Detail.InputPrice,
 		OutputPrice:     entry.Detail.OutputPrice,
 		PriceUnit:       entry.Detail.PriceUnit,

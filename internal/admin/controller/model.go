@@ -170,26 +170,6 @@ func listGroupModelSupportedEndpoints(groupID string, modelNames []string) (map[
 			// Keep provider mapping strict, but endpoint metadata should not block /v1/models.
 			continue
 		}
-		channelIDs := make([]string, 0, len(channels))
-		for _, channel := range channels {
-			if channel == nil {
-				continue
-			}
-			channelID := strings.TrimSpace(channel.Id)
-			if channelID == "" {
-				continue
-			}
-			channelIDs = append(channelIDs, channelID)
-		}
-		supportedByChannelID, err := model.ListLatestChannelTestSupportByChannelIDsWithDB(
-			model.DB,
-			channelIDs,
-			[]string{modelName},
-		)
-		if err != nil {
-			// Keep provider mapping strict, but endpoint metadata should not block /v1/models.
-			continue
-		}
 		endpointSet := make(map[string]struct{})
 		for _, channel := range channels {
 			if channel == nil {
@@ -203,19 +183,12 @@ func listGroupModelSupportedEndpoints(groupID string, modelNames []string) (map[
 			if len(enabledMap) == 0 {
 				continue
 			}
-			channelModelSupportMap := supportedByChannelID[channelID][modelName]
 			for endpoint, enabled := range enabledMap {
 				if !enabled {
 					continue
 				}
 				normalizedEndpoint := model.NormalizeRequestedChannelModelEndpoint(endpoint)
 				if normalizedEndpoint == "" {
-					continue
-				}
-				// /v1/models exposure rule:
-				// - If latest test exists for an endpoint, it must be supported.
-				// - If no latest test exists, fallback to enabled endpoint config.
-				if supported, ok := channelModelSupportMap[normalizedEndpoint]; ok && !supported {
 					continue
 				}
 				endpointSet[normalizedEndpoint] = struct{}{}
@@ -396,7 +369,7 @@ func ListModels(c *gin.Context) {
 		errorBody := relaymodel.Error{
 			Message: err.Error(),
 			Type:    "invalid_request_error",
-			Param:   "group_model_providers",
+			Param:   "group_models.provider",
 			Code:    "provider_mapping_missing",
 		}
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -426,7 +399,7 @@ func RetrieveModel(c *gin.Context) {
 		errorBody := relaymodel.Error{
 			Message: err.Error(),
 			Type:    "invalid_request_error",
-			Param:   "group_model_providers",
+			Param:   "group_models.provider",
 			Code:    "provider_mapping_missing",
 		}
 		c.JSON(http.StatusBadRequest, gin.H{

@@ -168,11 +168,15 @@ type streamEnvelope struct {
 }
 
 type streamTextPayload struct {
-	Type       string `json:"type"`
-	Delta      string `json:"delta"`
-	Text       string `json:"text"`
-	OutputText string `json:"output_text"`
-	Message    string `json:"message"`
+	Type         string          `json:"type"`
+	Text         string          `json:"text"`
+	OutputText   string          `json:"output_text"`
+	Message      string          `json:"message"`
+	DeltaRaw     json.RawMessage `json:"delta"`
+	ContentBlock *struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"content_block,omitempty"`
 }
 
 type chatStreamChoice struct {
@@ -279,9 +283,13 @@ func parseTextModelTestStreamResponse(resp string) (string, error) {
 
 func extractTextFromStreamPayload(event string, payload streamTextPayload) string {
 	switch strings.TrimSpace(event) {
+	case "content_block_delta":
+		if text := payload.deltaObjectText(); text != "" {
+			return text
+		}
 	case "response.output_text.delta":
-		if payload.Delta != "" {
-			return payload.Delta
+		if text := payload.deltaString(); text != "" {
+			return text
 		}
 	case "response.output_text", "response.completed":
 		if payload.Text != "" {
@@ -290,26 +298,29 @@ func extractTextFromStreamPayload(event string, payload streamTextPayload) strin
 		if payload.OutputText != "" {
 			return payload.OutputText
 		}
-		if payload.Delta != "" {
-			return payload.Delta
+		if text := payload.deltaString(); text != "" {
+			return text
 		}
 	default:
+		if text := payload.deltaObjectText(); text != "" {
+			return text
+		}
 		if payload.Text != "" {
 			return payload.Text
 		}
 		if payload.OutputText != "" {
 			return payload.OutputText
 		}
-		if payload.Delta != "" {
-			return payload.Delta
+		if text := payload.deltaString(); text != "" {
+			return text
 		}
 		if strings.TrimSpace(payload.Message) != "" {
 			return strings.TrimSpace(payload.Message)
 		}
 	}
 	if strings.HasPrefix(strings.TrimSpace(payload.Type), "response.output_text") {
-		if payload.Delta != "" {
-			return payload.Delta
+		if text := payload.deltaString(); text != "" {
+			return text
 		}
 		if payload.Text != "" {
 			return payload.Text
@@ -317,6 +328,34 @@ func extractTextFromStreamPayload(event string, payload streamTextPayload) strin
 		if payload.OutputText != "" {
 			return payload.OutputText
 		}
+	}
+	return ""
+}
+
+func (p streamTextPayload) deltaString() string {
+	if len(p.DeltaRaw) == 0 {
+		return ""
+	}
+	var text string
+	if err := json.Unmarshal(p.DeltaRaw, &text); err == nil {
+		return text
+	}
+	return ""
+}
+
+func (p streamTextPayload) deltaObjectText() string {
+	if len(p.DeltaRaw) == 0 {
+		return ""
+	}
+	var delta struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(p.DeltaRaw, &delta); err != nil {
+		return ""
+	}
+	if strings.EqualFold(strings.TrimSpace(delta.Type), "text_delta") {
+		return delta.Text
 	}
 	return ""
 }

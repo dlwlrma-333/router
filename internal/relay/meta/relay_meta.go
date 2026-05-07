@@ -22,6 +22,7 @@ type Meta struct {
 	Group               string
 	ModelMapping        map[string]string
 	ChannelModelConfigs []model.ChannelModel
+	EndpointPolicy      *model.ChannelModelEndpointPolicy
 	// BaseURL is the proxy url set in the channel config
 	BaseURL  string
 	APIKey   string
@@ -36,7 +37,6 @@ type Meta struct {
 	UpstreamMode        int
 	UpstreamRequestPath string
 	PromptTokens        int // only for DoResponse
-	ForcedSystemPrompt  string
 	StartTime           time.Time
 }
 
@@ -57,7 +57,6 @@ func GetByContext(c *gin.Context) *Meta {
 		RequestURLPath:      normalizedPath,
 		UpstreamMode:        relaymode.GetByPath(c.Request.URL.Path),
 		UpstreamRequestPath: normalizedPath,
-		ForcedSystemPrompt:  c.GetString(ctxkey.SystemPrompt),
 		StartTime:           time.Now(),
 	}
 	cfg, ok := c.Get(ctxkey.Config)

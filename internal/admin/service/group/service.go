@@ -58,6 +58,10 @@ func ReplaceChannelBindings(id string, channelIDs []string) error {
 	return model.ReplaceGroupChannelBindings(id, channelIDs)
 }
 
+func ReplaceChannelBindingsWithItems(id string, items []model.GroupChannelBindingItem) error {
+	return model.ReplaceGroupChannelBindingsWithItems(id, items)
+}
+
 func ReplaceModelConfigs(id string, channelIDs []string, modelConfigs []model.GroupModelConfigItem, explicitChannels bool) error {
 	return model.ReplaceGroupModelConfigs(id, channelIDs, modelConfigs, explicitChannels)
 }

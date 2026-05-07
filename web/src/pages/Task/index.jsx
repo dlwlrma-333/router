@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Breadcrumb,
   Button,
   Card,
   Dropdown,
@@ -94,6 +95,37 @@ const getTaskOptionsEndpoint = (pageKind) => {
 
 const getTaskId = (item) => item?.id || item?.task_id || '';
 
+const parseTaskJSONField = (value) => {
+  const text = (value || '').toString().trim();
+  if (text === '') {
+    return null;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
+const parseDownloadFilename = (contentDisposition, fallbackName) => {
+  const fallback =
+    (fallbackName || 'download.bin').toString().trim() || 'download.bin';
+  const headerValue = (contentDisposition || '').toString();
+  const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+  const plainMatch = headerValue.match(/filename=\"?([^\";]+)\"?/i);
+  if (plainMatch?.[1]) {
+    return plainMatch[1];
+  }
+  return fallback;
+};
+
 const getTaskTypeOptions = (t, scope) => {
   const common = [{ key: 'all', value: '', text: t('task.filters.type_all') }];
   if (scope === 'user') {
@@ -148,6 +180,52 @@ const Task = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const currentPagePath = `${location.pathname}${location.search}${location.hash}`;
+  const returnPath = useMemo(() => {
+    const from = location.state?.from;
+    if (typeof from !== 'string') {
+      return '';
+    }
+    const normalized = from.trim();
+    return normalized.startsWith('/') ? normalized : '';
+  }, [location.state]);
+  const returnLabel = useMemo(() => {
+    const raw = location.state?.fromLabel;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    return raw.trim();
+  }, [location.state]);
+  const contextType = useMemo(() => {
+    const raw = location.state?.contextType;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    return raw.trim();
+  }, [location.state]);
+  const contextLabel = useMemo(() => {
+    const raw = location.state?.contextLabel;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    return raw.trim();
+  }, [location.state]);
+  const taskPageNavState = useMemo(() => {
+    if (
+      returnPath === '' &&
+      returnLabel === '' &&
+      contextType === '' &&
+      contextLabel === ''
+    ) {
+      return undefined;
+    }
+    return {
+      from: returnPath,
+      fromLabel: returnLabel,
+      contextType,
+      contextLabel,
+    };
+  }, [contextLabel, contextType, returnLabel, returnPath]);
   const pageKind = useMemo(
     () => resolveTaskPageKind(location.pathname),
     [location.pathname],
@@ -486,12 +564,18 @@ const Task = () => {
       query.set('channel_id', filters.channel_id.trim());
     }
     const nextSearch = query.toString();
+    const currentSearch = location.search.startsWith('?')
+      ? location.search.slice(1)
+      : location.search;
+    if (nextSearch === currentSearch) {
+      return;
+    }
     navigate(
       {
         pathname: location.pathname,
         search: nextSearch ? `?${nextSearch}` : '',
       },
-      { replace: true },
+      { replace: true, state: taskPageNavState },
     );
   }, [
     activeFilterKeys,
@@ -502,9 +586,11 @@ const Task = () => {
     filters.user_keyword,
     isAdminUserTaskPage,
     isSystemTaskPage,
+    location.search,
     location.pathname,
     navigate,
     page,
+    taskPageNavState,
   ]);
 
   useEffect(() => {
@@ -605,16 +691,117 @@ const Task = () => {
     }
   };
 
+  const handleDownloadTaskArtifact = useCallback(
+    async (item) => {
+      const payload = parseTaskJSONField(item?.payload);
+      const result = parseTaskJSONField(item?.result);
+      const channelId = (
+        payload?.channel_id ||
+        item?.channel_id ||
+        ''
+      ).toString().trim();
+      const modelName = (
+        payload?.model ||
+        result?.model ||
+        item?.model ||
+        ''
+      ).toString().trim();
+      const endpoint = (
+        result?.endpoint ||
+        payload?.endpoint ||
+        item?.endpoint ||
+        ''
+      ).toString().trim();
+      const fallbackArtifactName =
+        (result?.artifact_name || `${modelName || 'task'}.bin`).toString();
+      if (
+        channelId === '' ||
+        modelName === '' ||
+        endpoint === '' ||
+        !(result?.artifact_name || result?.artifact_path)
+      ) {
+        showError(t('task.messages.download_unavailable'));
+        return;
+      }
+      try {
+        const response = await API.get(
+          `/api/v1/admin/channel/${channelId}/tests/artifact`,
+          {
+            params: {
+              model: modelName,
+              endpoint,
+            },
+            responseType: 'blob',
+          },
+        );
+        const responseContentType = (
+          response.headers?.['content-type'] || ''
+        ).toString();
+        if (responseContentType.includes('application/json')) {
+          const text = await response.data.text();
+          let parsed = null;
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            parsed = null;
+          }
+          showError(
+            parsed?.message ||
+              parsed?.error?.message ||
+              t('task.messages.download_failed'),
+          );
+          return;
+        }
+        const blob = new Blob([response.data], {
+          type:
+            responseContentType ||
+            result?.artifact_content_type ||
+            'application/octet-stream',
+        });
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = parseDownloadFilename(
+          response.headers?.['content-disposition'],
+          fallbackArtifactName,
+        );
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+      } catch (error) {
+        showError(error?.message || t('task.messages.download_failed'));
+      }
+    },
+    [t],
+  );
+
   const detailBasePath = isSystemTaskPage
     ? '/admin/channel/tasks'
     : isAdminPage
       ? '/admin/task'
       : '/workspace/task';
+  const isChannelTestHistoryContext =
+    contextType === 'channel_test_history' && returnPath !== '';
   const pageTitle = isSystemTaskPage
-    ? t('task.scopes.admin')
+    ? isChannelTestHistoryContext
+      ? t('channel.edit.model_tester.history_tasks')
+      : t('task.scopes.admin')
     : isAdminUserTaskPage
       ? t('task.scopes.user')
       : t('task.title');
+  const goToChannelList = useCallback(() => {
+    navigate('/admin/channel');
+  }, [navigate]);
+  const goBackToOrigin = useCallback(() => {
+    if (returnPath !== '') {
+      navigate(returnPath, {
+        state: {
+          channelLabel: contextLabel || returnLabel,
+        },
+      });
+    }
+  }, [contextLabel, navigate, returnLabel, returnPath]);
   const resolveFilterOptionLabel = useCallback(
     (filterKey, value) => {
       const normalizedValue = (value || '').toString().trim();
@@ -648,9 +835,59 @@ const Task = () => {
     <div className='dashboard-container'>
       <Card fluid className='chart-card'>
         <Card.Content>
-          <Header as='h3' className='router-section-title'>
-            {pageTitle}
-          </Header>
+          {returnPath !== '' ? (
+            <div className='router-entity-detail-breadcrumb router-block-gap-sm'>
+              <Breadcrumb size='small'>
+                {isChannelTestHistoryContext ? (
+                  <>
+                    <Breadcrumb.Section
+                      link
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goToChannelList();
+                      }}
+                    >
+                      {t('header.channel')}
+                    </Breadcrumb.Section>
+                    <Breadcrumb.Divider icon='right chevron' />
+                    <Breadcrumb.Section
+                      link
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goBackToOrigin();
+                      }}
+                    >
+                      {contextLabel || returnLabel || '-'}
+                    </Breadcrumb.Section>
+                    <Breadcrumb.Divider icon='right chevron' />
+                    <Breadcrumb.Section active>{pageTitle}</Breadcrumb.Section>
+                  </>
+                ) : (
+                  <>
+                    <Breadcrumb.Section
+                      link
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goBackToOrigin();
+                      }}
+                    >
+                      {returnLabel || t('header.channel')}
+                    </Breadcrumb.Section>
+                    <Breadcrumb.Divider icon='right chevron' />
+                    <Breadcrumb.Section active>{pageTitle}</Breadcrumb.Section>
+                  </>
+                )}
+              </Breadcrumb>
+            </div>
+          ) : null}
+          {!isChannelTestHistoryContext ? (
+            <Header as='h3' className='router-section-title'>
+              {pageTitle}
+            </Header>
+          ) : null}
           <Form className='router-toolbar router-log-toolbar router-block-gap-sm'>
             <div className='router-toolbar-start router-log-toolbar-start'>
               <Popup
@@ -850,11 +1087,27 @@ const Task = () => {
                   const canRetry =
                     isSystemTaskPage &&
                     (status === 'failed' || status === 'canceled');
+                  const taskResult = parseTaskJSONField(item?.result);
+                  const canDownloadArtifact =
+                    isSystemTaskPage &&
+                    item?.type === 'channel_model_test' &&
+                    !!(taskResult?.artifact_name || taskResult?.artifact_path);
                   return (
                     <Table.Row
                       key={taskId}
                       className='router-row-clickable'
-                      onClick={() => navigate(`${detailBasePath}/${taskId}`)}
+                      onClick={() =>
+                        navigate(`${detailBasePath}/${taskId}`, {
+                          state: {
+                            from: currentPagePath,
+                            fromLabel: pageTitle,
+                            contextType,
+                            contextLabel,
+                            originPath: returnPath,
+                            originLabel: contextLabel || returnLabel,
+                          },
+                        })
+                      }
                     >
                       <Table.Cell>
                         {t(`task.types.${item.type || 'video'}`)}
@@ -899,13 +1152,34 @@ const Task = () => {
                             basic
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`${detailBasePath}/${taskId}`);
+                              navigate(`${detailBasePath}/${taskId}`, {
+                                state: {
+                                  from: currentPagePath,
+                                  fromLabel: pageTitle,
+                                  contextType,
+                                  contextLabel,
+                                  originPath: returnPath,
+                                  originLabel: contextLabel || returnLabel,
+                                },
+                              });
                             }}
                           >
                             {t('task.buttons.view')}
                           </Button>
                         ) : (
                           <div className='router-inline-actions'>
+                            <Button
+                              type='button'
+                              className='router-inline-button'
+                              basic
+                              disabled={!canDownloadArtifact}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadTaskArtifact(item);
+                              }}
+                            >
+                              {t('common.download')}
+                            </Button>
                             <Button
                               type='button'
                               className='router-inline-button'

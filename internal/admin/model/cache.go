@@ -166,6 +166,7 @@ func CacheGetGroupModels(ctx context.Context, group string) ([]string, error) {
 var group2model2channels map[string]map[string][]*Channel
 var group2model2channel2upstream map[string]map[string]map[string]string
 var channel2model2endpointEnabled map[string]map[string]map[string]bool
+var channel2model2endpointPolicy map[string]map[string]map[string]ChannelModelEndpointPolicy
 var channelSyncLock sync.RWMutex
 
 func InitChannelCache() {
@@ -174,15 +175,19 @@ func InitChannelCache() {
 	if err := HydrateChannelsWithModels(DB, channels); err != nil {
 		logger.SysError("failed to hydrate channel models for cache: " + err.Error())
 	}
-	var abilities []*Ability
-	DB.Where("enabled = ?", true).Find(&abilities)
+	var routeRows []*GroupModelRoute
+	DB.Where("enabled = ?", true).Find(&routeRows)
 	endpointRows := make([]ChannelModelEndpoint, 0)
 	if err := DB.Find(&endpointRows).Error; err != nil {
 		logger.SysError("failed to load channel model endpoint cache: " + err.Error())
 	}
+	policyRows := make([]ChannelModelEndpointPolicy, 0)
+	if err := DB.Find(&policyRows).Error; err != nil {
+		logger.SysError("failed to load channel model endpoint policy cache: " + err.Error())
+	}
 	groups := make(map[string]bool)
-	for _, ability := range abilities {
-		groupName := strings.TrimSpace(ability.Group)
+	for _, route := range routeRows {
+		groupName := strings.TrimSpace(route.Group)
 		if groupName == "" {
 			continue
 		}
@@ -191,6 +196,7 @@ func InitChannelCache() {
 	newGroup2model2channels := make(map[string]map[string][]*Channel)
 	newGroup2model2channel2upstream := make(map[string]map[string]map[string]string)
 	newChannel2model2endpointEnabled := buildChannelModelEndpointSupportCache(endpointRows)
+	newChannel2model2endpointPolicy := buildChannelModelEndpointPolicyCache(policyRows)
 	for group := range groups {
 		newGroup2model2channels[group] = make(map[string][]*Channel)
 		newGroup2model2channel2upstream[group] = make(map[string]map[string]string)
@@ -207,13 +213,13 @@ func InitChannelCache() {
 		}
 		channelByID[channelID] = channel
 	}
-	for _, ability := range abilities {
-		if ability == nil {
+	for _, route := range routeRows {
+		if route == nil {
 			continue
 		}
-		groupName := strings.TrimSpace(ability.Group)
-		modelName := strings.TrimSpace(ability.Model)
-		channelID := strings.TrimSpace(ability.ChannelId)
+		groupName := strings.TrimSpace(route.Group)
+		modelName := strings.TrimSpace(route.Model)
+		channelID := strings.TrimSpace(route.ChannelId)
 		if groupName == "" || modelName == "" || channelID == "" {
 			continue
 		}
@@ -228,7 +234,7 @@ func InitChannelCache() {
 			newGroup2model2channel2upstream[groupName][modelName] = make(map[string]string)
 		}
 		newGroup2model2channels[groupName][modelName] = append(newGroup2model2channels[groupName][modelName], channel)
-		newGroup2model2channel2upstream[groupName][modelName][channelID] = NormalizeAbilityUpstreamModel(modelName, ability.UpstreamModel)
+		newGroup2model2channel2upstream[groupName][modelName][channelID] = NormalizeGroupModelRouteUpstreamModel(modelName, route.UpstreamModel)
 	}
 
 	// sort by priority
@@ -245,6 +251,7 @@ func InitChannelCache() {
 	group2model2channels = newGroup2model2channels
 	group2model2channel2upstream = newGroup2model2channel2upstream
 	channel2model2endpointEnabled = newChannel2model2endpointEnabled
+	channel2model2endpointPolicy = newChannel2model2endpointPolicy
 	channelSyncLock.Unlock()
 	logger.SysLog("channels synced from database")
 }
@@ -312,6 +319,65 @@ func CacheGetChannelModelEndpointSupport(channelID string, modelCandidates ...st
 	return nil
 }
 
+func CacheGetChannelModelEndpointPolicy(channelID string, endpoint string, modelCandidates ...string) *ChannelModelEndpointPolicy {
+	normalizedChannelID := strings.TrimSpace(channelID)
+	normalizedEndpoint := NormalizeRequestedChannelModelEndpoint(endpoint)
+	normalizedCandidates := normalizeTrimmedValuesPreserveOrder(modelCandidates)
+	if normalizedChannelID == "" || normalizedEndpoint == "" || len(normalizedCandidates) == 0 {
+		return nil
+	}
+	if config.MemoryCacheEnabled {
+		channelSyncLock.RLock()
+		modelMap := channel2model2endpointPolicy[normalizedChannelID]
+		for _, modelName := range normalizedCandidates {
+			endpointMap, ok := modelMap[modelName]
+			if !ok {
+				continue
+			}
+			row, ok := endpointMap[normalizedEndpoint]
+			if !ok {
+				continue
+			}
+			cloned := row
+			channelSyncLock.RUnlock()
+			return &cloned
+		}
+		channelSyncLock.RUnlock()
+	}
+	rows, err := listChannelModelEndpointPoliciesByCandidatesWithDB(DB, normalizedChannelID, normalizedEndpoint, normalizedCandidates)
+	if err != nil {
+		logger.SysError("load channel model endpoint policy failed: " + err.Error())
+		return nil
+	}
+	for _, row := range rows {
+		if !row.Enabled {
+			continue
+		}
+		cloned := row
+		return &cloned
+	}
+	return nil
+}
+
+func buildChannelModelEndpointPolicyCache(rows []ChannelModelEndpointPolicy) map[string]map[string]map[string]ChannelModelEndpointPolicy {
+	result := make(map[string]map[string]map[string]ChannelModelEndpointPolicy)
+	for _, row := range rows {
+		normalized := row
+		NormalizeChannelModelEndpointPolicyRow(&normalized)
+		if normalized.ChannelId == "" || normalized.Model == "" || normalized.Endpoint == "" || !normalized.Enabled {
+			continue
+		}
+		if _, ok := result[normalized.ChannelId]; !ok {
+			result[normalized.ChannelId] = make(map[string]map[string]ChannelModelEndpointPolicy)
+		}
+		if _, ok := result[normalized.ChannelId][normalized.Model]; !ok {
+			result[normalized.ChannelId][normalized.Model] = make(map[string]ChannelModelEndpointPolicy)
+		}
+		result[normalized.ChannelId][normalized.Model][normalized.Endpoint] = normalized
+	}
+	return result
+}
+
 func CacheGetGroupModelMapping(group string, modelName string, channelID string) map[string]string {
 	group = strings.TrimSpace(group)
 	modelName = strings.TrimSpace(modelName)
@@ -331,9 +397,9 @@ func CacheGetGroupModelMapping(group string, modelName string, channelID string)
 		channelSyncLock.RUnlock()
 	} else {
 		groupCol := `"group"`
-		record := Ability{}
+		record := GroupModelRoute{}
 		if err := DB.Where(groupCol+" = ? AND model = ? AND channel_id = ?", group, modelName, channelID).Take(&record).Error; err == nil {
-			upstreamModel = NormalizeAbilityUpstreamModel(modelName, record.UpstreamModel)
+			upstreamModel = NormalizeGroupModelRouteUpstreamModel(modelName, record.UpstreamModel)
 		}
 	}
 
@@ -346,7 +412,7 @@ func CacheGetGroupModelMapping(group string, modelName string, channelID string)
 	}
 }
 
-func RefreshAbilityCachesForGroups(groupIDs ...string) {
+func RefreshGroupModelRouteCachesForGroups(groupIDs ...string) {
 	if !common.RedisEnabled || common.RDB == nil {
 		if config.MemoryCacheEnabled {
 			InitChannelCache()
@@ -514,13 +580,7 @@ func filterChannelsByRequestEndpoint(channels []*Channel, modelName string, requ
 		if groupModels, ok := supportByChannelID[channelID]; ok {
 			explicitSupport = groupModels[normalizedModelName]
 		}
-		if supported, explicit := IsChannelModelRequestEndpointSupportedByEndpointMap(explicitSupport, requestPath); explicit {
-			if supported {
-				result = append(result, channel)
-			}
-			continue
-		}
-		if IsChannelModelRequestEndpointSupportedByConfigs(channel.GetModelConfigs(), normalizedModelName, requestPath) {
+		if supported, explicit := IsChannelModelRequestEndpointSupportedByEndpointMap(explicitSupport, requestPath); explicit && supported {
 			result = append(result, channel)
 		}
 	}

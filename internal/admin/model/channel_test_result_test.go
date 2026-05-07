@@ -116,3 +116,38 @@ func TestNormalizeChannelTestRowsKeepsDistinctRounds(t *testing.T) {
 		t.Fatalf("unexpected rounds after normalization: %#v", rows)
 	}
 }
+
+func TestNormalizeChannelTestRowsKeepsDistinctEndpointsWithinSameRound(t *testing.T) {
+	rows := NormalizeChannelTestRows([]ChannelTest{
+		{
+			ChannelId: "channel-1",
+			Model:     "gpt-4.1",
+			Round:     2,
+			Type:      ProviderModelTypeText,
+			Endpoint:  ChannelModelEndpointResponses,
+			Status:    ChannelTestStatusSupported,
+			Supported: true,
+			TestedAt:  20,
+		},
+		{
+			ChannelId: "channel-1",
+			Model:     "gpt-4.1",
+			Round:     2,
+			Type:      ProviderModelTypeText,
+			Endpoint:  ChannelModelEndpointChat,
+			Status:    ChannelTestStatusUnsupported,
+			Supported: false,
+			TestedAt:  21,
+		},
+	})
+
+	if len(rows) != 2 {
+		t.Fatalf("NormalizeChannelTestRows returned %d rows, want 2", len(rows))
+	}
+	if rows[0].Endpoint != ChannelModelEndpointResponses {
+		t.Fatalf("unexpected row[0] endpoint: %#v", rows[0])
+	}
+	if rows[1].Endpoint != ChannelModelEndpointChat {
+		t.Fatalf("unexpected row[1] endpoint: %#v", rows[1])
+	}
+}
