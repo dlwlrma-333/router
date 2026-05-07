@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Breadcrumb,
   Button,
   Card,
   Dropdown,
@@ -179,6 +180,22 @@ const Task = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const currentPagePath = `${location.pathname}${location.search}${location.hash}`;
+  const returnPath = useMemo(() => {
+    const from = location.state?.from;
+    if (typeof from !== 'string') {
+      return '';
+    }
+    const normalized = from.trim();
+    return normalized.startsWith('/') ? normalized : '';
+  }, [location.state]);
+  const returnLabel = useMemo(() => {
+    const raw = location.state?.fromLabel;
+    if (typeof raw !== 'string') {
+      return '';
+    }
+    return raw.trim();
+  }, [location.state]);
   const pageKind = useMemo(
     () => resolveTaskPageKind(location.pathname),
     [location.pathname],
@@ -764,6 +781,17 @@ const Task = () => {
     <div className='dashboard-container'>
       <Card fluid className='chart-card'>
         <Card.Content>
+          {returnPath !== '' ? (
+            <div className='router-entity-detail-breadcrumb router-block-gap-sm'>
+              <Breadcrumb size='small'>
+                <Breadcrumb.Section link onClick={() => navigate(returnPath)}>
+                  {returnLabel || t('header.channel')}
+                </Breadcrumb.Section>
+                <Breadcrumb.Divider icon='right chevron' />
+                <Breadcrumb.Section active>{pageTitle}</Breadcrumb.Section>
+              </Breadcrumb>
+            </div>
+          ) : null}
           <Header as='h3' className='router-section-title'>
             {pageTitle}
           </Header>
@@ -975,7 +1003,14 @@ const Task = () => {
                     <Table.Row
                       key={taskId}
                       className='router-row-clickable'
-                      onClick={() => navigate(`${detailBasePath}/${taskId}`)}
+                      onClick={() =>
+                        navigate(`${detailBasePath}/${taskId}`, {
+                          state: {
+                            from: currentPagePath,
+                            fromLabel: pageTitle,
+                          },
+                        })
+                      }
                     >
                       <Table.Cell>
                         {t(`task.types.${item.type || 'video'}`)}
@@ -1020,7 +1055,12 @@ const Task = () => {
                             basic
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`${detailBasePath}/${taskId}`);
+                              navigate(`${detailBasePath}/${taskId}`, {
+                                state: {
+                                  from: currentPagePath,
+                                  fromLabel: pageTitle,
+                                },
+                              });
                             }}
                           >
                             {t('task.buttons.view')}

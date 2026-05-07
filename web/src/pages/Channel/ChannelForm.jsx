@@ -1444,9 +1444,14 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
         }
       });
       const search = query.toString();
-      navigate(`/admin/channel/tasks${search ? `?${search}` : ''}`);
+      navigate(`/admin/channel/tasks${search ? `?${search}` : ''}`, {
+        state: {
+          from: `${location.pathname}${location.search}${location.hash}`,
+          fromLabel: channelId || t('header.channel'),
+        },
+      });
     },
-    [channelId, navigate],
+    [channelId, location.hash, location.pathname, location.search, navigate, t],
   );
   const goToDetailTab = useCallback(
     (nextTab) => {
