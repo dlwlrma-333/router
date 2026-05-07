@@ -1723,11 +1723,24 @@
         "label": "Period"
       },
       "updated_at": "Updated: {{time}}",
-      "buttons": {
-        "refresh": "Refresh"
-      },
-      "metrics": {
-        "consume": "Spend (USD)",
+    "buttons": {
+      "refresh": "Refresh"
+    },
+    "usage_rank": {
+      "title": "Usage Ranking",
+      "description": "Aggregate user consumption in the current period, including requests, tokens, and spend share.",
+      "columns": {
+        "rank": "Rank",
+        "user": "User",
+        "requests": "Requests",
+        "tokens": "Tokens",
+        "spend": "Spend (USD)",
+        "share": "Share",
+        "last_used_at": "Last Used"
+      }
+    },
+    "metrics": {
+      "consume": "Spend (USD)",
         "topup": "Top-up (USD)",
         "net": "Net Inflow (USD)",
         "request_count": "Requests",
@@ -1818,12 +1831,13 @@
           "unknown": "Unknown"
         }
       },
-      "empty": {
-        "trend": "No trend data",
-        "channels": "No channel data",
-        "tasks": "No task data"
-      }
+    "empty": {
+      "trend": "No trend data",
+      "channels": "No channel data",
+      "tasks": "No task data",
+      "usage_rank": "No user usage data in the current period"
     }
+  }
   },
   "setting": {
     "title": "System Settings",

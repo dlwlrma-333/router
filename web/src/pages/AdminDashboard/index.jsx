@@ -70,6 +70,7 @@ const EMPTY_DASHBOARD = {
   summary: EMPTY_SUMMARY,
   trend: [],
   top_channels: [],
+  usage_rank: [],
   generated_at: 0,
 };
 
@@ -92,6 +93,7 @@ const normalizeAdminDashboardPayload = (payload) => {
   const topChannels = Array.isArray(payload?.top_channels)
     ? payload.top_channels
     : [];
+  const usageRank = Array.isArray(payload?.usage_rank) ? payload.usage_rank : [];
   return {
     ...EMPTY_DASHBOARD,
     ...(payload || {}),
@@ -110,6 +112,14 @@ const normalizeAdminDashboardPayload = (payload) => {
     top_channels: topChannels.map((item) => ({
       ...item,
       usedYyc: Number(item?.yyc_used ?? item?.used_quota ?? 0),
+    })),
+    usage_rank: usageRank.map((item) => ({
+      ...item,
+      request_count: Number(item?.request_count || 0),
+      total_tokens: Number(item?.total_tokens || 0),
+      spend_yyc: Number(item?.spend_yyc ?? item?.spend_quota ?? 0),
+      share_rate: Number(item?.share_rate || 0),
+      last_used_at: Number(item?.last_used_at || 0),
     })),
   };
 };
@@ -439,6 +449,63 @@ const AdminDashboard = () => {
               {formatCount(dashboard.summary.task_failed_total)}
             </div>
           </div>
+        </div>
+        <div className='admin-dashboard-usage-rank'>
+          <div className='admin-dashboard-subsection-header'>
+            <div>
+              <div className='admin-dashboard-subsection-title'>
+                {t('dashboard.admin.usage_rank.title')}
+              </div>
+              <div className='admin-dashboard-subsection-description'>
+                {t('dashboard.admin.usage_rank.description')}
+              </div>
+            </div>
+          </div>
+          {dashboard.usage_rank.length === 0 ? (
+            <div className='admin-dashboard-empty'>
+              {t('dashboard.admin.empty.usage_rank')}
+            </div>
+          ) : (
+            <div className='admin-dashboard-rank-table'>
+              <div className='admin-dashboard-rank-head'>
+                <span>{t('dashboard.admin.usage_rank.columns.rank')}</span>
+                <span>{t('dashboard.admin.usage_rank.columns.user')}</span>
+                <span>{t('dashboard.admin.usage_rank.columns.requests')}</span>
+                <span>{t('dashboard.admin.usage_rank.columns.tokens')}</span>
+                <span>{t('dashboard.admin.usage_rank.columns.spend')}</span>
+                <span>{t('dashboard.admin.usage_rank.columns.share')}</span>
+                <span>{t('dashboard.admin.usage_rank.columns.last_used_at')}</span>
+              </div>
+              <div className='admin-dashboard-rank-body'>
+                {dashboard.usage_rank.map((item, index) => (
+                  <div className='admin-dashboard-rank-row' key={`${item.user_id || item.username}-${index}`}>
+                    <span className='admin-dashboard-rank-index'>{index + 1}</span>
+                    <span
+                      className='admin-dashboard-rank-user'
+                      title={item.username || item.user_id || '-'}
+                    >
+                      {item.username || item.user_id || '-'}
+                    </span>
+                    <span>{formatCount(item.request_count)}</span>
+                    <span>{formatCount(item.total_tokens)}</span>
+                    <span>{formatUsd(item.spend_yyc)}</span>
+                    <span className='admin-dashboard-rank-share-cell'>
+                      <span className='admin-dashboard-rank-share-text'>
+                        {formatPercent(item.share_rate)}
+                      </span>
+                      <span className='admin-dashboard-rank-share-track'>
+                        <span
+                          className='admin-dashboard-rank-share-bar'
+                          style={{ width: `${Math.max(4, toPercent(item.share_rate))}%` }}
+                        />
+                      </span>
+                    </span>
+                    <span>{formatUpdatedAt(item.last_used_at)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </Card.Content>
     </Card>
