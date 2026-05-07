@@ -1730,10 +1730,18 @@
       "title": "Usage Ranking",
       "description": "Aggregate user consumption in the current period, including requests, tokens, and spend share.",
       "summary": {
+        "title": "Current Top-Rank Summary",
         "top_user": "Top User",
         "top_share": "Top Share",
         "user_count": "Users in Rank",
         "total_tokens": "Rank Tokens"
+      },
+      "totals": {
+        "title": "Matched Totals",
+        "user_count": "Matched Users",
+        "request_count": "Matched Requests",
+        "total_tokens": "Matched Tokens",
+        "total_spend": "Matched Spend (USD)"
       },
       "search": {
         "placeholder": "Search username or user ID",

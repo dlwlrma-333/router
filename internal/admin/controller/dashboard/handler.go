@@ -114,6 +114,14 @@ type usageRankSummary struct {
 	TopUserShare float64 `json:"top_user_share"`
 }
 
+type usageTotalSummary struct {
+	UserCount    int64 `json:"user_count"`
+	RequestCount int64 `json:"request_count"`
+	TotalTokens  int64 `json:"total_tokens"`
+	SpendQuota   int64 `json:"spend_quota"`
+	SpendYYC     int64 `json:"spend_yyc"`
+}
+
 type dashboardPayload struct {
 	Section      string              `json:"section"`
 	Period       string              `json:"period"`
@@ -124,6 +132,7 @@ type dashboardPayload struct {
 	Trend        []trendPoint        `json:"trend"`
 	TopChannels  []channelHealthItem `json:"top_channels"`
 	UsageSummary usageRankSummary    `json:"usage_summary"`
+	UsageTotals  usageTotalSummary   `json:"usage_totals"`
 	UsageRank    []usageRankingItem  `json:"usage_rank"`
 	RecentTasks  []model.AsyncTask   `json:"recent_tasks"`
 	GeneratedAt  int64               `json:"generated_at"`
@@ -648,6 +657,44 @@ func buildUsageRanking(startAt int64, endAt int64, totalConsumeQuota int64, limi
 	return buildUsageRankingWithKeyword(startAt, endAt, totalConsumeQuota, limit, "")
 }
 
+func summarizeUsageTotals(startAt int64, endAt int64, userKeyword string) (usageTotalSummary, error) {
+	summary := usageTotalSummary{}
+	if startAt <= 0 || endAt <= 0 || endAt < startAt {
+		return summary, nil
+	}
+	keyword := strings.TrimSpace(userKeyword)
+	query := model.LOG_DB.Table(model.EventLogsTableName).
+		Where("type = ? AND created_at BETWEEN ? AND ? AND COALESCE(NULLIF(TRIM(user_id), ''), '') <> ''", model.LogTypeConsume, startAt, endAt)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("(user_id ILIKE ? OR username ILIKE ?)", like, like)
+	}
+	type aggregateRow struct {
+		UserCount    int64 `gorm:"column:user_count"`
+		RequestCount int64 `gorm:"column:request_count"`
+		PromptTokens int64 `gorm:"column:prompt_tokens"`
+		CompletionTs int64 `gorm:"column:completion_tokens"`
+		SpendQuota   int64 `gorm:"column:spend_quota"`
+	}
+	row := aggregateRow{}
+	err := query.Select(`
+		COUNT(DISTINCT user_id) AS user_count,
+		COUNT(1) AS request_count,
+		COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+		COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+		COALESCE(SUM(quota), 0) AS spend_quota
+	`).Scan(&row).Error
+	if err != nil {
+		return summary, err
+	}
+	summary.UserCount = row.UserCount
+	summary.RequestCount = row.RequestCount
+	summary.TotalTokens = row.PromptTokens + row.CompletionTs
+	summary.SpendQuota = row.SpendQuota
+	summary.SpendYYC = row.SpendQuota
+	return summary, nil
+}
+
 func summarizeUsageRanking(items []usageRankingItem) usageRankSummary {
 	summary := usageRankSummary{}
 	if len(items) == 0 {
@@ -847,12 +894,18 @@ func GetDashboard(c *gin.Context) {
 			TaskActiveTotal: taskActiveTotal,
 			TaskFailedTotal: taskFailedTotal,
 		}
-		usageRank, err := buildUsageRankingWithKeyword(startAt, endAt, consumeQuota, 10, userKeyword)
+		usageTotals, err := summarizeUsageTotals(startAt, endAt, userKeyword)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		usageRank, err := buildUsageRankingWithKeyword(startAt, endAt, usageTotals.SpendQuota, 10, userKeyword)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 			return
 		}
 		payload.UsageSummary = summarizeUsageRanking(usageRank)
+		payload.UsageTotals = usageTotals
 		payload.UsageRank = usageRank
 	}
 

@@ -80,6 +80,12 @@ const EMPTY_DASHBOARD = {
     top_username: '',
     top_user_share: 0,
   },
+  usage_totals: {
+    user_count: 0,
+    request_count: 0,
+    total_tokens: 0,
+    spend_yyc: 0,
+  },
   usage_rank: [],
   generated_at: 0,
 };
@@ -104,6 +110,7 @@ const normalizeAdminDashboardPayload = (payload) => {
     ? payload.top_channels
     : [];
   const usageSummary = payload?.usage_summary || {};
+  const usageTotals = payload?.usage_totals || {};
   const usageRank = Array.isArray(payload?.usage_rank) ? payload.usage_rank : [];
   return {
     ...EMPTY_DASHBOARD,
@@ -131,6 +138,12 @@ const normalizeAdminDashboardPayload = (payload) => {
       spend_yyc: Number(usageSummary?.spend_yyc ?? usageSummary?.spend_quota ?? 0),
       top_username: String(usageSummary?.top_username || ''),
       top_user_share: Number(usageSummary?.top_user_share || 0),
+    },
+    usage_totals: {
+      user_count: Number(usageTotals?.user_count || 0),
+      request_count: Number(usageTotals?.request_count || 0),
+      total_tokens: Number(usageTotals?.total_tokens || 0),
+      spend_yyc: Number(usageTotals?.spend_yyc ?? usageTotals?.spend_quota ?? 0),
     },
     usage_rank: usageRank.map((item) => ({
       ...item,
@@ -541,6 +554,9 @@ const AdminDashboard = () => {
             </div>
           ) : (
             <>
+              <div className='admin-dashboard-usage-rank-section-title'>
+                {t('dashboard.admin.usage_rank.summary.title')}
+              </div>
               <div className='admin-dashboard-usage-rank-summary-grid'>
                 <div className='admin-dashboard-kpi-item'>
                   <div className='admin-dashboard-kpi-label'>
@@ -575,6 +591,43 @@ const AdminDashboard = () => {
                   </div>
                   <div className='admin-dashboard-kpi-value'>
                     {formatCount(dashboard.usage_summary.total_tokens)}
+                  </div>
+                </div>
+              </div>
+              <div className='admin-dashboard-usage-rank-section-title'>
+                {t('dashboard.admin.usage_rank.totals.title')}
+              </div>
+              <div className='admin-dashboard-usage-rank-summary-grid'>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.totals.user_count')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatCount(dashboard.usage_totals.user_count)}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.totals.request_count')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatCount(dashboard.usage_totals.request_count)}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.totals.total_tokens')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatCount(dashboard.usage_totals.total_tokens)}
+                  </div>
+                </div>
+                <div className='admin-dashboard-kpi-item'>
+                  <div className='admin-dashboard-kpi-label'>
+                    {t('dashboard.admin.usage_rank.totals.total_spend')}
+                  </div>
+                  <div className='admin-dashboard-kpi-value'>
+                    {formatUsd(dashboard.usage_totals.spend_yyc)}
                   </div>
                 </div>
               </div>

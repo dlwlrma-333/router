@@ -147,6 +147,13 @@
   margin-bottom: 12px;
 }
 
+.admin-dashboard-usage-rank-section-title {
+  margin-bottom: 8px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .admin-dashboard-usage-rank-top-user {
   overflow: hidden;
   text-overflow: ellipsis;

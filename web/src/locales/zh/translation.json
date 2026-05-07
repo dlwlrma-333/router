@@ -1730,10 +1730,18 @@
       "title": "用量排行",
       "description": "按当前统计周期聚合用户消费，展示请求量、Token 和消费占比。",
       "summary": {
+        "title": "当前 Top 榜摘要",
         "top_user": "榜首用户",
         "top_share": "榜首占比",
         "user_count": "榜单用户数",
         "total_tokens": "榜单总 Tokens"
+      },
+      "totals": {
+        "title": "全量命中总览",
+        "user_count": "命中用户数",
+        "request_count": "命中请求数",
+        "total_tokens": "命中总 Tokens",
+        "total_spend": "命中总消费（美元）"
       },
       "search": {
         "placeholder": "搜索用户名或用户 ID",
