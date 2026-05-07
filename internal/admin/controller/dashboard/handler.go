@@ -634,11 +634,16 @@ func buildTrend(startAt int64, endAt int64, granularity string) ([]trendPoint, e
 }
 
 func buildUsageRanking(startAt int64, endAt int64, totalConsumeQuota int64, limit int) ([]usageRankingItem, error) {
+	return buildUsageRankingWithKeyword(startAt, endAt, totalConsumeQuota, limit, "")
+}
+
+func buildUsageRankingWithKeyword(startAt int64, endAt int64, totalConsumeQuota int64, limit int, userKeyword string) ([]usageRankingItem, error) {
 	if startAt <= 0 || endAt <= 0 || endAt < startAt || limit <= 0 {
 		return []usageRankingItem{}, nil
 	}
+	keyword := strings.TrimSpace(userKeyword)
 	rows := make([]usageRankingRow, 0, limit)
-	err := model.LOG_DB.Table(model.EventLogsTableName).
+	query := model.LOG_DB.Table(model.EventLogsTableName).
 		Select(`
 			COALESCE(NULLIF(TRIM(user_id), ''), '') AS user_id,
 			COALESCE(NULLIF(MAX(TRIM(username)), ''), COALESCE(NULLIF(TRIM(user_id), ''), '-')) AS username,
@@ -648,8 +653,12 @@ func buildUsageRanking(startAt int64, endAt int64, totalConsumeQuota int64, limi
 			COALESCE(SUM(quota), 0) AS spend_quota,
 			COALESCE(MAX(created_at), 0) AS last_used_at
 		`).
-		Where("type = ? AND created_at BETWEEN ? AND ? AND COALESCE(NULLIF(TRIM(user_id), ''), '') <> ''", model.LogTypeConsume, startAt, endAt).
-		Group("user_id").
+		Where("type = ? AND created_at BETWEEN ? AND ? AND COALESCE(NULLIF(TRIM(user_id), ''), '') <> ''", model.LogTypeConsume, startAt, endAt)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("(user_id ILIKE ? OR username ILIKE ?)", like, like)
+	}
+	err := query.Group("user_id").
 		Order("spend_quota DESC, request_count DESC, last_used_at DESC").
 		Limit(limit).
 		Scan(&rows).Error
@@ -708,6 +717,7 @@ func resolveAllTimeRange(now time.Time) (time.Time, time.Time, error) {
 func GetDashboard(c *gin.Context) {
 	period := normalizePeriod(c.DefaultQuery("period", periodLast7Days))
 	section := normalizeSection(c.Query("section"))
+	userKeyword := strings.TrimSpace(c.Query("user_keyword"))
 	now := time.Now()
 	start, end := periodRange(period, now)
 	if period == periodAllTime {
@@ -802,7 +812,7 @@ func GetDashboard(c *gin.Context) {
 			TaskActiveTotal: taskActiveTotal,
 			TaskFailedTotal: taskFailedTotal,
 		}
-		usageRank, err := buildUsageRanking(startAt, endAt, consumeQuota, 10)
+		usageRank, err := buildUsageRankingWithKeyword(startAt, endAt, consumeQuota, 10, userKeyword)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 			return

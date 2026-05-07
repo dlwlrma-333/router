@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
-import { Button, Card, Dropdown } from 'semantic-ui-react';
+import { Button, Card, Dropdown, Input } from 'semantic-ui-react';
 import {
   Bar,
   BarChart,
@@ -32,6 +32,8 @@ const PERIOD_OPTIONS = [
   'this_year',
   'all_time',
 ];
+
+const USAGE_RANK_PERIOD_OPTIONS = ['today', 'last_7_days', 'this_month', 'all_time'];
 
 const TREND_METRIC_OPTIONS = [
   'spend_amount',
@@ -144,6 +146,8 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [trendMetric, setTrendMetric] = useState('spend_amount');
   const [dashboard, setDashboard] = useState(EMPTY_DASHBOARD);
+  const [usageKeywordInput, setUsageKeywordInput] = useState('');
+  const [usageKeyword, setUsageKeyword] = useState('');
 
   const activeSection = useMemo(() => {
     const params = new URLSearchParams(location.search || '');
@@ -184,8 +188,12 @@ const AdminDashboard = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const params = { period, section: activeSection };
+      if (activeSection === 'overview' && usageKeyword.trim() !== '') {
+        params.user_keyword = usageKeyword.trim();
+      }
       const res = await API.get('/api/v1/admin/dashboard/', {
-        params: { period, section: activeSection },
+        params,
       });
       if (res.data?.success) {
         setDashboard(normalizeAdminDashboardPayload(res.data.data || {}));
@@ -198,7 +206,7 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeSection, period]);
+  }, [activeSection, period, usageKeyword]);
 
   useEffect(() => {
     loadData();
@@ -353,6 +361,15 @@ const AdminDashboard = () => {
     </div>
   );
 
+  const applyUsageKeyword = useCallback(() => {
+    setUsageKeyword(usageKeywordInput.trim());
+  }, [usageKeywordInput]);
+
+  const clearUsageKeyword = useCallback(() => {
+    setUsageKeywordInput('');
+    setUsageKeyword('');
+  }, []);
+
   const renderOverviewSection = () => (
     <Card fluid className='chart-card'>
       <Card.Content>
@@ -452,13 +469,53 @@ const AdminDashboard = () => {
         </div>
         <div className='admin-dashboard-usage-rank'>
           <div className='admin-dashboard-subsection-header'>
-            <div>
+            <div className='admin-dashboard-subsection-header-main'>
               <div className='admin-dashboard-subsection-title'>
                 {t('dashboard.admin.usage_rank.title')}
               </div>
               <div className='admin-dashboard-subsection-description'>
                 {t('dashboard.admin.usage_rank.description')}
               </div>
+            </div>
+            <div className='admin-dashboard-usage-rank-toolbar'>
+              <Button.Group basic size='small'>
+                {USAGE_RANK_PERIOD_OPTIONS.map((value) => (
+                  <Button
+                    key={value}
+                    active={period === value}
+                    className='router-inline-button'
+                    onClick={() => setPeriod(value)}
+                  >
+                    {t(`dashboard.spending.period.${value}`)}
+                  </Button>
+                ))}
+              </Button.Group>
+              <Input
+                className='admin-dashboard-usage-rank-search'
+                value={usageKeywordInput}
+                placeholder={t('dashboard.admin.usage_rank.search.placeholder')}
+                onChange={(e) => setUsageKeywordInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    applyUsageKeyword();
+                  }
+                }}
+                action={{
+                  color: 'blue',
+                  icon: 'search',
+                  content: t('dashboard.admin.usage_rank.search.submit'),
+                  onClick: applyUsageKeyword,
+                }}
+              />
+              {usageKeyword ? (
+                <Button
+                  type='button'
+                  className='router-inline-button'
+                  onClick={clearUsageKeyword}
+                >
+                  {t('dashboard.admin.usage_rank.search.reset')}
+                </Button>
+              ) : null}
             </div>
           </div>
           {dashboard.usage_rank.length === 0 ? (

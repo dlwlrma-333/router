@@ -104,6 +104,11 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-dashboard-subsection-header-main {
+  min-width: 220px;
 }
 
 .admin-dashboard-subsection-title {
@@ -116,6 +121,23 @@
   margin-top: 4px;
   color: #6b7280;
   font-size: 12px;
+}
+
+.admin-dashboard-usage-rank-toolbar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.admin-dashboard-usage-rank-search {
+  min-width: 320px;
+}
+
+.admin-dashboard-usage-rank-search .ui.input > input {
+  min-width: 220px;
 }
 
 .admin-dashboard-rank-table {
@@ -212,5 +234,16 @@
   .admin-dashboard-rank-head,
   .admin-dashboard-rank-row {
     min-width: 920px;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-dashboard-usage-rank-toolbar {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .admin-dashboard-usage-rank-search {
+    min-width: 100%;
   }
 }

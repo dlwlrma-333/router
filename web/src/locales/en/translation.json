@@ -1729,6 +1729,11 @@
     "usage_rank": {
       "title": "Usage Ranking",
       "description": "Aggregate user consumption in the current period, including requests, tokens, and spend share.",
+      "search": {
+        "placeholder": "Search username or user ID",
+        "submit": "Search",
+        "reset": "Clear"
+      },
       "columns": {
         "rank": "Rank",
         "user": "User",
