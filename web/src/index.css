@@ -2,7 +2,7 @@ body {
     margin: 0;
     padding-top: 0;
     overflow-y: scroll;
-    font-family: Lato, 'Helvetica Neue', Arial, Helvetica, "Microsoft YaHei", sans-serif;
+    font-family: 'Helvetica Neue', Arial, Helvetica, "Microsoft YaHei", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scrollbar-width: none;
@@ -10,6 +10,9 @@ body {
 
 :root {
     --router-shell-horizontal-padding: 12px;
+    --router-font-family: 'Helvetica Neue', Arial, Helvetica, "Microsoft YaHei", sans-serif;
+    --router-font-weight-normal: 400;
+    --router-font-weight-medium: 500;
 }
 
 body.header-fixed-active {
@@ -22,6 +25,56 @@ body::-webkit-scrollbar {
 
 code {
     font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+body,
+.ui.input > input,
+.ui.form input:not([type]),
+.ui.form input[type=text],
+.ui.form input[type=password],
+.ui.form input[type=email],
+.ui.form input[type=search],
+.ui.form textarea,
+.ui.button,
+.ui.menu,
+.ui.dropdown,
+.ui.dropdown > .text,
+.ui.dropdown .menu > .item,
+.ui.selection.dropdown,
+.ui.selection.dropdown > .text,
+.ui.selection.dropdown > .default.text {
+    font-family: var(--router-font-family) !important;
+}
+
+.ui.selection.dropdown.router-page-dropdown,
+.ui.selection.dropdown.router-page-dropdown > .text,
+.ui.selection.dropdown.router-page-dropdown > .default.text,
+.ui.selection.dropdown.router-page-dropdown .menu > .item,
+.ui.selection.dropdown.router-section-dropdown,
+.ui.selection.dropdown.router-section-dropdown > .text,
+.ui.selection.dropdown.router-section-dropdown > .default.text,
+.ui.selection.dropdown.router-section-dropdown .menu > .item,
+.ui.selection.dropdown.router-section-input-unit-dropdown,
+.ui.selection.dropdown.router-section-input-unit-dropdown > .text,
+.ui.selection.dropdown.router-section-input-unit-dropdown > .default.text,
+.ui.selection.dropdown.router-section-input-unit-dropdown .menu > .item,
+.ui.selection.dropdown.router-modal-dropdown,
+.ui.selection.dropdown.router-modal-dropdown > .text,
+.ui.selection.dropdown.router-modal-dropdown > .default.text,
+.ui.selection.dropdown.router-modal-dropdown .menu > .item,
+.ui.selection.dropdown.router-inline-dropdown,
+.ui.selection.dropdown.router-inline-dropdown > .text,
+.ui.selection.dropdown.router-inline-dropdown > .default.text,
+.ui.selection.dropdown.router-inline-dropdown .menu > .item,
+.ui.selection.dropdown.router-mini-dropdown,
+.ui.selection.dropdown.router-mini-dropdown > .text,
+.ui.selection.dropdown.router-mini-dropdown > .default.text,
+.ui.selection.dropdown.router-mini-dropdown .menu > .item,
+.ui.selection.dropdown.router-table-header-dropdown,
+.ui.selection.dropdown.router-table-header-dropdown > .text,
+.ui.selection.dropdown.router-table-header-dropdown > .default.text,
+.ui.selection.dropdown.router-table-header-dropdown .menu > .item {
+    font-family: var(--router-font-family) !important;
 }
 
 .main-content {
@@ -37,16 +90,16 @@ code {
 }
 
 .router-admin-sidebar {
-    width: 248px;
-    flex: 0 0 248px;
+    width: 224px;
+    flex: 0 0 224px;
     border-right: none;
     background: transparent;
     position: sticky;
     top: 64px;
     height: calc(100vh - 64px);
-    overflow-y: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     padding: 12px 10px;
 }
 
@@ -57,6 +110,7 @@ code {
     margin-bottom: 8px;
     padding: 0 4px;
     min-height: 32px;
+    flex: 0 0 auto;
 }
 
 .router-admin-sidebar-heading {
@@ -68,14 +122,22 @@ code {
     text-transform: uppercase;
 }
 
-.router-admin-sidebar::-webkit-scrollbar {
-    display: none;
-}
-
 .router-admin-sidebar.compact {
     width: 78px;
     flex: 0 0 78px;
     padding: 12px 6px;
+}
+
+.router-admin-sidebar-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.router-admin-sidebar-scroll::-webkit-scrollbar {
+    display: none;
 }
 
 .ui.basic.icon.button.router-admin-sidebar-toggle {
@@ -553,7 +615,7 @@ code {
 .ui.selection.dropdown.router-page-dropdown > .default.text,
 .ui.selection.dropdown.router-page-dropdown .menu > .item {
     font-size: 15px !important;
-    font-weight: 500 !important;
+    font-weight: var(--router-font-weight-medium) !important;
     line-height: 1.45 !important;
 }
 
@@ -574,7 +636,7 @@ code {
 
 .ui.multiple.selection.dropdown.router-page-dropdown > .label {
     font-size: 12px !important;
-    font-weight: 500 !important;
+    font-weight: var(--router-font-weight-medium) !important;
     margin: 0.22rem 0.36rem 0.22rem 0 !important;
     padding: 0.46em 0.7em !important;
     border-radius: 8px !important;
@@ -599,7 +661,7 @@ code {
 .ui.selection.dropdown.router-section-dropdown > .default.text,
 .ui.selection.dropdown.router-section-dropdown .menu > .item {
     font-size: 14px !important;
-    font-weight: 500 !important;
+    font-weight: var(--router-font-weight-normal) !important;
     line-height: 1.4 !important;
 }
 
@@ -617,18 +679,18 @@ code {
 .ui.selection.dropdown.router-flow-filter-dropdown > .text,
 .ui.selection.dropdown.router-flow-filter-dropdown > .default.text,
 .ui.selection.dropdown.router-flow-filter-dropdown .menu > .item {
-    font-weight: 400 !important;
+    font-weight: var(--router-font-weight-normal) !important;
 }
 
 .ui.selection.dropdown.router-detail-filter-dropdown > .text,
 .ui.selection.dropdown.router-detail-filter-dropdown > .default.text,
 .ui.selection.dropdown.router-detail-filter-dropdown .menu > .item {
-    font-weight: 400 !important;
+    font-weight: var(--router-font-weight-normal) !important;
 }
 
 .ui.multiple.selection.dropdown.router-section-dropdown > .label {
     font-size: 12px !important;
-    font-weight: 500 !important;
+    font-weight: var(--router-font-weight-medium) !important;
     margin: 0.22rem 0.36rem 0.22rem 0 !important;
     padding: 0.46em 0.7em !important;
     border-radius: 8px !important;
@@ -685,7 +747,7 @@ code {
 .ui.selection.dropdown.router-section-input-unit-dropdown > .default.text,
 .ui.selection.dropdown.router-section-input-unit-dropdown .menu > .item {
     font-size: 14px !important;
-    font-weight: 500 !important;
+    font-weight: var(--router-font-weight-normal) !important;
     line-height: 1.35 !important;
 }
 
@@ -872,7 +934,7 @@ code {
 .ui.selection.dropdown.router-modal-dropdown > .default.text,
 .ui.selection.dropdown.router-modal-dropdown .menu > .item {
     font-size: 14px !important;
-    font-weight: 500 !important;
+    font-weight: var(--router-font-weight-normal) !important;
     line-height: 1.4 !important;
 }
 
@@ -889,7 +951,7 @@ code {
 
 .ui.multiple.selection.dropdown.router-modal-dropdown > .label {
     font-size: 12px !important;
-    font-weight: 500 !important;
+    font-weight: var(--router-font-weight-medium) !important;
     margin: 0.2rem 0.34rem 0.2rem 0 !important;
     padding: 0.44em 0.68em !important;
     border-radius: 8px !important;
@@ -1302,7 +1364,7 @@ code {
 .ui.selection.dropdown.router-inline-dropdown > .default.text,
 .ui.selection.dropdown.router-inline-dropdown .menu > .item {
     font-size: 14px !important;
-    font-weight: 500 !important;
+    font-weight: var(--router-font-weight-normal) !important;
     line-height: 1.35 !important;
 }
 
@@ -1327,7 +1389,7 @@ code {
 .ui.selection.dropdown.router-mini-dropdown > .default.text,
 .ui.selection.dropdown.router-mini-dropdown .menu > .item {
     font-size: 13px !important;
-    font-weight: 500 !important;
+    font-weight: var(--router-font-weight-normal) !important;
     line-height: 1.35 !important;
 }
 
@@ -2540,7 +2602,7 @@ code {
 .ui.selection.dropdown.router-table-header-dropdown > .default.text,
 .ui.selection.dropdown.router-table-header-dropdown .menu > .item {
     font-size: 12px !important;
-    font-weight: 500 !important;
+    font-weight: var(--router-font-weight-normal) !important;
     line-height: 1.2 !important;
 }
 

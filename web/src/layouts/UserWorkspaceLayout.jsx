@@ -61,7 +61,7 @@ const UserWorkspaceLayout = () => {
                   : t('header.sidebar_compact')
               }
               onClick={() => setSidebarCompact((previous) => !previous)}
-            >
+              >
               <Icon
                 name={
                   sidebarCompact ? 'angle double right' : 'angle double left'
@@ -69,7 +69,9 @@ const UserWorkspaceLayout = () => {
               />
             </Button>
           </div>
-          <UserSidebar compact={sidebarCompact} />
+          <div className='router-admin-sidebar-scroll'>
+            <UserSidebar compact={sidebarCompact} />
+          </div>
         </aside>
         <Container className='main-content router-admin-main'>
           <Outlet />
