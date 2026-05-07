@@ -1392,7 +1392,7 @@ const GroupsManager = ({ detailGroupId = '' }) => {
               {t('group_manage.edit.model_configs')}
             </div>
           )}
-          <div className='router-toolbar-end router-block-gap-sm'>
+          <div className='router-toolbar-end router-block-gap-sm router-group-model-toolbar-end'>
             <Form.Input
               className='router-inline-input router-search-form-sm router-group-model-search'
               icon='search'
@@ -1403,13 +1403,21 @@ const GroupsManager = ({ detailGroupId = '' }) => {
             />
           </div>
         </div>
-        <Table compact celled className='router-detail-table'>
+        <Table compact celled className='router-detail-table router-group-supported-models-table'>
           <Table.Header>
             <Table.Row>
-              <Table.HeaderCell>{t('group_manage.edit.model')}</Table.HeaderCell>
-              <Table.HeaderCell>{t('group_manage.detail.model_channels')}</Table.HeaderCell>
-              <Table.HeaderCell collapsing>{t('group_manage.detail.enabled')}</Table.HeaderCell>
-              <Table.HeaderCell collapsing>{t('group_manage.table.actions')}</Table.HeaderCell>
+              <Table.HeaderCell className='router-group-supported-models-col-model'>
+                {t('group_manage.edit.model')}
+              </Table.HeaderCell>
+              <Table.HeaderCell className='router-group-supported-models-col-channels'>
+                {t('group_manage.detail.model_channels')}
+              </Table.HeaderCell>
+              <Table.HeaderCell className='router-group-supported-models-col-enabled'>
+                {t('group_manage.detail.enabled')}
+              </Table.HeaderCell>
+              <Table.HeaderCell className='router-group-supported-models-col-actions'>
+                {t('group_manage.table.actions')}
+              </Table.HeaderCell>
             </Table.Row>
           </Table.Header>
           <Table.Body>
@@ -1428,8 +1436,10 @@ const GroupsManager = ({ detailGroupId = '' }) => {
             ) : (
               detailModelEntries.map((entry) => (
                 <Table.Row key={`group-detail-model-${entry.model || '-'}`}>
-                  <Table.Cell className='router-cell-min-240'>{entry.model || '-'}</Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell className='router-group-supported-models-col-model'>
+                    {entry.model || '-'}
+                  </Table.Cell>
+                  <Table.Cell className='router-group-supported-models-col-channels'>
                     {entry.rows.length > 0 ? (
                       <div className='router-tag-group'>
                         {entry.rows.map((item) => (
@@ -1453,7 +1463,7 @@ const GroupsManager = ({ detailGroupId = '' }) => {
                       '-'
                     )}
                   </Table.Cell>
-                  <Table.Cell collapsing>
+                  <Table.Cell className='router-group-supported-models-col-enabled'>
                     <Checkbox
                       toggle
                       checked={entry.allEnabled}
@@ -1465,7 +1475,7 @@ const GroupsManager = ({ detailGroupId = '' }) => {
                       }}
                     />
                   </Table.Cell>
-                  <Table.Cell collapsing>
+                  <Table.Cell className='router-group-supported-models-col-actions'>
                     <Button
                       type='button'
                       className='router-inline-button'

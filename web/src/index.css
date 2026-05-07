@@ -2150,6 +2150,32 @@ code {
     min-width: 240px;
 }
 
+.ui.table.router-group-supported-models-table th.router-group-supported-models-col-model,
+.ui.table.router-group-supported-models-table td.router-group-supported-models-col-model {
+    width: 22%;
+    max-width: 22%;
+}
+
+.ui.table.router-group-supported-models-table th.router-group-supported-models-col-channels,
+.ui.table.router-group-supported-models-table td.router-group-supported-models-col-channels {
+    width: 56%;
+    max-width: 56%;
+}
+
+.ui.table.router-group-supported-models-table th.router-group-supported-models-col-enabled,
+.ui.table.router-group-supported-models-table td.router-group-supported-models-col-enabled {
+    width: 10%;
+    max-width: 10%;
+    text-align: center;
+}
+
+.ui.table.router-group-supported-models-table th.router-group-supported-models-col-actions,
+.ui.table.router-group-supported-models-table td.router-group-supported-models-col-actions {
+    width: 12%;
+    max-width: 12%;
+    text-align: center;
+}
+
 .router-cell-min-260 {
     min-width: 260px;
 }
@@ -2177,8 +2203,19 @@ code {
 }
 
 .router-group-model-search {
-    width: 360px;
+    width: 420px;
     max-width: 100%;
+}
+
+.router-group-model-search .ui.input,
+.router-group-model-search > .ui.input,
+.ui.form .field.router-group-model-search .ui.input {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+.router-group-model-toolbar-end {
+    margin-left: auto;
 }
 
 .router-search-form-xs {
