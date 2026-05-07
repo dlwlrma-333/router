@@ -901,6 +901,9 @@
       "back": "返回",
       "refresh": "刷新",
       "edit": "编辑",
+      "add_channel": "增加渠道",
+      "remove_channel": "移除",
+      "view_channel": "查看渠道",
       "bind_channels": "配置渠道",
       "enable": "启用",
       "disable": "禁用",
@@ -911,9 +914,15 @@
     "modal": {
       "create_title": "新增分组",
       "edit_title": "编辑分组",
+      "add_channel_title": "增加渠道",
       "delete_title": "确认删除分组",
       "delete_confirm": "确定删除分组 {{id}} 吗？",
       "bind_channels_title": "配置分组 {{id}} 的渠道"
+    },
+    "detail_tabs": {
+      "overview": "概览",
+      "channels": "渠道",
+      "models": "模型"
     },
     "detail": {
       "title": "分组详情",
@@ -946,6 +955,7 @@
       "loading": "加载中...",
       "empty": "暂无分组",
       "id_required": "分组标识不能为空",
+      "channel_required": "请选择渠道",
       "billing_ratio_invalid": "业务倍率必须大于或等于 0",
       "daily_quota_limit_invalid": "每日限额必须大于或等于 0",
       "load_failed": "加载分组失败",

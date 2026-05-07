@@ -306,7 +306,7 @@ func DisableChannelModelCapability(channelID string, modelName string) (bool, er
 	if err != nil {
 		return true, err
 	}
-	return true, channel.UpdateAbilities()
+	return true, channel.UpdateGroupModelRoutes()
 }
 
 func DeleteChannelModelsByChannelIDWithDB(db *gorm.DB, channelID string) error {

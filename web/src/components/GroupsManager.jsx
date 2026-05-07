@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Breadcrumb, Button, Checkbox, Form, Header, Label, Modal, Table } from 'semantic-ui-react';
+import { Breadcrumb, Button, Checkbox, Form, Header, Label, Menu, Modal, Table } from 'semantic-ui-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { API, showError, showInfo, showSuccess, timestamp2string } from '../helpers';
 const MODE_LIST = 'list';
@@ -88,8 +88,8 @@ const collectChannelIDsFromGroupModelConfigs = (items) => {
   return ids;
 };
 
-const toBoundChannelRows = (items) =>
-  (Array.isArray(items) ? items : []).filter((item) => !!item.bound);
+const toChannelRows = (items) =>
+  Array.isArray(items) ? items : [];
 
 const encodeChannelModelOptionValue = (item) =>
   JSON.stringify({
@@ -209,6 +209,9 @@ const GroupsManager = ({ detailGroupId = '' }) => {
   const [detailModelLoading, setDetailModelLoading] = useState(false);
   const [detailModelSearchKeyword, setDetailModelSearchKeyword] = useState('');
   const [detailEditingSection, setDetailEditingSection] = useState('');
+  const [activeDetailTab, setActiveDetailTab] = useState('overview');
+  const [detailChannelModalOpen, setDetailChannelModalOpen] = useState(false);
+  const [detailChannelDraft, setDetailChannelDraft] = useState({ id: '', priority: 0 });
   const [detailModelModalOpen, setDetailModelModalOpen] = useState(false);
   const [detailModelEditTarget, setDetailModelEditTarget] = useState('');
   const [detailModelChannelDrafts, setDetailModelChannelDrafts] = useState([]);
@@ -241,12 +244,23 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     () => toChannelOptions(formModelChannels.filter((item) => formChannelIDs.includes(item.id))),
     [formModelChannels, formChannelIDs]
   );
+  const detailAvailableChannelOptions = useMemo(
+    () =>
+      (Array.isArray(detailChannelRows) ? detailChannelRows : [])
+        .filter((item) => !item?.bound)
+        .map((item) => ({
+          key: item.id,
+          text: formatChannelDisplayName(item),
+          value: item.id,
+        })),
+    [detailChannelRows]
+  );
   const detailBasicEditing = detailEditingSection === 'basic';
-  const detailChannelsEditing = detailEditingSection === 'channels';
   const detailSectionLocked = detailEditingSection !== '';
   const detailBasicEditLocked = detailSectionLocked && !detailBasicEditing;
-  const detailChannelsEditLocked = detailSectionLocked && !detailChannelsEditing;
+  const detailChannelsEditLocked = detailSectionLocked || detailModelModalOpen;
   const detailModelsEditLocked = detailSectionLocked;
+  const isAnyDetailSectionEditing = detailSectionLocked || detailChannelModalOpen || detailModelModalOpen;
 
   const fetchAllGroups = useCallback(async () => {
     const items = [];
@@ -398,10 +412,18 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     };
   }, [t]);
 
+  const fetchGroupChannelBindings = useCallback(async (groupID) => {
+    const encodedID = encodeURIComponent(groupID || '');
+    const res = await API.get(`/api/v1/admin/group/${encodedID}/channels`);
+    const { success, message, data } = res.data || {};
+    if (!success) {
+      throw new Error(message || t('group_manage.messages.bind_load_failed'));
+    }
+    return Array.isArray(data) ? data : [];
+  }, [t]);
+
   const applyDetailModelConfigPayload = useCallback((payload) => {
-    const channels = Array.isArray(payload?.channels) ? payload.channels : [];
     const items = sortGroupModelConfigRows(Array.isArray(payload?.items) ? payload.items : []);
-    setDetailChannelRows(toBoundChannelRows(channels));
     setDetailModelRows(items);
   }, []);
 
@@ -409,7 +431,11 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     setDetailChannelLoading(true);
     setDetailModelLoading(true);
     try {
-      const payload = await fetchGroupModelConfigPayload(groupID);
+      const [payload, channelRows] = await Promise.all([
+        fetchGroupModelConfigPayload(groupID),
+        fetchGroupChannelBindings(groupID),
+      ]);
+      setDetailChannelRows(toChannelRows(channelRows));
       applyDetailModelConfigPayload(payload);
       return payload;
     } catch (error) {
@@ -419,7 +445,19 @@ const GroupsManager = ({ detailGroupId = '' }) => {
       setDetailChannelLoading(false);
       setDetailModelLoading(false);
     }
-  }, [applyDetailModelConfigPayload, fetchGroupModelConfigPayload]);
+  }, [applyDetailModelConfigPayload, fetchGroupChannelBindings, fetchGroupModelConfigPayload]);
+
+  const refreshDetailChannelBindings = useCallback(async (groupID) => {
+    const normalizedGroupID = (groupID || '').toString().trim();
+    if (normalizedGroupID === '') {
+      setDetailChannelRows([]);
+      return [];
+    }
+    const rows = await fetchGroupChannelBindings(normalizedGroupID);
+    const nextRows = toChannelRows(rows);
+    setDetailChannelRows(nextRows);
+    return nextRows;
+  }, [fetchGroupChannelBindings]);
 
   const loadEditModelConfigs = useCallback(async (groupID) => {
     setFormChannelLoading(true);
@@ -449,7 +487,6 @@ const GroupsManager = ({ detailGroupId = '' }) => {
       ? selectedChannelIDs
       : toBoundChannelIDs(nextChannels);
     setDetailModelRows(nextItems);
-    setDetailChannelRows(toBoundChannelRows(nextChannels));
     setFormModelChannels(nextChannels);
     setFormChannelOptions(toChannelOptions(nextChannels));
     setFormChannelIDs(normalizedSelectedChannelIDs);
@@ -728,13 +765,24 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     if (!activeGroup || submitting || detailChannelsEditLocked) {
       return;
     }
-    setForm(buildFormFromRow(activeGroup));
-    const payload = await loadEditModelConfigs(activeGroup.id || '');
-    if (!payload) {
+    setDetailChannelLoading(true);
+    let channels = [];
+    try {
+      channels = await fetchGroupChannelBindings(activeGroup.id || '');
+    } catch (error) {
+      showError(error);
+      setDetailChannelLoading(false);
       return;
     }
-    setDetailEditingSection('channels');
-  }, [activeGroup, detailChannelsEditLocked, loadEditModelConfigs, submitting]);
+    setDetailChannelLoading(false);
+    setDetailChannelRows(toChannelRows(channels));
+    const firstUnbound = channels.find((item) => !item?.bound);
+    setDetailChannelDraft({
+      id: (firstUnbound?.id || '').toString().trim(),
+      priority: toSafePriorityNumber(firstUnbound?.priority, 0),
+    });
+    setDetailChannelModalOpen(true);
+  }, [activeGroup, detailChannelsEditLocked, fetchGroupChannelBindings, submitting]);
 
   const loadDetailModelEditorState = useCallback(async () => {
     if (!activeGroup || submitting || detailModelsEditLocked) {
@@ -789,6 +837,7 @@ const GroupsManager = ({ detailGroupId = '' }) => {
         return false;
       }
       applySavedDetailModelState(items, channels, selectedChannelIDs);
+      await refreshDetailChannelBindings(id);
       showSuccess(t('group_manage.messages.update_success'));
       return true;
     } catch (error) {
@@ -797,7 +846,7 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     } finally {
       setSubmitting(false);
     }
-  }, [activeGroup, applySavedDetailModelState, normalizeModelConfigsPayload, t]);
+  }, [activeGroup, applySavedDetailModelState, normalizeModelConfigsPayload, refreshDetailChannelBindings, t]);
 
   const saveSingleDetailModelConfigs = useCallback(async (modelName, items, channels = []) => {
     const id = (activeGroup?.id || '').toString().trim();
@@ -830,6 +879,7 @@ const GroupsManager = ({ detailGroupId = '' }) => {
         channels,
         toBoundChannelIDs(channels),
       );
+      await refreshDetailChannelBindings(id);
       showSuccess(t('group_manage.messages.update_success'));
       return true;
     } catch (error) {
@@ -838,7 +888,7 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     } finally {
       setSubmitting(false);
     }
-  }, [activeGroup, applySavedDetailModelState, detailModelRows, normalizeModelConfigsPayload, t]);
+  }, [activeGroup, applySavedDetailModelState, detailModelRows, normalizeModelConfigsPayload, refreshDetailChannelBindings, t]);
 
   const closeDetailModelModal = useCallback(() => {
     if (submitting) {
@@ -849,11 +899,21 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     setDetailModelChannelDrafts([]);
   }, [submitting]);
 
+  const closeDetailChannelModal = useCallback(() => {
+    if (submitting) {
+      return;
+    }
+    setDetailChannelModalOpen(false);
+    setDetailChannelDraft({ id: '', priority: 0 });
+  }, [submitting]);
+
   const cancelDetailSectionEdit = useCallback(() => {
     if (submitting) {
       return;
     }
     setDetailEditingSection('');
+    setDetailChannelModalOpen(false);
+    setDetailChannelDraft({ id: '', priority: 0 });
     closeDetailModelModal();
     resetFormState();
   }, [closeDetailModelModal, submitting]);
@@ -894,29 +954,83 @@ const GroupsManager = ({ detailGroupId = '' }) => {
     }
   }, [activeGroup, form.billing_ratio, form.description, form.name, form.sort_order, refreshGroupDetailState, t]);
 
-  const submitDetailChannels = useCallback(async () => {
+  const submitDetailChannels = useCallback(async (channelRows = detailChannelRows) => {
     const id = (activeGroup?.id || '').toString().trim();
     if (id === '') {
-      return;
+      return false;
     }
     setSubmitting(true);
     try {
+      const normalizedChannels = (Array.isArray(channelRows) ? channelRows : [])
+        .map((item) => ({
+          id: (item?.id || '').toString().trim(),
+          bound: !!item?.bound,
+          priority: toSafePriorityNumber(item?.priority, 0),
+        }))
+        .filter((item) => item.id !== '');
       const res = await API.put(`/api/v1/admin/group/${encodeURIComponent(id)}/channels`, {
-        channel_ids: formChannelIDs,
+        channel_ids: normalizedChannels
+          .filter((item) => item.bound)
+          .map((item) => item.id),
+        channels: normalizedChannels,
       });
       const { success, message } = res.data || {};
       if (!success) {
         showError(message || t('group_manage.messages.bind_update_failed'));
-        return;
+        return false;
       }
       showSuccess(t('group_manage.messages.bind_update_success'));
       await refreshGroupDetailState(id);
+      return true;
     } catch (error) {
       showError(error);
+      return false;
     } finally {
       setSubmitting(false);
     }
-  }, [activeGroup, formChannelIDs, refreshGroupDetailState, t]);
+  }, [activeGroup, detailChannelRows, refreshGroupDetailState, t]);
+
+  const submitDetailChannelDraft = useCallback(async () => {
+    const channelID = (detailChannelDraft.id || '').toString().trim();
+    if (channelID === '') {
+      showInfo(t('group_manage.messages.channel_required'));
+      return;
+    }
+    const nextRows = (Array.isArray(detailChannelRows) ? detailChannelRows : []).map((item) => {
+      if ((item?.id || '').toString().trim() !== channelID) {
+        return item;
+      }
+      return {
+        ...item,
+        bound: true,
+        priority: toSafePriorityNumber(detailChannelDraft.priority, 0),
+      };
+    });
+    setDetailChannelRows(nextRows);
+    const ok = await submitDetailChannels(nextRows);
+    if (!ok) {
+      return;
+    }
+    closeDetailChannelModal();
+  }, [closeDetailChannelModal, detailChannelDraft.id, detailChannelDraft.priority, detailChannelRows, submitDetailChannels, t]);
+
+  const removeDetailChannel = useCallback(async (row) => {
+    if (!activeGroup || submitting) {
+      return;
+    }
+    const channelID = (row?.id || '').toString().trim();
+    const nextRows = (Array.isArray(detailChannelRows) ? detailChannelRows : []).map((item) => {
+      if ((item?.id || '').toString().trim() !== channelID) {
+        return item;
+      }
+      return {
+        ...item,
+        bound: false,
+      };
+    });
+    setDetailChannelRows(nextRows);
+    await submitDetailChannels(nextRows);
+  }, [activeGroup, detailChannelRows, submitDetailChannels, submitting]);
 
   const openDeleteModal = (row) => {
     if (!row || submitting) return;
@@ -1124,6 +1238,140 @@ const GroupsManager = ({ detailGroupId = '' }) => {
       </div>
     </Form.Field>
   );
+
+  const updateDetailChannelDraft = useCallback((channelID, updater) => {
+    const normalizedChannelID = (channelID || '').toString().trim();
+    if (normalizedChannelID === '') {
+      return;
+    }
+    setDetailChannelRows((prev) => {
+      const currentRows = Array.isArray(prev) ? prev : [];
+      const nextRows = currentRows.map((item) => {
+        if ((item?.id || '').toString().trim() !== normalizedChannelID) {
+          return item;
+        }
+        const nextValue =
+          typeof updater === 'function' ? updater(item) : { ...item, ...updater };
+        return {
+          ...item,
+          ...nextValue,
+          id: normalizedChannelID,
+        };
+      });
+      return nextRows;
+    });
+  }, []);
+
+  const renderDetailChannelsTable = (items, loadingState) => {
+    const rows = (Array.isArray(items) ? items : []).filter((item) => !!item?.bound);
+    return (
+      <Table celled stackable className='router-detail-table'>
+        <colgroup>
+          <col style={{ width: '44%' }} />
+          <col style={{ width: '16%' }} />
+          <col style={{ width: '16%' }} />
+          <col style={{ width: '24%' }} />
+        </colgroup>
+        <Table.Header>
+          <Table.Row>
+            <Table.HeaderCell>{t('group_manage.detail.model_channels')}</Table.HeaderCell>
+            <Table.HeaderCell collapsing>{t('group_manage.table.status')}</Table.HeaderCell>
+            <Table.HeaderCell collapsing>{t('group_manage.detail.priority')}</Table.HeaderCell>
+            <Table.HeaderCell collapsing>{t('group_manage.table.actions')}</Table.HeaderCell>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
+          {loadingState ? (
+            <Table.Row>
+              <Table.Cell className='router-empty-cell' colSpan='4'>
+                {t('group_manage.messages.loading')}
+              </Table.Cell>
+            </Table.Row>
+          ) : rows.length === 0 ? (
+            <Table.Row>
+              <Table.Cell className='router-empty-cell' colSpan='4'>
+                {t('group_manage.detail.empty_channels')}
+              </Table.Cell>
+            </Table.Row>
+          ) : (
+            rows.map((item) => {
+              const channelID = (item?.id || '').toString().trim();
+              return (
+                <Table.Row key={channelID}>
+                  <Table.Cell title={formatChannelDisplayName(item)}>
+                    <span className='router-cell-truncate'>
+                      {formatChannelDisplayName(item)}
+                    </span>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Label
+                      basic
+                      color={channelStatusColor(item?.status)}
+                      className='router-tag'
+                    >
+                      {item?.status === 1
+                        ? t('group_manage.status.enabled')
+                        : t('group_manage.status.disabled')}
+                    </Label>
+                  </Table.Cell>
+                  <Table.Cell collapsing>
+                      <Form.Input
+                        className='router-inline-input'
+                        type='number'
+                        step='1'
+                        disabled={submitting || detailChannelsEditLocked || detailChannelModalOpen}
+                        value={toSafePriorityNumber(item?.priority, 0)}
+                        onChange={(e, { value }) =>
+                          updateDetailChannelDraft(channelID, (current) => ({
+                            ...current,
+                            priority: Number.isFinite(Number(value))
+                              ? Math.trunc(Number(value))
+                              : 0,
+                          }))
+                        }
+                        onBlur={async () => {
+                          const nextRows = (Array.isArray(detailChannelRows) ? detailChannelRows : []).map((row) =>
+                            (row?.id || '').toString().trim() === channelID
+                              ? {
+                                  ...row,
+                                  priority: toSafePriorityNumber(row?.priority, 0),
+                                }
+                              : row
+                          );
+                          setDetailChannelRows(nextRows);
+                          await submitDetailChannels(nextRows);
+                        }}
+                      />
+                    </Table.Cell>
+                    <Table.Cell collapsing>
+                      <div className='router-inline-actions'>
+                      <Button
+                        type='button'
+                        className='router-inline-button'
+                        basic
+                        onClick={() => openChannelDetailFromCurrentPage(channelID)}
+                      >
+                        {t('group_manage.buttons.view_channel')}
+                      </Button>
+                      <Button
+                        type='button'
+                        className='router-inline-button'
+                        basic
+                        disabled={submitting || detailChannelsEditLocked || detailChannelModalOpen}
+                        onClick={() => removeDetailChannel(item)}
+                      >
+                        {t('group_manage.buttons.remove_channel')}
+                      </Button>
+                    </div>
+                  </Table.Cell>
+                </Table.Row>
+              );
+            })
+          )}
+        </Table.Body>
+      </Table>
+    );
+  };
 
   const renderDetailModelConfigTable = (options = {}) => {
     return (
@@ -1687,200 +1935,185 @@ const GroupsManager = ({ detailGroupId = '' }) => {
             </Breadcrumb.Section>
           </Breadcrumb>
         </div>
-        <section className='router-entity-detail-section'>
-          <div className='router-entity-detail-section-header'>
-            <Header as='h3' className='router-entity-detail-section-title'>
-              {t('common.basic_info')}
-            </Header>
-            <div className='router-toolbar-start'>
-              {renderGroupStatus(activeGroup.enabled)}
-              {detailBasicEditing ? (
-                <>
-                  <Button
-                    type='button'
-                    className='router-page-button'
-                    disabled={submitting}
-                    onClick={cancelDetailSectionEdit}
-                  >
-                    {t('group_manage.buttons.cancel')}
-                  </Button>
+        <div className='router-entity-detail-tabs router-block-gap-sm'>
+          <Menu secondary pointing className='router-detail-tab-menu'>
+            <Menu.Item
+              active={activeDetailTab === 'overview'}
+              disabled={isAnyDetailSectionEditing && activeDetailTab !== 'overview'}
+              onClick={() => setActiveDetailTab('overview')}
+            >
+              {t('group_manage.detail_tabs.overview')}
+            </Menu.Item>
+            <Menu.Item
+              active={activeDetailTab === 'channels'}
+              disabled={isAnyDetailSectionEditing && activeDetailTab !== 'channels'}
+              onClick={() => setActiveDetailTab('channels')}
+            >
+              {t('group_manage.detail_tabs.channels')}
+            </Menu.Item>
+            <Menu.Item
+              active={activeDetailTab === 'models'}
+              disabled={isAnyDetailSectionEditing && activeDetailTab !== 'models'}
+              onClick={() => setActiveDetailTab('models')}
+            >
+              {t('group_manage.detail_tabs.models')}
+            </Menu.Item>
+          </Menu>
+        </div>
+        {activeDetailTab === 'overview' && (
+          <section className='router-entity-detail-section'>
+            <div className='router-entity-detail-section-header'>
+              <Header as='h3' className='router-entity-detail-section-title'>
+                {t('common.basic_info')}
+              </Header>
+              <div className='router-toolbar-start'>
+                {renderGroupStatus(activeGroup.enabled)}
+                {detailBasicEditing ? (
+                  <>
+                    <Button
+                      type='button'
+                      className='router-page-button'
+                      disabled={submitting}
+                      onClick={cancelDetailSectionEdit}
+                    >
+                      {t('group_manage.buttons.cancel')}
+                    </Button>
+                    <Button
+                      type='button'
+                      className='router-page-button'
+                      color='blue'
+                      loading={submitting}
+                      disabled={submitting}
+                      onClick={submitDetailBasic}
+                    >
+                      {t('group_manage.buttons.confirm')}
+                    </Button>
+                  </>
+                ) : (
                   <Button
                     type='button'
                     className='router-page-button'
                     color='blue'
-                    loading={submitting}
-                    disabled={submitting}
-                    onClick={submitDetailBasic}
+                    disabled={submitting || detailBasicEditLocked}
+                    onClick={startDetailBasicEdit}
                   >
-                    {t('group_manage.buttons.confirm')}
+                    {t('group_manage.buttons.edit')}
                   </Button>
-                </>
-              ) : (
-                <Button
-                  type='button'
-                  className='router-page-button'
-                  color='blue'
-                  disabled={submitting || detailBasicEditLocked}
-                  onClick={startDetailBasicEdit}
-                >
-                  {t('group_manage.buttons.edit')}
-                </Button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-          <Form>
-            <Form.Group widths='equal'>
-              <Form.Input
-                className='router-section-input'
-                label='分组ID'
-                value={activeGroup.id || '-'}
-                readOnly
-              />
-              <Form.Input
-                className='router-section-input'
-                label={t('group_manage.form.name')}
-                value={detailBasicEditing ? form.name : activeGroup.name || ''}
+            <Form>
+              <Form.Group widths='equal'>
+                <Form.Input
+                  className='router-section-input'
+                  label='分组ID'
+                  value={activeGroup.id || '-'}
+                  readOnly
+                />
+                <Form.Input
+                  className='router-section-input'
+                  label={t('group_manage.form.name')}
+                  value={detailBasicEditing ? form.name : activeGroup.name || ''}
+                  readOnly={!detailBasicEditing}
+                  placeholder={t('group_manage.form.id_placeholder')}
+                  onChange={(e, { value }) =>
+                    setForm((prev) => ({ ...prev, name: value || '' }))
+                  }
+                />
+              </Form.Group>
+              <Form.TextArea
+                className='router-section-textarea'
+                label={t('group_manage.form.description')}
+                value={detailBasicEditing ? form.description : activeGroup.description || ''}
                 readOnly={!detailBasicEditing}
-                placeholder={t('group_manage.form.id_placeholder')}
-                onChange={(e, { value }) =>
-                  setForm((prev) => ({ ...prev, name: value || '' }))
-                }
-              />
-            </Form.Group>
-            <Form.TextArea
-              className='router-section-textarea'
-              label={t('group_manage.form.description')}
-              value={detailBasicEditing ? form.description : activeGroup.description || ''}
-              readOnly={!detailBasicEditing}
-              placeholder={t('group_manage.form.description_placeholder')}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  description: e.target.value,
-                }))
-              }
-            />
-            <Form.Group widths='equal'>
-              <Form.Input
-                className='router-section-input'
-                type='number'
-                min='0'
-                step='0.01'
-                label={t('group_manage.form.billing_ratio')}
-                value={
-                  detailBasicEditing
-                    ? form.billing_ratio
-                    : Number(activeGroup.billing_ratio ?? 1).toFixed(2)
-                }
-                readOnly={!detailBasicEditing}
-                placeholder={t('group_manage.form.billing_ratio_placeholder')}
+                placeholder={t('group_manage.form.description_placeholder')}
                 onChange={(e) =>
                   setForm((prev) => ({
                     ...prev,
-                    billing_ratio: e.target.value,
-                }))
-              }
-            />
-            </Form.Group>
-            <Form.Group widths='equal'>
-              <Form.Input
-                className='router-section-input'
-                type='number'
-                label={t('group_manage.form.sort_order')}
-                value={detailBasicEditing ? form.sort_order : activeGroup.sort_order || 0}
-                readOnly={!detailBasicEditing}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    sort_order: Number(e.target.value || 0),
+                    description: e.target.value,
                   }))
                 }
               />
-              <Form.Input
-                className='router-section-input'
-                label={t('group_manage.table.created_at')}
-                value={activeGroup.created_at ? timestamp2string(activeGroup.created_at) : '-'}
-                readOnly
-              />
-              <Form.Input
-                className='router-section-input'
-                label={t('group_manage.table.updated_at')}
-                value={activeGroup.updated_at ? timestamp2string(activeGroup.updated_at) : '-'}
-                readOnly
-              />
-            </Form.Group>
-          </Form>
-        </section>
-        <section className='router-entity-detail-section'>
-          <div className='router-entity-detail-section-header'>
-            <Header as='h3' className='router-entity-detail-section-title'>
-              {t('group_manage.detail.bound_channels')}
-            </Header>
-            <div className='router-toolbar-start'>
-              {detailChannelsEditing ? (
-                <>
-                  <Button
-                    type='button'
-                    className='router-page-button'
-                    disabled={submitting}
-                    onClick={cancelDetailSectionEdit}
-                  >
-                    {t('group_manage.buttons.cancel')}
-                  </Button>
-                  <Button
-                    type='button'
-                    className='router-page-button'
-                    color='blue'
-                    loading={submitting}
-                    disabled={submitting}
-                    onClick={submitDetailChannels}
-                  >
-                    {t('group_manage.buttons.confirm')}
-                  </Button>
-                </>
-              ) : (
+              <Form.Group widths='equal'>
+                <Form.Input
+                  className='router-section-input'
+                  type='number'
+                  min='0'
+                  step='0.01'
+                  label={t('group_manage.form.billing_ratio')}
+                  value={
+                    detailBasicEditing
+                      ? form.billing_ratio
+                      : Number(activeGroup.billing_ratio ?? 1).toFixed(2)
+                  }
+                  readOnly={!detailBasicEditing}
+                  placeholder={t('group_manage.form.billing_ratio_placeholder')}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      billing_ratio: e.target.value,
+                    }))
+                  }
+                />
+              </Form.Group>
+              <Form.Group widths='equal'>
+                <Form.Input
+                  className='router-section-input'
+                  type='number'
+                  label={t('group_manage.form.sort_order')}
+                  value={detailBasicEditing ? form.sort_order : activeGroup.sort_order || 0}
+                  readOnly={!detailBasicEditing}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      sort_order: Number(e.target.value || 0),
+                    }))
+                  }
+                />
+                <Form.Input
+                  className='router-section-input'
+                  label={t('group_manage.table.created_at')}
+                  value={activeGroup.created_at ? timestamp2string(activeGroup.created_at) : '-'}
+                  readOnly
+                />
+                <Form.Input
+                  className='router-section-input'
+                  label={t('group_manage.table.updated_at')}
+                  value={activeGroup.updated_at ? timestamp2string(activeGroup.updated_at) : '-'}
+                  readOnly
+                />
+              </Form.Group>
+            </Form>
+          </section>
+        )}
+        {activeDetailTab === 'channels' && (
+          <section className='router-entity-detail-section'>
+            <div className='router-entity-detail-section-header'>
+              <Header as='h3' className='router-entity-detail-section-title'>
+                {t('group_manage.detail.bound_channels')}
+              </Header>
+              <div className='router-toolbar-start'>
                 <Button
                   type='button'
                   className='router-page-button'
                   color='blue'
-                  disabled={submitting || detailChannelsEditLocked}
+                  disabled={submitting || detailChannelsEditLocked || detailAvailableChannelOptions.length === 0}
                   onClick={startDetailChannelsEdit}
                 >
-                  {t('group_manage.buttons.edit')}
+                  {t('group_manage.buttons.add_channel')}
                 </Button>
-              )}
+              </div>
             </div>
-          </div>
-          {detailChannelsEditing ? (
-            <Form>
-              <Form.Dropdown
-                className='router-section-dropdown'
-                fluid
-                multiple
-                search
-                selection
-                loading={formChannelLoading || formModelLoading}
-                disabled={formChannelLoading || formModelLoading || submitting}
-                label={t('group_manage.form.channels')}
-                placeholder={t('group_manage.form.channels_placeholder')}
-                options={formChannelOptions}
-                value={formChannelIDs}
-                onChange={(e, { value }) =>
-                  setFormChannelIDs(Array.isArray(value) ? value : [])
-                }
-              />
-            </Form>
-          ) : (
-            renderBoundChannelsField(detailChannelRows, detailChannelLoading, {
-              hideLabel: true,
-            })
-          )}
-        </section>
-        <section className='router-entity-detail-section'>
-          {renderDetailModelConfigTable({
-            hideTitle: true,
-          })}
-        </section>
+            {renderDetailChannelsTable(detailChannelRows, detailChannelLoading)}
+          </section>
+        )}
+        {activeDetailTab === 'models' && (
+          <section className='router-entity-detail-section'>
+            {renderDetailModelConfigTable({
+              hideTitle: true,
+            })}
+          </section>
+        )}
       </div>
     );
   };
@@ -2144,6 +2377,56 @@ const GroupsManager = ({ detailGroupId = '' }) => {
             {t('group_manage.buttons.cancel')}
           </Button>
           <Button className='router-modal-button' color='blue' onClick={submitDetailModelDraft} disabled={submitting}>
+            {t('group_manage.buttons.confirm')}
+          </Button>
+        </Modal.Actions>
+      </Modal>
+
+      <Modal open={detailChannelModalOpen} onClose={closeDetailChannelModal} size='small'>
+        <Modal.Header>
+          {t('group_manage.modal.add_channel_title')}
+        </Modal.Header>
+        <Modal.Content>
+          <Form>
+            <Form.Dropdown
+              className='router-section-dropdown'
+              fluid
+              selection
+              search
+              disabled={submitting}
+              label={t('group_manage.form.channels')}
+              placeholder={t('group_manage.form.channels_placeholder')}
+              options={detailAvailableChannelOptions}
+              value={detailChannelDraft.id || ''}
+              onChange={(e, { value }) =>
+                setDetailChannelDraft((prev) => ({
+                  ...prev,
+                  id: (value || '').toString(),
+                }))
+              }
+            />
+            <Form.Input
+              className='router-section-input'
+              type='number'
+              step='1'
+              label={t('group_manage.detail.priority')}
+              value={detailChannelDraft.priority}
+              onChange={(e, { value }) =>
+                setDetailChannelDraft((prev) => ({
+                  ...prev,
+                  priority: Number.isFinite(Number(value))
+                    ? Math.trunc(Number(value))
+                    : 0,
+                }))
+              }
+            />
+          </Form>
+        </Modal.Content>
+        <Modal.Actions>
+          <Button className='router-modal-button' onClick={closeDetailChannelModal} disabled={submitting}>
+            {t('group_manage.buttons.cancel')}
+          </Button>
+          <Button className='router-modal-button' color='blue' onClick={submitDetailChannelDraft} loading={submitting}>
             {t('group_manage.buttons.confirm')}
           </Button>
         </Modal.Actions>

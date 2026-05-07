@@ -28,22 +28,26 @@ func ListGroupModelSummaries(groupID string) ([]GroupModelSummaryItem, error) {
 		return nil, err
 	}
 
-	abilities := make([]Ability, 0)
-	groupCol := `"group"`
-	if err := DB.
-		Where(groupCol+" = ?", groupCatalog.Id).
-		Where("enabled = ?", true).
-		Order("model asc, priority desc, channel_id asc").
-		Find(&abilities).Error; err != nil {
+	groupModels, err := listGroupModelRowsWithDB(DB, groupCatalog.Id, true)
+	if err != nil {
 		return nil, err
 	}
-	if len(abilities) == 0 {
+	if len(groupModels) == 0 {
 		return []GroupModelSummaryItem{}, nil
 	}
 
-	channelIDSet := make(map[string]struct{}, len(abilities))
-	channelIDs := make([]string, 0, len(abilities))
-	for _, row := range abilities {
+	routes := make([]GroupModelRoute, 0)
+	groupCol := `"group"`
+	if err := DB.
+		Where(groupCol+" = ?", groupCatalog.Id).
+		Order("model asc, priority desc, channel_id asc").
+		Find(&routes).Error; err != nil {
+		return nil, err
+	}
+
+	channelIDSet := make(map[string]struct{}, len(routes))
+	channelIDs := make([]string, 0, len(routes))
+	for _, row := range routes {
 		channelID := strings.TrimSpace(row.ChannelId)
 		if channelID == "" {
 			continue
@@ -82,10 +86,25 @@ func ListGroupModelSummaries(groupID string) ([]GroupModelSummaryItem, error) {
 		}
 	}
 
-	summaryByModel := make(map[string]*GroupModelSummaryItem, len(abilities))
-	modelOrder := make([]string, 0, len(abilities))
-	modelChannelSeen := make(map[string]map[string]struct{}, len(abilities))
-	for _, row := range abilities {
+	summaryByModel := make(map[string]*GroupModelSummaryItem, len(groupModels))
+	modelOrder := make([]string, 0, len(groupModels))
+	modelChannelSeen := make(map[string]map[string]struct{}, len(groupModels))
+	for _, row := range groupModels {
+		modelName := strings.TrimSpace(row.Model)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := summaryByModel[modelName]; ok {
+			continue
+		}
+		summaryByModel[modelName] = &GroupModelSummaryItem{
+			Model:    modelName,
+			Channels: make([]GroupModelSummaryChannel, 0),
+		}
+		modelChannelSeen[modelName] = make(map[string]struct{})
+		modelOrder = append(modelOrder, modelName)
+	}
+	for _, row := range routes {
 		modelName := strings.TrimSpace(row.Model)
 		channelID := strings.TrimSpace(row.ChannelId)
 		if modelName == "" || channelID == "" {
@@ -96,12 +115,7 @@ func ListGroupModelSummaries(groupID string) ([]GroupModelSummaryItem, error) {
 			continue
 		}
 		if _, ok := summaryByModel[modelName]; !ok {
-			summaryByModel[modelName] = &GroupModelSummaryItem{
-				Model:    modelName,
-				Channels: make([]GroupModelSummaryChannel, 0),
-			}
-			modelChannelSeen[modelName] = make(map[string]struct{})
-			modelOrder = append(modelOrder, modelName)
+			continue
 		}
 		if _, ok := modelChannelSeen[modelName][channelID]; ok {
 			continue

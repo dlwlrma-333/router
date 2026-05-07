@@ -369,7 +369,7 @@ func ListModels(c *gin.Context) {
 		errorBody := relaymodel.Error{
 			Message: err.Error(),
 			Type:    "invalid_request_error",
-			Param:   "group_model_providers",
+			Param:   "group_models.provider",
 			Code:    "provider_mapping_missing",
 		}
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -399,7 +399,7 @@ func RetrieveModel(c *gin.Context) {
 		errorBody := relaymodel.Error{
 			Message: err.Error(),
 			Type:    "invalid_request_error",
-			Param:   "group_model_providers",
+			Param:   "group_models.provider",
 			Code:    "provider_mapping_missing",
 		}
 		c.JSON(http.StatusBadRequest, gin.H{

@@ -201,7 +201,7 @@ func Insert(channel *model.Channel) error {
 	if err := model.HydrateChannelWithTests(model.DB, channel); err != nil {
 		return err
 	}
-	return channel.AddAbilities()
+	return channel.AddGroupModelRoutes()
 }
 
 func Update(channel *model.Channel) error {
@@ -269,7 +269,7 @@ func Update(channel *model.Channel) error {
 	if err := model.HydrateChannelWithTests(model.DB, channel); err != nil {
 		return err
 	}
-	return channel.UpdateAbilities()
+	return channel.UpdateGroupModelRoutes()
 }
 
 func UpdateResponseTime(channel *model.Channel, responseTime int64) {
@@ -300,7 +300,7 @@ func Delete(channel *model.Channel) error {
 		if err := model.DeleteChannelTestsByChannelIDWithDB(tx, channel.Id); err != nil {
 			return err
 		}
-		if err := tx.Where("channel_id = ?", strings.TrimSpace(channel.Id)).Delete(&model.Ability{}).Error; err != nil {
+		if err := tx.Where("channel_id = ?", strings.TrimSpace(channel.Id)).Delete(&model.GroupModelRoute{}).Error; err != nil {
 			return err
 		}
 		return tx.Delete(&model.Channel{}, "id = ?", strings.TrimSpace(channel.Id)).Error
@@ -319,7 +319,7 @@ func DeleteDisabled() (int64, error) {
 
 func UpdateStatusByID(id string, status int) {
 	id = strings.TrimSpace(id)
-	err := model.UpdateAbilityStatus(id, status == model.ChannelStatusEnabled)
+	err := model.UpdateGroupModelRouteStatus(id, status == model.ChannelStatusEnabled)
 	if err != nil {
 		logger.SysError("failed to update ability status: " + err.Error())
 	}
@@ -376,7 +376,7 @@ func deleteChannelsByQuery(query *gorm.DB) (int64, error) {
 		if err := model.DeleteChannelTestsByChannelIDsWithDB(tx, channelIDs); err != nil {
 			return err
 		}
-		if err := tx.Where("channel_id IN ?", channelIDs).Delete(&model.Ability{}).Error; err != nil {
+		if err := tx.Where("channel_id IN ?", channelIDs).Delete(&model.GroupModelRoute{}).Error; err != nil {
 			return err
 		}
 		result := tx.Where("id IN ?", channelIDs).Delete(&model.Channel{})

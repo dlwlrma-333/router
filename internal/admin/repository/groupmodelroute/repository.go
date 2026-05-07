@@ -1,4 +1,4 @@
-package ability
+package groupmodelroute
 
 import (
 	"context"
@@ -11,15 +11,15 @@ import (
 )
 
 func init() {
-	model.BindAbilityRepository(model.AbilityRepository{
-		GetRandomSatisfiedChannel: GetRandomSatisfiedChannel,
-		ListSatisfiedChannels:     ListSatisfiedChannels,
-		AddAbilities:              AddAbilities,
-		DeleteAbilities:           DeleteAbilities,
-		UpdateAbilities:           UpdateAbilities,
-		UpdateAbilityStatus:       UpdateAbilityStatus,
-		GetTopChannelByModel:      GetTopChannelByModel,
-		GetGroupModels:            GetGroupModels,
+	model.BindGroupModelRouteRepository(model.GroupModelRouteRepository{
+		GetRandomSatisfiedChannel:   GetRandomSatisfiedChannel,
+		ListSatisfiedChannels:       ListSatisfiedChannels,
+		AddGroupModelRoutes:         AddGroupModelRoutes,
+		DeleteGroupModelRoutes:      DeleteGroupModelRoutes,
+		UpdateGroupModelRoutes:      UpdateGroupModelRoutes,
+		UpdateGroupModelRouteStatus: UpdateGroupModelRouteStatus,
+		GetTopChannelByModel:        GetTopChannelByModel,
+		GetGroupModels:              GetGroupModels,
 	})
 }
 
@@ -38,15 +38,15 @@ func GetRandomSatisfiedChannel(group string, modelName string, ignoreFirstPriori
 func ListSatisfiedChannels(group string, modelName string) ([]*model.Channel, error) {
 	groupCol := `"group"`
 	trueVal := "true"
-	abilityRows := make([]model.Ability, 0)
+	routeRows := make([]model.GroupModelRoute, 0)
 	if err := model.DB.Where(groupCol+" = ? and model = ? and enabled = "+trueVal, group, modelName).
 		Order("priority desc, channel_id asc").
-		Find(&abilityRows).Error; err != nil {
+		Find(&routeRows).Error; err != nil {
 		return nil, err
 	}
-	channelIDs := make([]string, 0, len(abilityRows))
-	seen := make(map[string]struct{}, len(abilityRows))
-	for _, row := range abilityRows {
+	channelIDs := make([]string, 0, len(routeRows))
+	seen := make(map[string]struct{}, len(routeRows))
+	for _, row := range routeRows {
 		channelID := strings.TrimSpace(row.ChannelId)
 		if channelID == "" {
 			continue
@@ -83,22 +83,22 @@ func ListSatisfiedChannels(group string, modelName string) ([]*model.Channel, er
 	return result, nil
 }
 
-func AddAbilities(channel *model.Channel) error {
-	// Channel-group bindings are managed centrally in group management.
-	// Channel creation no longer auto-generates abilities.
+func AddGroupModelRoutes(channel *model.Channel) error {
+	// Runtime routes are rebuilt from group_models + group_channel_bindings.
+	// Channel creation no longer writes routing truth directly.
 	if channel == nil {
 		return nil
 	}
-	model.RefreshAbilityCachesForGroups()
+	model.RefreshGroupModelRouteCachesForGroups()
 	return nil
 }
 
 func listBoundGroupsByChannelID(channelID string) ([]string, error) {
 	groupCol := `"group"`
 	groups := make([]string, 0)
-	err := model.DB.Model(&model.Ability{}).
+	err := model.DB.Model(&model.GroupChannelBinding{}).
 		Distinct(groupCol).
-		Where("channel_id = ?", channelID).
+		Where("channel_id = ? AND enabled = ?", channelID, true).
 		Pluck(groupCol, &groups).Error
 	if err != nil {
 		return nil, err
@@ -119,41 +119,26 @@ func listBoundGroupsByChannelID(channelID string) ([]string, error) {
 	return result, nil
 }
 
-func buildAbilitiesForChannel(channel *model.Channel, groups []string) []model.Ability {
+func buildGroupModelRoutesForChannel(channel *model.Channel, groups []string) []model.GroupModelRoute {
 	if channel == nil || len(groups) == 0 {
 		return nil
 	}
-	selectedConfigs := channel.GetModelConfigs()
-	abilities := make([]model.Ability, 0, len(selectedConfigs)*len(groups))
-	for _, row := range selectedConfigs {
-		if !row.Selected {
+	routes := make([]model.GroupModelRoute, 0)
+	for _, group := range groups {
+		normalizedGroup := strings.TrimSpace(group)
+		if normalizedGroup == "" {
 			continue
 		}
-		normalizedModel := strings.TrimSpace(row.Model)
-		if normalizedModel == "" {
+		groupModels, err := model.ListGroupModelRowsByDB(model.DB, normalizedGroup)
+		if err != nil {
 			continue
 		}
-		upstream := model.NormalizeAbilityUpstreamModel(normalizedModel, row.UpstreamModel)
-		for _, group := range groups {
-			normalizedGroup := strings.TrimSpace(group)
-			if normalizedGroup == "" {
-				continue
-			}
-			ability := model.Ability{
-				Group:         normalizedGroup,
-				Model:         normalizedModel,
-				ChannelId:     channel.Id,
-				UpstreamModel: upstream,
-				Enabled:       channel.Status == model.ChannelStatusEnabled,
-				Priority:      channel.Priority,
-			}
-			abilities = append(abilities, ability)
-		}
+		routes = append(routes, model.SyncGroupModelRoutesForChannel(normalizedGroup, channel, groupModels, channel.Priority)...)
 	}
-	return abilities
+	return routes
 }
 
-func DeleteAbilities(channel *model.Channel) error {
+func DeleteGroupModelRoutes(channel *model.Channel) error {
 	if channel == nil {
 		return nil
 	}
@@ -161,17 +146,14 @@ func DeleteAbilities(channel *model.Channel) error {
 	if err != nil {
 		return err
 	}
-	if err := model.DB.Where("channel_id = ?", channel.Id).Delete(&model.Ability{}).Error; err != nil {
+	if err := model.DB.Where("channel_id = ?", channel.Id).Delete(&model.GroupModelRoute{}).Error; err != nil {
 		return err
 	}
-	if err := model.SyncGroupModelProvidersForGroups(groups...); err != nil {
-		return err
-	}
-	model.RefreshAbilityCachesForGroups(groups...)
+	model.RefreshGroupModelRouteCachesForGroups(groups...)
 	return nil
 }
 
-func UpdateAbilities(channel *model.Channel) error {
+func UpdateGroupModelRoutes(channel *model.Channel) error {
 	if channel == nil {
 		return nil
 	}
@@ -185,13 +167,17 @@ func UpdateAbilities(channel *model.Channel) error {
 			if groupID == "" {
 				continue
 			}
-			existing := make([]model.Ability, 0)
-			groupCol := `"group"`
-			if err := tx.Where(groupCol+" = ? AND channel_id = ?", groupID, channel.Id).Find(&existing).Error; err != nil {
+			groupModels, err := model.ListGroupModelRowsByDB(tx, groupID)
+			if err != nil {
 				return err
 			}
-			next := model.SyncGroupAbilitiesForChannel(groupID, channel, existing)
-			if err := tx.Where(groupCol+" = ? AND channel_id = ?", groupID, channel.Id).Delete(&model.Ability{}).Error; err != nil {
+			priorityByChannelID, err := model.ListGroupChannelBindingPriorityByChannelWithDB(tx, groupID)
+			if err != nil {
+				return err
+			}
+			next := model.SyncGroupModelRoutesForChannel(groupID, channel, groupModels, priorityByChannelID[strings.TrimSpace(channel.Id)])
+			groupCol := `"group"`
+			if err := tx.Where(groupCol+" = ? AND channel_id = ?", groupID, channel.Id).Delete(&model.GroupModelRoute{}).Error; err != nil {
 				return err
 			}
 			if len(next) == 0 {
@@ -201,27 +187,24 @@ func UpdateAbilities(channel *model.Channel) error {
 				return err
 			}
 		}
-		return model.SyncGroupModelProvidersForGroupsWithDB(tx, groups...)
+		return nil
 	})
 	if err != nil {
 		return err
 	}
-	model.RefreshAbilityCachesForGroups(groups...)
+	model.RefreshGroupModelRouteCachesForGroups(groups...)
 	return nil
 }
 
-func UpdateAbilityStatus(channelId string, status bool) error {
+func UpdateGroupModelRouteStatus(channelId string, status bool) error {
 	groups, err := listBoundGroupsByChannelID(channelId)
 	if err != nil {
 		return err
 	}
-	if err := model.DB.Model(&model.Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error; err != nil {
+	if err := model.DB.Model(&model.GroupModelRoute{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error; err != nil {
 		return err
 	}
-	if err := model.SyncGroupModelProvidersForGroups(groups...); err != nil {
-		return err
-	}
-	model.RefreshAbilityCachesForGroups(groups...)
+	model.RefreshGroupModelRouteCachesForGroups(groups...)
 	return nil
 }
 
@@ -229,15 +212,15 @@ func GetTopChannelByModel(group string, modelName string) (*model.Channel, error
 	groupCol := `"group"`
 	trueVal := "true"
 
-	ability := model.Ability{}
+	route := model.GroupModelRoute{}
 	err := model.DB.Where(groupCol+" = ? and model = ? and enabled = "+trueVal, group, modelName).
 		Order("priority desc, channel_id asc").
-		First(&ability).Error
+		First(&route).Error
 	if err != nil {
 		return nil, err
 	}
-	channel := model.Channel{Id: ability.ChannelId}
-	err = model.DB.Omit("key").First(&channel, "id = ?", ability.ChannelId).Error
+	channel := model.Channel{Id: route.ChannelId}
+	err = model.DB.Omit("key").First(&channel, "id = ?", route.ChannelId).Error
 	if err != nil {
 		return nil, err
 	}
@@ -248,10 +231,7 @@ func GetTopChannelByModel(group string, modelName string) (*model.Channel, error
 }
 
 func GetGroupModels(ctx context.Context, group string) ([]string, error) {
-	groupCol := `"group"`
-	trueVal := "true"
-	var models []string
-	err := model.DB.Model(&model.Ability{}).Distinct("model").Where(groupCol+" = ? and enabled = "+trueVal, group).Pluck("model", &models).Error
+	models, err := model.ListGroupModelNamesByDB(model.DB, group)
 	if err != nil {
 		return nil, err
 	}

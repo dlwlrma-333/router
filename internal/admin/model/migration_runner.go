@@ -546,7 +546,7 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 		},
 		{
 			Version:     "202604161230_group_model_providers",
-			Description: "add canonical group_model_providers table and backfill provider mapping from current abilities",
+			Description: "add canonical group_model_providers table and backfill provider mapping from current runtime group model routes",
 			Up: func(tx *gorm.DB) error {
 				return migrateGroupModelProvidersWithDB(tx)
 			},
@@ -667,6 +667,37 @@ func runMainVersionedMigrations(db *gorm.DB) error {
 					"%\"type\":\"drop_fields\"%",
 					"%\"type\":\"reject_unsupported_input\"%",
 				).Delete(&ChannelModelEndpointPolicy{}).Error
+			},
+		},
+		{
+			Version:     "202605071030_group_channel_bindings",
+			Description: "add canonical group channel bindings table and backfill from current runtime group model routes",
+			Up: func(tx *gorm.DB) error {
+				return migrateGroupChannelBindingsWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605071330_ability_provider_and_drop_group_model_providers",
+			Description: "store provider on runtime group model routes, backfill from channel/provider catalogs, and drop group model providers table",
+			Up: func(tx *gorm.DB) error {
+				if err := backfillGroupModelRouteProviderFromChannelModelsWithDB(tx); err != nil {
+					return err
+				}
+				return dropGroupModelProvidersTableWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605071530_group_models",
+			Description: "add canonical group models table and backfill from current runtime group model routes",
+			Up: func(tx *gorm.DB) error {
+				return migrateGroupModelsWithDB(tx)
+			},
+		},
+		{
+			Version:     "202605071700_group_model_routes",
+			Description: "rename runtime group model channel table to group model routes",
+			Up: func(tx *gorm.DB) error {
+				return migrateGroupModelRoutesTableWithDB(tx)
 			},
 		},
 	}

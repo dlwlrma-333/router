@@ -2,8 +2,8 @@ package model
 
 import "testing"
 
-func TestNormalizeAbilityRowsPreserveOrder_DeduplicatesByPrimaryKey(t *testing.T) {
-	rows := []Ability{
+func TestNormalizeGroupModelRouteRowsPreserveOrder_DeduplicatesByPrimaryKey(t *testing.T) {
+	rows := []GroupModelRoute{
 		{
 			Group:         " group-a ",
 			Model:         "gpt-4.1",
@@ -26,9 +26,9 @@ func TestNormalizeAbilityRowsPreserveOrder_DeduplicatesByPrimaryKey(t *testing.T
 		},
 	}
 
-	got := normalizeAbilityRowsPreserveOrder(rows)
+	got := normalizeGroupModelRouteRowsPreserveOrder(rows)
 	if len(got) != 2 {
-		t.Fatalf("normalizeAbilityRowsPreserveOrder returned %d rows, want 2", len(got))
+		t.Fatalf("normalizeGroupModelRouteRowsPreserveOrder returned %d rows, want 2", len(got))
 	}
 	if got[0].Group != "group-a" || got[0].Model != "gpt-4.1" || got[0].ChannelId != "channel-1" {
 		t.Fatalf("unexpected first row key: %#v", got[0])
