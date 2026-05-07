@@ -1666,22 +1666,10 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
     return index;
   }, [modelTestResults]);
   const modelTestRows = useMemo(() => {
-    return visibleModelConfigs.filter((row) => {
-      const endpoint = normalizeChannelModelEndpoint(
-        row.type,
-        row.endpoint,
-        inputs.protocol,
-      );
-      const resultKey = buildModelTestResultKey(row.model, endpoint);
-      if (row.inactive) {
-        return false;
-      }
-      if (row.selected) {
-        return true;
-      }
-      return modelTestResultsByKey.has(resultKey);
-    });
-  }, [modelTestResultsByKey, visibleModelConfigs]);
+    return visibleModelConfigs.filter(
+      (row) => row.inactive !== true && row.selected === true,
+    );
+  }, [visibleModelConfigs]);
   const modelTestingTargetSet = useMemo(
     () => new Set(modelTestingTargets),
     [modelTestingTargets],
@@ -1721,6 +1709,16 @@ const ChannelForm = ({ mode = 'auto' } = {}) => {
       ),
     [activeChannelTasksByModel, modelTestTargetModels],
   );
+  useEffect(() => {
+    const visibleModelSet = new Set(modelTestRows.map((row) => row.model));
+    setModelTestTargetModels((previous) => {
+      const next = previous.filter((modelName) => visibleModelSet.has(modelName));
+      if (next.length === previous.length) {
+        return previous;
+      }
+      return next;
+    });
+  }, [modelTestRows]);
   const getProviderOwnersForModel = useCallback(
     (row) => {
       const selectedProvider = normalizeChannelModelProviderValue(
