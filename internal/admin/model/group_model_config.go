@@ -317,7 +317,7 @@ func replaceGroupModelConfigsWithDB(db *gorm.DB, groupID string, channelIDs []st
 		}
 		seenKeys[key] = struct{}{}
 		provider := NormalizeGroupModelRouteProvider(selectedCatalogs[item.ChannelId].ResolveProvider(item, upstreamModel))
-		if existingProvider, ok := groupModelProviders[item.Model]; ok && existingProvider != provider {
+		if existingProvider, ok := groupModelProviders[item.Model]; ok && existingProvider != "" && provider != "" && existingProvider != provider {
 			return fmt.Errorf("同一分组模型仅允许一个供应商: %s (%s / %s)", item.Model, existingProvider, provider)
 		}
 		if _, ok := groupModelProviders[item.Model]; !ok {
@@ -328,6 +328,14 @@ func replaceGroupModelConfigsWithDB(db *gorm.DB, groupID string, channelIDs []st
 				Provider: provider,
 				Enabled:  resolveGroupModelConfigEnabled(item),
 			})
+		} else if groupModelProviders[item.Model] == "" && provider != "" {
+			groupModelProviders[item.Model] = provider
+			for index := range groupModels {
+				if groupModels[index].Model == item.Model {
+					groupModels[index].Provider = provider
+					break
+				}
+			}
 		}
 	}
 	if err := replaceGroupModelsWithDB(db, groupID, groupModels); err != nil {
