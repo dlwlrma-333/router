@@ -53,17 +53,17 @@ func CacheGetTokenByKey(key string) (*Token, error) {
 
 func CacheGetUserGroup(id string) (group string, err error) {
 	if !common.RedisEnabled {
-		return GetUserGroup(id)
+		return GetUserEffectiveGroup(id)
 	}
-	group, err = common.RedisGet(fmt.Sprintf("user_group:%s", id))
+	group, err = common.RedisGet(fmt.Sprintf("user_effective_group:%s", id))
 	if err != nil {
-		group, err = GetUserGroup(id)
+		group, err = GetUserEffectiveGroup(id)
 		if err != nil {
 			return "", err
 		}
-		err = common.RedisSet(fmt.Sprintf("user_group:%s", id), group, time.Duration(UserId2GroupCacheSeconds)*time.Second)
+		err = common.RedisSet(fmt.Sprintf("user_effective_group:%s", id), group, time.Duration(UserId2GroupCacheSeconds)*time.Second)
 		if err != nil {
-			logger.SysError("Redis set user group error: " + err.Error())
+			logger.SysError("Redis set user effective group error: " + err.Error())
 		}
 	}
 	return group, err
