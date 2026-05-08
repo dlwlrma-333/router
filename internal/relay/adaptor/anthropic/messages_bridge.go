@@ -2,7 +2,9 @@ package anthropic
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	relaymodel "github.com/yeying-community/router/internal/relay/model"
@@ -28,6 +30,12 @@ type inboundMessagesItem struct {
 	Content any    `json:"content"`
 }
 
+type MessagesRequestMeta struct {
+	Model     string
+	MaxTokens int
+	Stream    bool
+}
+
 type openAIContentBuilder struct {
 	textParts []string
 	parts     []any
@@ -39,6 +47,45 @@ func ParseMessagesRequestToGeneralOpenAIRequest(raw []byte) (*relaymodel.General
 		return nil, err
 	}
 	return convertMessagesRequestToGeneralOpenAIRequest(request), nil
+}
+
+func ValidateMessagesRequest(raw []byte) error {
+	request := &inboundMessagesRequest{}
+	if err := json.Unmarshal(raw, request); err != nil {
+		return err
+	}
+	return validateMessagesRequest(request)
+}
+
+func ParseMessagesRequestMeta(raw []byte) (*MessagesRequestMeta, error) {
+	request := &inboundMessagesRequest{}
+	if err := json.Unmarshal(raw, request); err != nil {
+		return nil, err
+	}
+	if err := validateMessagesRequest(request); err != nil {
+		return nil, err
+	}
+	return &MessagesRequestMeta{
+		Model:     strings.TrimSpace(request.Model),
+		MaxTokens: request.MaxTokens,
+		Stream:    request.Stream,
+	}, nil
+}
+
+func validateMessagesRequest(request *inboundMessagesRequest) error {
+	if request == nil {
+		return errors.New("request is nil")
+	}
+	if request.MaxTokens < 0 || request.MaxTokens > math.MaxInt32/2 {
+		return errors.New("max_tokens is invalid")
+	}
+	if strings.TrimSpace(request.Model) == "" {
+		return errors.New("field model is required")
+	}
+	if len(request.Messages) == 0 {
+		return errors.New("field messages is required")
+	}
+	return nil
 }
 
 func convertMessagesRequestToGeneralOpenAIRequest(request *inboundMessagesRequest) *relaymodel.GeneralOpenAIRequest {

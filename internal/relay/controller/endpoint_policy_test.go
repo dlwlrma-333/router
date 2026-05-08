@@ -68,7 +68,7 @@ func TestGetRequestBodyMessagesPassThroughConvertsAnthropicImageURLToBase64(t *t
 			RequestPolicy: `{"actions":[{"type":"image_url_to_base64","reason":"convert image url","limits":{"max_bytes":10240,"timeout_ms":2000,"allowed_content_types":["image/png"]}}]}`,
 		},
 	}
-	reader, err := getRequestBody(c, meta, &relaymodel.GeneralOpenAIRequest{}, nil)
+	reader, err := getRequestBody(c, meta, &relaymodel.GeneralOpenAIRequest{}, nil, []byte(body))
 	if err != nil {
 		t.Fatalf("getRequestBody returned error: %v", err)
 	}

@@ -17,6 +17,7 @@ import (
 	adminmodel "github.com/yeying-community/router/internal/admin/model"
 	"github.com/yeying-community/router/internal/relay"
 	"github.com/yeying-community/router/internal/relay/adaptor"
+	"github.com/yeying-community/router/internal/relay/adaptor/anthropic"
 	"github.com/yeying-community/router/internal/relay/adaptor/openai"
 	"github.com/yeying-community/router/internal/relay/apitype"
 	"github.com/yeying-community/router/internal/relay/billing"
@@ -24,6 +25,7 @@ import (
 	"github.com/yeying-community/router/internal/relay/meta"
 	"github.com/yeying-community/router/internal/relay/model"
 	"github.com/yeying-community/router/internal/relay/relaymode"
+	"github.com/yeying-community/router/internal/tokenestimate"
 )
 
 func logTextStreamAcceptConflict(c *gin.Context, meta *meta.Meta) {
@@ -58,7 +60,7 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	ctx := c.Request.Context()
 	meta := meta.GetByContext(c)
 	// get & validate textRequest
-	textRequest, err := getAndValidateTextRequest(c, meta.Mode)
+	textRequest, validatedRawBody, err := getAndValidateTextRequest(c, meta.Mode)
 	if err != nil {
 		logger.Errorf(ctx, "getAndValidateTextRequest failed: %s", err.Error())
 		return openai.ErrorWrapper(err, "invalid_text_request", http.StatusBadRequest)
@@ -107,8 +109,37 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	}
 	pricing = adminmodel.ResolveTextRequestPricing(pricing, upstreamPath)
 	// pre-consume quota
-	promptTokens := getPromptTokens(textRequest, meta.Mode)
+	rawRequestBody := validatedRawBody
+	if len(rawRequestBody) == 0 {
+		var rawBodyErr error
+		rawRequestBody, rawBodyErr = common.GetRequestBody(c)
+		if rawBodyErr != nil {
+			logger.Errorf(ctx, "get request body for token estimate failed: %s", rawBodyErr.Error())
+			return openai.ErrorWrapper(rawBodyErr, "read_request_body_failed", http.StatusBadRequest)
+		}
+	}
+	estimateResult, estimateErr := tokenestimate.Estimate(tokenestimate.EstimateRequest{
+		RelayMode: meta.Mode,
+		Model:     meta.OriginModelName,
+		RawBody:   rawRequestBody,
+		Request:   textRequest,
+	})
+	if estimateErr != nil {
+		logger.Errorf(ctx, "estimate prompt tokens failed: %s", estimateErr.Error())
+		return openai.ErrorWrapper(estimateErr, "estimate_prompt_tokens_failed", http.StatusInternalServerError)
+	}
+	promptTokens := estimateResult.PromptTokens
 	meta.PromptTokens = promptTokens
+	logger.Debugf(
+		ctx,
+		"[prompt_token_estimate] estimator=%s source=%s precision=%s tokens=%d model=%s path=%s",
+		strings.TrimSpace(estimateResult.Estimator),
+		strings.TrimSpace(estimateResult.Source),
+		string(estimateResult.Precision),
+		promptTokens,
+		strings.TrimSpace(meta.OriginModelName),
+		strings.TrimSpace(c.Request.URL.Path),
+	)
 	groupReservedQuota, err := billing.ComputeTextPreConsumedQuota(promptTokens, textRequest.MaxTokens, pricing, groupRatio)
 	if err != nil {
 		logger.Errorf(ctx, "ComputeTextPreConsumedQuota failed: %s", err.Error())
@@ -131,6 +162,15 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 		return bizErr
 	}
 
+	if meta.Mode == relaymode.Messages {
+		bridgedRequest, bridgeErr := anthropic.ParseMessagesRequestToGeneralOpenAIRequest(rawRequestBody)
+		if bridgeErr != nil {
+			return openai.ErrorWrapper(bridgeErr, "convert_request_failed", http.StatusBadRequest)
+		}
+		bridgedRequest.Model = textRequest.Model
+		textRequest = bridgedRequest
+	}
+
 	upstreamRequest, err := convertTextRequestForUpstream(textRequest, meta.Mode, upstreamMode)
 	if err != nil {
 		return openai.ErrorWrapper(err, "convert_request_failed", http.StatusBadRequest)
@@ -143,7 +183,7 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	adaptor.Init(meta)
 
 	// get request body
-	requestBody, err := getRequestBody(c, meta, upstreamRequest, adaptor)
+	requestBody, err := getRequestBody(c, meta, upstreamRequest, adaptor, rawRequestBody)
 	if err != nil {
 		var policyErr *endpointPolicyError
 		if errors.As(err, &policyErr) {
@@ -174,15 +214,19 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	return nil
 }
 
-func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralOpenAIRequest, adaptor adaptor.Adaptor) (io.Reader, error) {
+func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralOpenAIRequest, adaptor adaptor.Adaptor, rawRequestBody []byte) (io.Reader, error) {
 	upstreamMode := meta.Mode
 	if meta.UpstreamMode != 0 {
 		upstreamMode = meta.UpstreamMode
 	}
 	if meta.Mode == relaymode.Messages && upstreamMode == relaymode.Messages {
-		rawBody, err := common.GetRequestBody(c)
-		if err != nil {
-			return nil, err
+		rawBody := rawRequestBody
+		if len(rawBody) == 0 {
+			var err error
+			rawBody, err = common.GetRequestBody(c)
+			if err != nil {
+				return nil, err
+			}
 		}
 		jsonData, err := normalizeMessagesRequestBody(rawBody, meta.ActualModelName)
 		if err != nil {

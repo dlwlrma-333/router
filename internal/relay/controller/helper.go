@@ -24,25 +24,32 @@ import (
 	"github.com/yeying-community/router/internal/relay/relaymode"
 )
 
-func getAndValidateTextRequest(c *gin.Context, relayMode int) (*relaymodel.GeneralOpenAIRequest, error) {
+func getAndValidateTextRequest(c *gin.Context, relayMode int) (*relaymodel.GeneralOpenAIRequest, []byte, error) {
 	var (
 		textRequest *relaymodel.GeneralOpenAIRequest
+		rawBody     []byte
 		err         error
 	)
 	if relayMode == relaymode.Messages {
 		requestBody, getErr := common.GetRequestBody(c)
 		if getErr != nil {
-			return nil, getErr
+			return nil, nil, getErr
 		}
-		textRequest, err = anthropic.ParseMessagesRequestToGeneralOpenAIRequest(requestBody)
-		if err != nil {
-			return nil, err
+		rawBody = append([]byte(nil), requestBody...)
+		requestMeta, metaErr := anthropic.ParseMessagesRequestMeta(requestBody)
+		if metaErr != nil {
+			return nil, rawBody, metaErr
+		}
+		textRequest = &relaymodel.GeneralOpenAIRequest{
+			Model:     requestMeta.Model,
+			MaxTokens: requestMeta.MaxTokens,
+			Stream:    requestMeta.Stream,
 		}
 	} else {
 		textRequest = &relaymodel.GeneralOpenAIRequest{}
 		err = common.UnmarshalBodyReusable(c, textRequest)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	if relayMode == relaymode.Moderations && textRequest.Model == "" {
@@ -51,33 +58,13 @@ func getAndValidateTextRequest(c *gin.Context, relayMode int) (*relaymodel.Gener
 	if relayMode == relaymode.Embeddings && textRequest.Model == "" {
 		textRequest.Model = c.Param("model")
 	}
-	err = validator.ValidateTextRequest(textRequest, relayMode)
-	if err != nil {
-		return nil, err
-	}
-	return textRequest, nil
-}
-
-func getPromptTokens(textRequest *relaymodel.GeneralOpenAIRequest, relayMode int) int {
-	switch relayMode {
-	case relaymode.ChatCompletions:
-		return openai.CountTokenMessages(textRequest.Messages, textRequest.Model)
-	case relaymode.Messages:
-		return openai.CountTokenMessages(textRequest.Messages, textRequest.Model)
-	case relaymode.Responses:
-		if len(textRequest.Messages) > 0 {
-			return openai.CountTokenMessages(textRequest.Messages, textRequest.Model)
+	if relayMode != relaymode.Messages {
+		err = validator.ValidateTextRequest(textRequest, relayMode)
+		if err != nil {
+			return nil, rawBody, err
 		}
-		if messages := parseInputAsMessages(textRequest.Input); len(messages) > 0 {
-			return openai.CountTokenMessages(messages, textRequest.Model)
-		}
-		return openai.CountTokenInput(textRequest.Input, textRequest.Model)
-	case relaymode.Completions:
-		return openai.CountTokenInput(textRequest.Prompt, textRequest.Model)
-	case relaymode.Moderations:
-		return openai.CountTokenInput(textRequest.Input, textRequest.Model)
 	}
-	return 0
+	return textRequest, rawBody, nil
 }
 
 func getPreConsumedQuota(textRequest *relaymodel.GeneralOpenAIRequest, promptTokens int, ratio float64) int64 {
